@@ -2315,6 +2315,8 @@ version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
  "serde_json",
+ "sha2",
+ "visado-chain-aat",
  "wimsey-identifier",
  "wimsey-jose",
  "wimsey-wit",
