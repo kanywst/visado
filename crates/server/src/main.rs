@@ -17,19 +17,16 @@ use std::process::ExitCode;
 use axum::Router;
 use axum::routing::get;
 use envoy_types::ext_authz::v3::pb::AuthorizationServer;
+use opentelemetry::trace::TracerProvider as _;
+use opentelemetry_otlp::WithExportConfig;
 use serde_json::json;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use visado_authzen::HttpPdp;
 use visado_extauthz::{ExtAuthz, Gate};
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    tracing_subscriber::fmt()
-        .json()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
-        .init();
-
     if matches!(std::env::args().nth(1).as_deref(), Some("--version" | "-V")) {
         println!("visado {}", env!("CARGO_PKG_VERSION"));
         return ExitCode::SUCCESS;
@@ -54,6 +51,52 @@ async fn main() -> ExitCode {
 
 async fn run(path: &std::path::Path) -> Result<(), String> {
     let loaded = config::Config::load(path)?;
+    let tracer = init_tracing(loaded.telemetry.as_ref())?;
+    let result = serve(loaded).await;
+    if let Some(provider) = tracer {
+        let _ = provider.shutdown();
+    }
+    result
+}
+
+/// JSON logs to stdout, plus OTLP traces when configured.
+fn init_tracing(
+    telemetry: Option<&config::TelemetryConfig>,
+) -> Result<Option<opentelemetry_sdk::trace::SdkTracerProvider>, String> {
+    let filter =
+        tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
+    let logs = tracing_subscriber::fmt::layer().json();
+    let Some(telemetry) = telemetry else {
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(logs)
+            .init();
+        return Ok(None);
+    };
+
+    let exporter = opentelemetry_otlp::SpanExporter::builder()
+        .with_tonic()
+        .with_endpoint(&telemetry.otlp_endpoint)
+        .build()
+        .map_err(|e| format!("otlp exporter: {e}"))?;
+    let provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
+        .with_batch_exporter(exporter)
+        .with_resource(
+            opentelemetry_sdk::Resource::builder()
+                .with_service_name(telemetry.service_name.clone())
+                .build(),
+        )
+        .build();
+    let tracer = provider.tracer("visado");
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(logs)
+        .with(tracing_opentelemetry::layer().with_tracer(tracer))
+        .init();
+    Ok(Some(provider))
+}
+
+async fn serve(loaded: config::Loaded) -> Result<(), String> {
     let mut pdp =
         HttpPdp::new(&loaded.pdp_endpoint, loaded.pdp_timeout).map_err(|e| e.to_string())?;
     if let Some(token) = loaded.pdp_bearer {

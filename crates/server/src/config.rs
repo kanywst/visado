@@ -38,6 +38,22 @@ pub struct Config {
     pub wit_issuers: Vec<WitIssuerConfig>,
     #[serde(default)]
     pub oauth_issuers: Vec<OAuthIssuerConfig>,
+    #[serde(default)]
+    pub telemetry: Option<TelemetryConfig>,
+}
+
+/// Where to send OpenTelemetry traces.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TelemetryConfig {
+    /// OTLP gRPC endpoint, for example `http://otel-collector:4317`.
+    pub otlp_endpoint: String,
+    #[serde(default = "default_service_name")]
+    pub service_name: String,
+}
+
+fn default_service_name() -> String {
+    "visado".into()
 }
 
 #[derive(Debug, Deserialize)]
@@ -118,6 +134,7 @@ pub struct Loaded {
     pub public_jwk: Jwk,
     pub grpc_listen: SocketAddr,
     pub http_listen: SocketAddr,
+    pub telemetry: Option<TelemetryConfig>,
 }
 
 impl Config {
@@ -226,6 +243,7 @@ impl Config {
             public_jwk,
             grpc_listen: self.grpc_listen,
             http_listen: self.http_listen,
+            telemetry: self.telemetry,
         })
     }
 }
