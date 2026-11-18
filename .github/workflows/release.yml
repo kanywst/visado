@@ -1,0 +1,287 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  # Re-run against a tag that already exists: to retry a release whose publish
+  # stage failed halfway, or to attach artifacts to an older tag. Every step
+  # below is idempotent, so a re-run replaces assets rather than duplicating
+  # them.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "An existing tag to build and publish, e.g. v0.2.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  guard:
+    name: tag matches the tree
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - id: resolve
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.resolve.outputs.tag }}
+          persist-credentials: false
+      - name: the tag, the workspace version and the changelog must agree
+        env:
+          TAG: ${{ steps.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          want="${TAG#v}"
+          version=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "visado") | .version')
+          if [ "$want" != "$version" ]; then
+            echo "::error::tag $TAG does not match the workspace version $version"
+            exit 1
+          fi
+          if ! grep -qF "## [$version]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [$version]' section"
+            exit 1
+          fi
+
+  build:
+    name: build ${{ matrix.target }}
+    needs: guard
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-24.04
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+          - target: x86_64-apple-darwin
+            runner: macos-15-intel
+          - target: aarch64-apple-darwin
+            runner: macos-15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.guard.outputs.tag }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: ${{ matrix.target }}
+      - name: build
+        run: cargo build --release --locked -p visado --target ${{ matrix.target }}
+      - name: package
+        env:
+          TAG: ${{ needs.guard.outputs.tag }}
+          TARGET: ${{ matrix.target }}
+          # Keep bsdtar from smuggling macOS extended attributes into the tarball.
+          COPYFILE_DISABLE: "1"
+        run: |
+          set -euo pipefail
+          name="visado-$TAG-$TARGET"
+          mkdir -p "staging/$name"
+          cp "target/$TARGET/release/visado" "staging/$name/"
+          cp LICENSE README.md CHANGELOG.md "staging/$name/"
+          tar -czf "$name.tar.gz" -C staging "$name"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: visado-${{ matrix.target }}
+          path: visado-*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: sign and publish
+    needs: [guard, build]
+    runs-on: ubuntu-latest
+    permissions:
+      # Create the release and upload its assets.
+      contents: write
+      # Keyless signing and provenance both mint an OIDC token.
+      id-token: write
+      attestations: write
+    env:
+      TAG: ${{ needs.guard.outputs.tag }}
+    steps:
+      # The tag's tree, and the only thing the SBOM describes.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.guard.outputs.tag }}
+          path: source
+          persist-credentials: false
+      # The release-notes template has to come from the workflow's own ref
+      # instead: back-filling an older tag must not depend on that tag having
+      # shipped the template, which by definition it did not. It sits beside the
+      # source tree rather than inside it, syft catalogues `.github/workflows`,
+      # so a nested checkout would put this branch's actions into a release SBOM
+      # for an older tag.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: workflow
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          pattern: visado-*
+          merge-multiple: true
+
+      - name: software bill of materials
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: source
+          format: spdx-json
+          output-file: dist/visado-${{ needs.guard.outputs.tag }}-sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum ./*.tar.gz ./*.spdx.json > SHA256SUMS
+          cat SHA256SUMS
+
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+
+      - name: sign every asset
+        run: |
+          set -euo pipefail
+          cd dist
+          # Keyless: the certificate binds the signature to this workflow at this
+          # tag, so there is no long-lived key to leak or rotate. The signature
+          # and that certificate travel together in one Sigstore bundle; cosign
+          # v4 deprecated the separate --output-signature/--output-certificate
+          # pair and ignores them.
+          for file in *.tar.gz *.spdx.json SHA256SUMS; do
+            cosign sign-blob --yes --bundle "$file.sigstore.json" "$file"
+          done
+          ls -1
+
+      - name: build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*.tar.gz
+
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Neither checkout lands at the workspace root any more, so there is no
+          # git remote for gh to infer the repository from. Say it explicitly.
+          GH_REPO: ${{ github.repository }}
+          REPO: ${{ github.repository }}
+          # The identity Sigstore actually bound the signature to. It follows the
+          # ref the *workflow* ran from, which is the tag on a tag push but the
+          # default branch on a dispatched back-fill, so it has to be read off
+          # github.ref rather than assumed to be the tag, or the published
+          # command tells people to check something that was never signed.
+          IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/release.yml@${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "$TAG" --generate-notes
+          fi
+          gh release upload "$TAG" dist/* --clobber
+
+          # Tell people how to check the signatures on the page where they are
+          # downloading the thing. Instructions nobody sees protect nobody.
+          #
+          # Rewritten on every run rather than appended once, because a re-run
+          # re-signs the assets and the identity Sigstore binds them to follows
+          # the ref the workflow ran from. A dispatched run therefore replaces
+          # tag-signed assets with main-signed ones, and notes left alone would
+          # go on naming an identity nothing was signed with, instructions that
+          # fail for every person who follows them.
+          gh release view "$TAG" --json body -q .body > notes.md
+          awk '/^## Verifying this release$/{exit} {print}' notes.md > notes.trimmed
+          mv notes.trimmed notes.md
+          # Substituted with bash parameter expansion, not sed: a ref name may
+          # legally contain `&` or `|`, which sed would respectively swallow
+          # into the match and mistake for its own delimiter. Publishing a
+          # subtly wrong identity is the exact failure this step exists to
+          # prevent.
+          template=$(cat workflow/.github/release-notes-verification.md)
+          template=${template//__TAG__/$TAG}
+          template=${template//__REPO__/$REPO}
+          template=${template//__IDENTITY__/$IDENTITY}
+          printf '\n%s\n' "$template" >> notes.md
+          gh release edit "$TAG" --notes-file notes.md
+
+  crates-io:
+    name: publish to crates.io
+    # Last, and only if the release itself succeeded. A crates.io version can be
+    # yanked but never deleted, and the name is taken forever, so nothing reaches
+    # the registry until the tag has produced signed, verified artifacts.
+    needs: [guard, publish]
+    # Off until the repository variable PUBLISH_CRATES is "true": crate names
+    # are permanent, so the first publish is a deliberate decision.
+    if: vars.PUBLISH_CRATES == 'true'
+    runs-on: ubuntu-latest
+    # Gives the publish somewhere to hang a required-reviewer rule, so the one
+    # irreversible step in this workflow can be held for a human.
+    environment: crates-io
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.guard.outputs.tag }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+      - name: the registry token must be configured
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "::error::CARGO_REGISTRY_TOKEN is not set; add it under Settings > Secrets"
+            exit 1
+          fi
+      - name: publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        # `--workspace` walks the crates in dependency order and waits for each
+        # to land on the index. Crates marked `publish = false` are skipped.
+        #
+        # What cargo will not do is skip a member it has already uploaded, so a
+        # run that dies partway, crates.io rate-limits *new* crates, and the
+        # first release of a workspace walks straight into that, cannot simply
+        # be re-run. Excluding what is already on the index makes the job
+        # idempotent, so finishing an interrupted release is one re-run rather
+        # than a hand-driven sequence of `cargo publish -p`.
+        run: |
+          set -euo pipefail
+          excludes=()
+          pending=0
+          while read -r name version; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+              -H 'User-Agent: visado-release (https://github.com/kanywst/visado)' \
+              "https://crates.io/api/v1/crates/$name/$version")
+            case "$code" in
+              200) echo "already published: $name $version"
+                   excludes+=(--exclude "$name") ;;
+              404) echo "to publish:        $name $version"
+                   pending=$((pending + 1)) ;;
+              *)   echo "::error::crates.io returned $code for $name $version"
+                   exit 1 ;;
+            esac
+          done < <(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.publish == null) | "\(.name) \(.version)"')
+
+          if [ "$pending" -eq 0 ]; then
+            echo "every publishable crate is already on crates.io; nothing to do"
+            exit 0
+          fi
+          if ! cargo publish --workspace --locked "${excludes[@]}"; then
+            # A 403 here is almost always the token's scopes rather than the
+            # code: `publish-new` alone is enough for a first release, when
+            # every crate is new, and then fails on the next one.
+            echo "::error::publish failed. On a 403, check that CARGO_REGISTRY_TOKEN carries both publish-new and publish-update: a release that adds a crate needs both at once."
+            exit 1
+          fi

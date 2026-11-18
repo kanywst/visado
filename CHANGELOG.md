@@ -1,0 +1,16 @@
+# Changelog
+
+All notable changes are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Before 1.0, a breaking change bumps the minor version and anything else bumps the patch. All crates share one version.
+
+## [Unreleased]
+
+### Added
+
+- `visado-txn-token`: mint, verify and replace OAuth Transaction Tokens (draft-ietf-oauth-transaction-tokens-11), and parse token requests. Errors have stable codes.
+- Transaction Token conformance vectors in `conformance/txn-token/` (5 valid, 22 negative).
+- `visado-authzen`: AuthZEN 1.0 access evaluation client that fails closed, with an agent-for-principal request profile and metadata discovery.
+- `visado-credentials`: caller authentication with a WIT and a WPT (optionally binding a user access token through `oth`), or an OAuth access token alone. WPT `jti` replay is checked in memory.
+- `visado-extauthz`: the decision pipeline and an Envoy ext_authz v3 gRPC service. It mints a Transaction Token, forwards one only from configured internal callers, and removes inbound credentials before the request goes upstream.
+- `visado` binary: TOML configuration, ext_authz over gRPC, `/healthz` and `/.well-known/jwks.json` over HTTP, JSON audit events.
+
+[Unreleased]: https://github.com/kanywst/visado/commits/main
