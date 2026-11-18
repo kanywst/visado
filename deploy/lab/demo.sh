@@ -4,8 +4,9 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
-cargo build -q -p visado-testkit --example lab_headers
+cargo build -q -p visado-testkit --example lab_headers --example lab_aat
 headers() { ./target/debug/examples/lab_headers "$@"; }
+aat() { ./target/debug/examples/lab_aat "$@"; }
 
 URL=http://127.0.0.1:10000
 failures=0
@@ -15,7 +16,11 @@ call() {
   shift 3
   local args=(-s -o "$tmp" -w '%{http_code}' -H 'Host: tools.td.example')
   while IFS= read -r line; do
-    [ -n "$line" ] && args+=(-H "$line")
+    case "$line" in
+      "BODY: "*) args+=(--data-binary "${line#BODY: }") ;;
+      "") ;;
+      *) args+=(-H "$line") ;;
+    esac
   done < <("$@")
   local status
   status=$(curl "${args[@]}" "$URL$path")
@@ -50,6 +55,12 @@ call 200 "agent-b forwards bob's transaction to tickets" /tickets headers agent-
 call 403 "outside workload forwards bob's transaction" /tickets headers agent-z /tickets --txn "$txn"
 call 403 "user token without the admin scope" /admin/roles headers agent-a /admin/roles --user bob tickets.read
 call 200 "admin user through agent-a" /admin/roles headers agent-a /admin/roles --user carol "roles.write tickets.read"
+
+# AAT: agent-a delegated read_file on /data/report.pdf to agent-b.
+call 200 "agent-b reads the file it was delegated" /mcp aat agent-b read_file '{"path":"/data/report.pdf"}'
+call 403 "agent-b reads another file" /mcp aat agent-b read_file '{"path":"/etc/passwd"}'
+call 403 "agent-b deletes the file" /mcp aat agent-b delete_file '{"path":"/data/report.pdf"}'
+call 403 "agent-z presents agent-b's chain" /mcp aat agent-z read_file '{"path":"/data/report.pdf"}'
 
 # visado exports one span per decision to Jaeger.
 sleep 6

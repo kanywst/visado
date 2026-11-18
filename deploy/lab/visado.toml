@@ -24,5 +24,9 @@ issuer = "https://idp.example"
 audience = "http://tools.td.example"
 jwks_file = "keys/oauth-jwks.json"
 
+[aat]
+audiences = ["http://tools.td.example"]
+trust_anchors = [{ issuer = "https://aat.td.example", jwk_file = "keys/aat-anchor.jwk.json" }]
+
 [telemetry]
 otlp_endpoint = "http://jaeger:4317"

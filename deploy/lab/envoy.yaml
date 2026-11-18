@@ -25,6 +25,9 @@ static_resources:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
                       transport_api_version: V3
                       failure_mode_allow: false
+                      with_request_body:
+                        max_request_bytes: 65536
+                        allow_partial_message: false
                       grpc_service:
                         envoy_grpc: { cluster_name: visado }
                         timeout: 0.5s
