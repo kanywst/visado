@@ -1,6 +1,6 @@
 # Spec map
 
-Pinned revisions and where the code departs from them. Checked 2026-11-18.
+Pinned revisions and where the code departs from them. Checked 2026-11-19.
 
 ## Pinned revisions
 
@@ -9,7 +9,7 @@ Pinned revisions and where the code departs from them. Checked 2026-11-18.
 | [draft-ietf-oauth-transaction-tokens](https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/11/) | -11 | `visado-txn-token` | Mint, verify, replace, request parsing |
 | [draft-ietf-wimse-aims](https://datatracker.ietf.org/doc/draft-ietf-wimse-aims/01/) | -01 | (design) | Reference composition, not yet implemented |
 | [draft-ietf-oauth-identity-assertion-authz-grant](https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/06/) | -06 | (planned) | |
-| [draft-niyikiza-oauth-attenuating-agent-tokens](https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/) | -02 | (planned) | |
+| [draft-niyikiza-oauth-attenuating-agent-tokens](https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/) | -02 | `visado-chain-aat` | §8 chain and PoP verification; 229/229 published vectors. Not yet used by ext_authz |
 | [draft-asor-wimse-agent-delegation-chain](https://datatracker.ietf.org/doc/draft-asor-wimse-agent-delegation-chain/03/) | -03 | (planned) | |
 | [OpenID AuthZEN Authorization API](https://openid.net/specs/authorization-api-1_0.html) | 1.0 Final | `visado-authzen` | Single evaluation and metadata discovery |
 
@@ -26,6 +26,22 @@ WIMSE credentials (WIT, WPT, HTTP signatures, mTLS) come from [wimsey](https://g
 | `req_wl` with several workloads | Ambiguous (§9.2) | Opaque string, replaced on each replacement |
 | Signature algorithms | Not restricted | `Ed25519`, `EdDSA`, `ES256` only |
 | Subject token type for a WIT | No URN defined | Not handled in this crate; the service decides |
+
+## AAT: known divergences and choices
+
+No divergences: all 229 vectors in [conformance/aat](conformance/aat/) give the expected verdict, and every denial fails at the expected §8 step.
+
+| Topic | Draft | visado |
+| --- | --- | --- |
+| Algorithms | Ed25519 required, others MAY (§9.11) | `Ed25519` and `ES256`. `EdDSA` is rejected |
+| `crit` | Reject parameters not understood (§3.5) | No extension parameter is understood, so any `crit` is rejected |
+| `kid` | MAY select among trust anchors | If an anchor has that `kid`, only those anchors are tried; otherwise every anchor whose key fits `alg` |
+| Step order | Steps 6 and 7 may be reordered; PoP signature SHOULD come before 6b | Steps run in the draft's order, so the reported step matches the vectors |
+| Argument and PoP size | Not limited | Each at most `max_token_size` |
+| PoP `jti` tracking | Required for tools with side effects (§7.3) | The caller passes a `ReplayCache` for those tools. The in-memory cache refuses new proofs when full |
+| Root `iss` is a URI | Required (step 3k) | A scheme, a colon, and no whitespace or control characters |
+| JSON nesting | Not limited beyond MAX_CONSTRAINT_DEPTH | At most 256 levels; deeper payloads fail at signature-step parsing (3b, 4b, 7b) |
+| Principal | AAT has no `sub` | `Principal::Unspecified` in the normalized chain |
 
 ## AuthZEN: choices
 
