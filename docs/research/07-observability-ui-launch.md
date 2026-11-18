@@ -1,12 +1,14 @@
 # visado: observability, UI, launch research (2026-11-18)
 
-## TL;DR
+Observability: no OTel semconv for identity/authz exists yet. visado can reuse `gen_ai.agent.*`, `gen_ai.tool.name` and `mcp.*` (all Development, now in the separate semantic-conventions-genai repo), put the chain under a `visado.*` namespace, and track GenAI PR #291 (agent authz attributes). `enduser.id` was deprecated in core v1.45 and moved to the client-side repo.
 
-- No OTel semconv for identity/authz exists yet. Reuse `gen_ai.agent.*`, `gen_ai.tool.name`, `mcp.*` (all Development, now in the separate semantic-conventions-genai repo). Put the chain under your own `visado.*` namespace and track GenAI PR #291 (agent authz attributes). `enduser.id` was deprecated in core v1.45 and moved to the client-side repo.
-- Rust: opentelemetry 0.33.1 (2026-10-08). Logs and metrics are stable, traces are still beta. Pin opentelemetry*, and pair it with tracing-opentelemetry 0.34.
-- Audit: OCSF API Activity (6003) with `actor.authorizations` and `actor.invoked_by`. CAEP 1.0/SSF 1.0 are Final (Sept 2025), so use them for revocation signals. AIMS needs tamper-evident audit records. PR #176 keeps the transcription mapping for audit.
-- UI: a static SPA embedded in the binary, using React Flow with a left-to-right dagre/ELK layout and one-hop-per-node plus allow/deny coloring. The screenshot to aim for is one request with the hop that got denied lit up red.
-- Launch: agent-identity Show HNs score low (Zalando AIB 25 pts, Nov 2026). Projects took off on a narrative hook: a threat model (Agent Vault 156), a story (Cloudflare "Claude wrote it"), research-first (mcp-scan), or a foundation donation at a conference (agentgateway). Proposed window: IETF 128 hackathon (Mar 6-7, 2027, inferred), then KubeCon EU, then AGNTCon NA.
+Rust: opentelemetry 0.33.1 (2026-10-08). Logs and metrics are stable, traces are still beta. Pin opentelemetry* and pair it with tracing-opentelemetry 0.34.
+
+Audit: OCSF API Activity (6003) with `actor.authorizations` and `actor.invoked_by`. CAEP 1.0/SSF 1.0 are Final (Sept 2025) and fit revocation signals. AIMS needs tamper-evident audit records. PR #176 keeps the transcription mapping for audit.
+
+UI: a static SPA embedded in the binary, using React Flow with a left-to-right dagre/ELK layout, one hop per node, and allow/deny coloring. The target screenshot is one request with the denied hop lit up red.
+
+Launch: agent-identity Show HNs score low (Zalando AIB 25 pts, Nov 2026). Projects that took off had a hook: a threat model (Agent Vault 156), a story (Cloudflare "Claude wrote it"), research first (mcp-scan), or a foundation donation at a conference (agentgateway). Proposed window: IETF 128 hackathon (Mar 6-7, 2027, inferred), then KubeCon EU, then AGNTCon NA.
 
 ## 1. Observability
 
@@ -17,7 +19,7 @@
 - MCP spans are named `{mcp.method.name} {target}` (for example `tools/call get_weather`) and carry `mcp.session.id`, `mcp.protocol.version`, `jsonrpc.request.id`, and `gen_ai.tool.name`. Metrics are `mcp.{client,server}.operation.duration`. The spec recommends these over the RPC semconv. <https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/mcp.md>
 - `enduser.*`: v1.45.0 deprecated `enduser.id`/`enduser.pseudo.id` in core and moved them to semantic-conventions-client-side (v0.1.0-dev). `enduser.role` maps to `user.roles`. `enduser.scope` was removed with no replacement. <https://github.com/open-telemetry/semantic-conventions/releases/tag/v1.45.0> , <https://github.com/open-telemetry/semantic-conventions/pull/4238>
 - Authz attributes are only proposals so far. GenAI issue #180 and PR #291 add `gen_ai.agent.*` trust/authz attributes and defer `fga.*` decision-path attributes. Their invariant is that a deny is a span with no child execute span. OpenLLMetry PR #4701 proposes `gen_ai.authz.decision`. <https://github.com/open-telemetry/semantic-conventions-genai/pull/291> , <https://github.com/traceloop/openllmetry/pull/4701>
-  - Inference: this is an opening. visado could become the reference emitter and comment on #291 with a chain-aware shape.
+  - Inference: visado could become the reference emitter and comment on #291 with a chain-aware shape.
 
 ### How to emit a chain (my recommendation; not in any spec)
 
@@ -32,13 +34,13 @@
 - Add one span event per hop (`visado.hop`) carrying the subject, act claim, token type, scope narrowing and hop verdict. Events have timestamps, which plain attributes lack. <https://grafana.com/blog/2024/08/15/all-about-span-events-what-they-are-and-how-to-query-them/>
 - Add a span link to the upstream agent's span context when an inbound `traceparent` exists or the token carries a trace ref, so cross-trace delegation stays navigable.
 - Tempo TraceQL can query span, event and link scopes, for example `{ event:name = "visado.hop" }` and `{ link:traceID != "" }`. <https://grafana.com/blog/grafana-tempo-2-6-release-performance-improvements-and-new-traceql-features/> , <https://grafana.com/docs/tempo/latest/traceql/construct-traceql-queries/>
-- Caveat: Jaeger and Tempo show events and links as a list, not a graph. That is why the dedicated UI (section 2) is needed.
+- Jaeger and Tempo show events and links as a list, not a graph, which is why visado needs its own UI (section 2).
 
 ### Rust SDK maturity
 
 - opentelemetry-rust 0.33.1 (Oct 8 2026): OTLP logs and metrics exporters are stable, traces are beta. The 1.0 planned for June 2025 has slipped. <https://opentelemetry.io/docs/languages/rust/> , <https://github.com/open-telemetry/opentelemetry-rust/blob/main/docs/migration_0.28.md>
 - tracing-opentelemetry (tokio-rs) is versioned separately: 0.34 pairs with otel 0.33. Expect breaking changes, so bump everything in lockstep. <https://docs.rs/tracing-opentelemetry>
-- Note: the claim that 0.33.1 made logs/metrics OTLP stable comes from search-result summaries. Check it against the GitHub release notes before quoting.
+- The claim that 0.33.1 made logs/metrics OTLP stable comes from search-result summaries. Check it against the GitHub release notes before quoting.
 
 ### Audit formats
 
@@ -112,10 +114,10 @@
 ### Takeaways
 
 - Inference: a bare "agent identity gateway" Show HN will probably land at 10 to 30 pts.
-- Lead with a hook instead:
+- A hook works better:
   - (a) a research post, such as "we replayed N agent delegation chains and found scope widening", mcp-scan style; or
   - (b) a visual: an HN-native title showing the chain, for example "Show HN: Visado – see every hop of an AI agent's delegation chain (Rust)".
-- Keep the format "Show HN: Name – plain-language what it does", with no buzzword stack.
+- Title format: "Show HN: Name – plain-language what it does", with no buzzword stack.
 - README order:
   1. A GIF/asciinema of the chain UI above the fold
   2. `docker compose up` / `cargo install` with a one-command demo that runs human, agent, agent and tool locally, and ends on a deny
@@ -123,7 +125,7 @@
   4. Specs implemented (Txn-Token, AuthZEN, WIMSE, AIMS) with versions
   5. Compare table (agentgateway, AIB, Aembit)
   6. Status/limits
-- Interop with agentgateway and AIB is a credibility lever, since AIB already pairs with agentgateway.
+- Interop with agentgateway and AIB adds credibility, since AIB already pairs with agentgateway.
 
 ### Calendar
 
@@ -155,7 +157,7 @@
 - An OpenSSF Security Insights manifest
 - SECURITY.md, CODE_OF_CONDUCT, GOVERNANCE, MAINTAINERS, CONTRIBUTING
 - Sources: <https://clomonitor.io/docs/topics/checks/> , <https://github.com/cncf/clomonitor/blob/main/docs/checks.md>
-- Note: the sandbox onboarding asks for the Best Practices badge, while the security guidelines push Scorecard, so do both.
+- The sandbox onboarding asks for the Best Practices badge, while the security guidelines push Scorecard, so both are needed.
 - For a Rust project, also: `cargo-deny`/`cargo-audit` in CI, signed releases (cosign/sigstore), SLSA provenance, and pinned action SHAs (helps the Scorecard token-permissions and pinned-deps checks).
 
 ## Gaps / confidence

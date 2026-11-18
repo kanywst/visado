@@ -1,12 +1,12 @@
 # Market, foundations and acquisitions (as of 2026-11-18)
 
-Why an agent delegation-chain gateway, why now, and where it could live. Star counts are from the GitHub API on 2026-11-18 unless marked otherwise.
+Star counts are from the GitHub API on 2026-11-18 unless marked otherwise.
 
-## Bottom line
+The spec side of agent identity moved fast in 2026: WIMSE AIMS was adopted, Transaction Tokens is near publication, and ID-JAG is stable in the MCP Enterprise-Managed Authorization extension. The open-source relying side is thin. Almost everything ships issuance or a vendor gateway, not neutral verification of the whole call chain.
 
-- The spec side of agent identity moved fast in 2026 (WIMSE AIMS adopted, Transaction Tokens near publication, ID-JAG stable in the MCP Enterprise-Managed Authorization extension), but the open-source **relying side** is thin: almost everything ships issuance or a vendor gateway, not neutral verification of the whole call chain.
-- CNCF has no project dedicated to agent or workload identity beyond SPIFFE/SPIRE, while its own AI TCG and TOC initiatives say interoperable agent identity is "currently lacking".
-- Identity and agent-security acquisitions in 2026 shifted toward agent/NHI identity and MCP gateways. OSS-led targets sold cheaply relative to closed NHI vendors; stars bought the acquisition, not the multiple.
+CNCF has no project for agent or workload identity beyond SPIFFE/SPIRE, while its own AI TCG and TOC initiatives say interoperable agent identity is "currently lacking".
+
+Identity and agent-security acquisitions in 2026 shifted toward agent/NHI identity and MCP gateways. OSS-led targets sold cheaply relative to closed NHI vendors: stars got them acquired but did not raise the price.
 
 ## Open-source gaps
 
@@ -27,7 +27,7 @@ Already well covered and not worth competing on: SD-JWT VC and status lists, DPo
 - agentgateway went to the Linux Foundation (2025-08) and then the Agentic AI Foundation (AAIF). OpenBao moved to OpenSSF (2025-06).
 - Sandbox process: issue form, TOC review roughly every two months, 66% gitvote. Requirements include Apache-2.0 and a MAINTAINERS file with an organization column. Median time to approval since 2025 is about 73 days. Common rejections: insufficient momentum ("grow the community for 6-12 months"), missing files, single-vendor runtime lock-in, overlap with existing projects.
 - Stated demand: the CNCF AI TCG "Cloud native agentic standards" (2026-03) asks for a unique workload identity per agent instance, short-lived credentials and re-verification per operation; TOC initiatives on MCP server authN/authZ (toc#1890) and agentic foundations (toc#1746) are open. AAIF leadership named identity, attestation and audit as open problems at AGNTCon 2026.
-- Best fit: CNCF Sandbox next to SPIFFE/SPIRE and Tokenetes, with specification work in IETF WIMSE / OAuth and the OpenID Foundation.
+- Likely home: CNCF Sandbox next to SPIFFE/SPIRE and Tokenetes, with specification work in IETF WIMSE / OAuth and the OpenID Foundation.
 
 ## Acquisitions, 2024-2026 (selected)
 
@@ -45,7 +45,7 @@ Already well covered and not worth competing on: SD-JWT VC and status lists, DPo
 | Snyk and Invariant Labs | 2025-06 | undisclosed | mcp-scan (now snyk/agent-scan) |
 | OpenAI and Promptfoo | announced 2026-03 | undisclosed | promptfoo |
 
-Pattern:
+What the deals show:
 
 - Most targets in this space were closed-source NHI, PAM or ITDR vendors bought for revenue.
 - OSS-led targets were a dominant developer library, a developer-loved gateway or CLI on AI traffic, or a research team whose scanner backed its disclosures.
@@ -53,10 +53,10 @@ Pattern:
 
 ## What spread in 2025-2026
 
-- Better Auth was the only auth library to reach very large scale (30.8k stars), by filling a developer-experience gap as Auth.js stalled.
+- Better Auth was the only auth library to reach large scale (30.8k stars), by filling a developer-experience gap as Auth.js stalled.
 - MCP security tools spread through security research (Invariant's tool-poisoning disclosures behind mcp-scan; Koi's postmark-mcp report) rather than launches.
 - Foundation-backed gateways (agentgateway, IBM ContextForge) grew through vendor endorsement with almost no Hacker News traction.
-- Stand-alone MCP auth helper libraries stayed small because the official SDKs absorbed them. New work in this space should be a gateway or broker, not a library.
+- Stand-alone MCP auth helper libraries stayed small because the official SDKs absorbed them. New work here has more room as a gateway or broker than as a library.
 
 ## Sources
 

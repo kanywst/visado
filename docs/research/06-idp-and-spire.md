@@ -1,11 +1,12 @@
 # Dex ID-JAG / Resource AS / OSS IdPs / SPIRE WIT: research (2026-11-18)
 
-## TL;DR
+Dex ID-JAG issuance (#4611, merged 2026-11-11) is not in any Dex release. The latest is v2.46.1 (2026-10-21), with no newer tags or RCs, so it needs a master build. Two follow-ups merged on 2026-11-12: #5149 and #5150.
 
-- Dex ID-JAG issuance (#4611, merged 2026-11-11) is NOT in any Dex release. Latest is v2.46.1 (2026-10-21); there are no newer tags or RCs. You need a master build. Two follow-ups merged on 2026-11-12: #5149 and #5150.
-- Dex only issues ID-JAGs. Its DEP lists the Resource AS role (RFC 7523) as a non-goal.
-- Keycloak's experimental Resource AS (receiver) for ID-JAG first shipped in **26.7.0** (2026-07-09), not 26.6. 26.6 only has the generic RFC 7523 JWT Authorization Grant. The latest Keycloak is 26.8.2. Keycloak is the most realistic OSS Resource AS for a demo.
-- SPIRE v1.16.0 (2026-11-05) has experimental WIT-SVIDs (`experimental { enable_wit_svids = true }` on both server and agent). They come from the Workload API `FetchWITSVID`. go-spiffe #415 (WPT minting) is still an open draft.
+Dex only issues ID-JAGs. Its DEP lists the Resource AS role (RFC 7523) as a non-goal.
+
+Keycloak's experimental Resource AS (receiver) for ID-JAG first shipped in 26.7.0 (2026-07-09), not 26.6. 26.6 only has the generic RFC 7523 JWT Authorization Grant. The latest Keycloak is 26.8.2. Keycloak is the most realistic OSS Resource AS for a demo.
+
+SPIRE v1.16.0 (2026-11-05) has experimental WIT-SVIDs (`experimental { enable_wit_svids = true }` on both server and agent), served by the Workload API `FetchWITSVID`. go-spiffe #415 (WPT minting) is still an open draft.
 
 ## 1. Dex #4611 (issuance)
 
@@ -119,36 +120,36 @@ Sources: PR body and diff, `gh pr diff 4611 --repo dexidp/dex`.
 
 ## 3. Other IdPs: ID-JAG issuance
 
-- **Keycloak**: issuance is not released. Issue #48818 and PR #49998 (issuer at token exchange; audience = clientId of the Resource AS client; no `actor_token`/`resource`) are both open. Docs issue #54330 is open. Umbrella #43971 is milestoned 27.0.
-- **Casdoor**: issuance is implemented.
+- Keycloak: issuance is not released. Issue #48818 and PR #49998 (issuer at token exchange; audience = clientId of the Resource AS client; no `actor_token`/`resource`) are both open. Docs issue #54330 is open. Umbrella #43971 is milestoned 27.0.
+- Casdoor: issuance is implemented.
   - #5996 closed 2026-10-29; commit 668c4d7b is included in v4.27.1+ (latest v4.29.0).
   - `typ oauth-id-jag+jwt`.
   - Claims: iss, sub, email, aud, client_id, resource, scope, jti, iat, exp (5m).
   - Policy is defined through Casdoor Permissions and is closed by default.
   - Not yet supported: SAML, discovery metadata, per-app TTL.
-- **Authentik**: PR #26973 "providers/oauth2: add id-jag" is open. Issue #25542 is open; #27759 was closed and points to #26973. Not released.
-- **Zitadel**: no ID-JAG issue or PR found. Token exchange issues exist (#7211, #13076).
-- **Ory Hydra**: no ID-JAG issue found. RFC 8693 is still open (#1218).
-- **Authelia**: no ID-JAG issue found. RFC 8693 is open (#2694).
+- Authentik: PR #26973 "providers/oauth2: add id-jag" is open. Issue #25542 is open; #27759 was closed and points to #26973. Not released.
+- Zitadel: no ID-JAG issue or PR found. Token exchange issues exist (#7211, #13076).
+- Ory Hydra: no ID-JAG issue found. RFC 8693 is still open (#1218).
+- Authelia: no ID-JAG issue found. RFC 8693 is open (#2694).
 
 ## 4. SPIRE v1.16.0 WIT-SVID
 
-- **Enable**: `experimental { enable_wit_svids = true }` in both the server and agent config.
+- Enable: `experimental { enable_wit_svids = true }` in both the server and agent config.
   - Server options: `wit_issuer` (sets `iss`; omitted if empty) and `default_wit_svid_ttl` (1h).
   - Agent option: `wit_svid_cache_max_size` (1000).
   - Per-entry WIT TTL (#7302).
   - The `spire` UpstreamAuthority publishes WIT keys for nested setups.
   - When disabled, the WIT APIs return Unimplemented.
-- **Token**:
+- Token:
   - Header: `typ: wit+jwt`, plus `kid`.
   - Claims: `sub` (SPIFFE ID), `exp`, `iat`, `cnf.jwk` (a public key with `alg`), and optional `iss`.
   - No `jti`. No `aud`; go-spiffe rejects a WIT that has one.
   - This matches draft-ietf-wimse-workload-creds-03: sub, exp and cnf are required; iss is RECOMMENDED; jti is optional.
-- **Workload API**:
+- Workload API:
   - `FetchWITSVID(WITSVIDRequest{spiffe_id})` streams `WITSVID{spiffe_id, wit_svid (JWS), wit_svid_key (JWK private key), hint}`. The agent generates the key; the workload does not bring its own.
   - `FetchWITBundles` streams JWKS documents keyed by trust domain.
   - CLI: `spire-agent api fetch wit [-spiffeID]`.
   - Agent rate limits: `fetch_wit_svid`, `fetch_wit_bundles`.
-- **go-spiffe**:
+- go-spiffe:
   - `exp/svid/witsvid` (parse/verify, typ check, cnf.jwk extraction), `exp/bundle/witbundle` and `workloadapi/witsource.go` exist on main.
-  - **PR #415 "Add exp/witwpt with WPT minting and policy helpers" is an open draft, last updated 2026-08-24.** So visado must verify WPTs (draft-ietf-wimse-wpt) itself for now.
+  - PR #415 "Add exp/witwpt with WPT minting and policy helpers" is an open draft, last updated 2026-08-24, so visado has to verify WPTs (draft-ietf-wimse-wpt) itself for now.
