@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/txn-token",
+    "crates/chain",
     "crates/authzen",
     "crates/credentials",
     "crates/testkit",
@@ -21,6 +22,7 @@ categories = ["authentication", "cryptography"]
 
 [workspace.dependencies]
 visado-txn-token = { path = "crates/txn-token", version = "0.1.0" }
+visado-chain = { path = "crates/chain", version = "0.1.0" }
 visado-authzen = { path = "crates/authzen", version = "0.1.0" }
 visado-credentials = { path = "crates/credentials", version = "0.1.0" }
 visado-extauthz = { path = "crates/extauthz", version = "0.1.0" }
