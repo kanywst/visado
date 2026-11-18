@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use serde::Deserialize;
-use visado_chain_aat::{TrustAnchor, Verifier};
+use visado_chain_aat::{Policy, TrustAnchor, Verifier};
 use visado_credentials::{Authenticator, OAuthIssuer, WitIssuer};
 use visado_extauthz::GateConfig;
 use visado_txn_token::Scope;
@@ -52,6 +52,18 @@ pub struct AatConfig {
     /// Identifiers of this enforcement point, matched exactly against `aud`.
     pub audiences: Vec<String>,
     pub trust_anchors: Vec<AatAnchorConfig>,
+    /// Deny unless some token in the chain names this enforcement point in
+    /// `aud`. On by default, so a chain cannot be replayed at another
+    /// enforcement point that trusts the same anchor.
+    #[serde(default = "yes")]
+    pub require_chain_aud: bool,
+    /// Deny a proof of possession without `aat_aud`. On by default.
+    #[serde(default = "yes")]
+    pub require_pop_aud: bool,
+}
+
+const fn yes() -> bool {
+    true
 }
 
 #[derive(Debug, Deserialize)]
@@ -257,7 +269,13 @@ impl Config {
                 if anchors.is_empty() || config.audiences.is_empty() {
                     return Err("aat needs at least one trust anchor and one audience".into());
                 }
-                Some(Verifier::new(anchors, config.audiences))
+                Some(
+                    Verifier::new(anchors, config.audiences).with_policy(Policy {
+                        require_chain_aud: config.require_chain_aud,
+                        require_pop_aud: config.require_pop_aud,
+                        nonces: None,
+                    }),
+                )
             }
         };
 
