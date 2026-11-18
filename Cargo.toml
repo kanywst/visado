@@ -1,6 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["crates/txn-token"]
+members = [
+    "crates/txn-token",
+    "crates/authzen",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -13,6 +16,25 @@ keywords = ["transaction-tokens", "wimse", "oauth", "authorization", "agents"]
 categories = ["authentication", "cryptography"]
 
 [workspace.dependencies]
+visado-txn-token = { path = "crates/txn-token", version = "0.1.0" }
+visado-authzen = { path = "crates/authzen", version = "0.1.0" }
+visado-credentials = { path = "crates/credentials", version = "0.1.0" }
+visado-extauthz = { path = "crates/extauthz", version = "0.1.0" }
+visado-testkit = { path = "crates/testkit" }
+wimsey-wit = "0.10.1"
+wimsey-wpt = "0.10.1"
+wimsey-identifier = "0.10.1"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+jsonwebtoken = { version = "12", default-features = false, features = ["rust_crypto"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal"] }
+tonic = "0.14"
+envoy-types = "0.7"
+axum = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+uuid = { version = "1", features = ["v4"] }
+toml = "1"
 wimsey-jose = "0.10.1"
 base64 = "0.23"
 serde = { version = "1", features = ["derive"] }
