@@ -15,7 +15,9 @@ wimsey-wit = { workspace = true }
 wimsey-wpt = { workspace = true }
 wimsey-identifier = { workspace = true }
 base64 = { workspace = true }
+sha2 = { workspace = true }
 serde_json = { workspace = true }
+visado-chain-aat = { workspace = true }
 
 [lints]
 workspace = true

@@ -1,6 +1,6 @@
 //! Fixed-key fixtures for visado tests. Not for production use.
 
-#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::missing_panics_doc, clippy::too_many_arguments)]
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde_json::{Value, json};
@@ -160,4 +160,100 @@ pub fn signed_access_token(claims: &Value) -> String {
     let input = format!("{h}.{c}");
     let sig = URL_SAFE_NO_PAD.encode(oauth_key().sign(input.as_bytes()));
     format!("{input}.{sig}")
+}
+
+/// The AAT trust anchor's signing key.
+#[must_use]
+pub fn aat_anchor_key() -> SigningKey {
+    SigningKey::from_ed25519_seed(&[0x61; 32])
+}
+
+/// The AAT trust anchor's issuer.
+pub const AAT_ISSUER: &str = "https://aat.td.example";
+
+fn sign_aat(typ: &str, payload: &Value, key: &SigningKey) -> String {
+    // serde_json maps keep keys sorted and print without whitespace, which is
+    // the JCS form for the strings and integers used here.
+    let header = json!({ "alg": "Ed25519", "typ": typ });
+    let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header).expect("json"));
+    let p = URL_SAFE_NO_PAD.encode(serde_json::to_vec(payload).expect("json"));
+    let input = format!("{h}.{p}");
+    let sig = URL_SAFE_NO_PAD.encode(key.sign(input.as_bytes()));
+    format!("{input}.{sig}")
+}
+
+fn signing_input_hash(token: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let input = token.rsplit_once('.').map_or(token, |(i, _)| i);
+    URL_SAFE_NO_PAD.encode(Sha256::digest(input.as_bytes()))
+}
+
+fn aat_detail(tools: &Value) -> Value {
+    json!([{ "type": "attenuating_agent_token", "tools": tools }])
+}
+
+/// A root AAT from [`AAT_ISSUER`] delegating `tools` to `holder`.
+#[must_use]
+pub fn aat_root(jti: &str, holder: &SigningKey, tools: &Value, now: u64, max_depth: u32) -> String {
+    let payload = json!({
+        "jti": jti, "iss": AAT_ISSUER, "iat": now, "exp": now + 600,
+        "del_depth": 0, "del_max_depth": max_depth,
+        "cnf": { "jwk": Jwk::from_verifying_key(&holder.verifying_key()) },
+        "authorization_details": aat_detail(tools),
+    });
+    let mut payload = payload;
+    if let Some(jwk) = payload["cnf"]["jwk"].as_object_mut() {
+        jwk.remove("alg");
+    }
+    sign_aat("aat+jwt", &payload, &aat_anchor_key())
+}
+
+/// A child AAT of `parent` (held by `parent_holder`) delegating `tools` to
+/// `holder`, at depth `depth`.
+#[must_use]
+pub fn aat_child(
+    jti: &str,
+    parent: &str,
+    parent_holder: &SigningKey,
+    holder: &SigningKey,
+    tools: &Value,
+    depth: u32,
+    max_depth: u32,
+    now: u64,
+) -> String {
+    let iss = format!(
+        "urn:ietf:params:oauth:jwk-thumbprint:sha-256:{}",
+        visado_chain_aat::jwk_thumbprint(&parent_holder.verifying_key())
+    );
+    let mut payload = json!({
+        "jti": jti, "iss": iss, "iat": now, "exp": now + 300,
+        "del_depth": depth, "del_max_depth": max_depth,
+        "par_hash": signing_input_hash(parent),
+        "cnf": { "jwk": Jwk::from_verifying_key(&holder.verifying_key()) },
+        "authorization_details": aat_detail(tools),
+    });
+    if let Some(jwk) = payload["cnf"]["jwk"].as_object_mut() {
+        jwk.remove("alg");
+    }
+    sign_aat("aat+jwt", &payload, parent_holder)
+}
+
+/// A proof of possession by `holder` of the leaf token `leaf` (whose `jti` is
+/// `leaf_jti`), for calling `tool` with `args` at `audience`.
+#[must_use]
+pub fn aat_pop(
+    jti: &str,
+    leaf: &str,
+    leaf_jti: &str,
+    holder: &SigningKey,
+    tool: &str,
+    args: &Value,
+    audience: &str,
+    now: u64,
+) -> String {
+    let payload = json!({
+        "jti": jti, "iat": now, "aat_id": leaf_jti, "aat_hash": signing_input_hash(leaf),
+        "aat_tool": tool, "hta": args, "aat_aud": audience,
+    });
+    sign_aat("aat-pop+jwt", &payload, holder)
 }
