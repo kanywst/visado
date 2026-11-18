@@ -22,13 +22,13 @@ How visado reads credentials and delegation chains from a request. The AAT draft
 | Chain | `AAT-Chain` header: the tokens in compact serialization, root first, separated by `,` |
 | Proof of possession | `AAT-PoP` header |
 | Tool and arguments, MCP | The JSON-RPC body of a `tools/call` request: `params.name` is the tool, `params.arguments` the arguments, read as the exact JSON text received |
-| Other JSON-RPC methods | Tool `mcp:<method>`, arguments `{}` |
-| Requests without a body (GET, HEAD, DELETE, OPTIONS) | Tool `<METHOD> <path>`, arguments `{}` |
+| GET, HEAD, DELETE or OPTIONS with no body and no query string | Tool `<METHOD> <path>`, arguments `{}` |
 
 Rules:
 
 - A comma cannot appear in a compact JWS, so a proxy that joins repeated headers with commas does not change the meaning of `AAT-Chain`.
 - Only a caller with a WIT may present a chain, and the leaf token's `cnf` key must be the WIT's `cnf` key. The workload that proves possession of the WIT is then the holder the chain was delegated to. A bearer-only caller is denied.
-- Anything that is not one tool call is denied rather than guessed: a JSON-RPC batch, a body that is not JSON, a malformed `tools/call`, or a missing body on POST, PUT or PATCH.
+- Anything else is denied rather than guessed: a JSON-RPC batch, any other JSON-RPC method, a body that is not JSON or not UTF-8, a malformed `tools/call`, a query string, or a missing body on POST, PUT or PATCH.
+- A chain is optional by default: it narrows what a caller that presents one may do. Set `required = true` under `[aat]` to deny requests without one.
 - By default the chain must name this enforcement point in `aud` and the proof must carry `aat_aud`.
 - Reading MCP arguments needs the request body. In Envoy, set `with_request_body` on the ext_authz filter.
