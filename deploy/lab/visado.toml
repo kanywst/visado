@@ -1,0 +1,25 @@
+# The keys under ../local/keys are fixed demo keys; anyone can sign with them.
+trust_domain = "td.example"
+grpc_listen = "0.0.0.0:9191"
+http_listen = "0.0.0.0:8080"
+txn_lifetime = 60
+default_scope = "tickets.read"
+allowed_authorities = ["tools.td.example"]
+internal_callers = ["spiffe://td.example/agent-a", "spiffe://td.example/agent-b"]
+
+[signing_key]
+kid = "txn-1"
+jwk_file = "keys/txn-signing.private.jwk.json"
+
+[pdp]
+endpoint = "http://pdp:8181/access/v1/evaluation"
+timeout_ms = 150
+
+[[wit_issuers]]
+trust_domain = "td.example"
+keys = [{ kid = "wit-1", jwk_file = "keys/wit-issuer.jwk.json" }]
+
+[[oauth_issuers]]
+issuer = "https://idp.example"
+audience = "http://tools.td.example"
+jwks_file = "keys/oauth-jwks.json"

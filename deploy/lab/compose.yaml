@@ -1,0 +1,37 @@
+# A local lab: Envoy calls visado over ext_authz, visado asks an AuthZEN PDP
+# (OPA with the AuthZEN plugin), and allowed requests reach an echo server
+# that shows the headers it received.
+services:
+  envoy:
+    image: envoyproxy/envoy:v1.34.1
+    command: ["envoy", "-c", "/etc/envoy/envoy.yaml", "--log-level", "warn"]
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "10000:10000"
+    depends_on: [visado, upstream]
+
+  visado:
+    build:
+      context: ../..
+    volumes:
+      - ./visado.toml:/etc/visado/visado.toml:ro
+      - ../local/keys:/etc/visado/keys:ro
+    depends_on: [pdp]
+
+  pdp:
+    image: ghcr.io/kanywst/opa-authzen-plugin:0.12.1
+    command:
+      - run
+      - --server
+      - --addr=0.0.0.0:8181
+      - --config-file=/config.yaml
+      - /policy/
+    volumes:
+      - ./pdp.yaml:/config.yaml:ro
+      - ./policy:/policy:ro
+
+  upstream:
+    image: mendhak/http-https-echo:37
+    environment:
+      HTTP_PORT: "8080"
