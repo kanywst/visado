@@ -10,4 +10,4 @@ Include the affected crate and version or commit, the impact, and steps to repro
 
 ## What happens next
 
-You get an acknowledgement, an assessment, and where warranted a fix with coordinated disclosure. You are credited unless you prefer not to be.
+Reports are acknowledged and assessed. Confirmed issues are fixed and disclosed in coordination with the reporter, who is credited unless they prefer not to be.
