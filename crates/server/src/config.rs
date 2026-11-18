@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use serde::Deserialize;
+use visado_chain_aat::{TrustAnchor, Verifier};
 use visado_credentials::{Authenticator, OAuthIssuer, WitIssuer};
 use visado_extauthz::GateConfig;
 use visado_txn_token::Scope;
@@ -40,6 +41,26 @@ pub struct Config {
     pub oauth_issuers: Vec<OAuthIssuerConfig>,
     #[serde(default)]
     pub telemetry: Option<TelemetryConfig>,
+    #[serde(default)]
+    pub aat: Option<AatConfig>,
+}
+
+/// AAT delegation-chain verification.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AatConfig {
+    /// Identifiers of this enforcement point, matched exactly against `aud`.
+    pub audiences: Vec<String>,
+    pub trust_anchors: Vec<AatAnchorConfig>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AatAnchorConfig {
+    pub issuer: String,
+    #[serde(default)]
+    pub kid: Option<String>,
+    pub jwk_file: PathBuf,
 }
 
 /// Where to send OpenTelemetry traces.
@@ -218,6 +239,28 @@ impl Config {
         }
         authenticator.check()?;
 
+        let aat = match self.aat {
+            None => None,
+            Some(config) => {
+                let mut anchors = Vec::new();
+                for anchor in config.trust_anchors {
+                    let jwk: Jwk = read_json(&base.join(&anchor.jwk_file))?;
+                    let key = jwk
+                        .to_verifying_key()
+                        .map_err(|e| format!("{}: {e}", anchor.jwk_file.display()))?;
+                    let mut trusted = TrustAnchor::new(anchor.issuer, key);
+                    if let Some(kid) = anchor.kid {
+                        trusted = trusted.with_kid(kid);
+                    }
+                    anchors.push(trusted);
+                }
+                if anchors.is_empty() || config.audiences.is_empty() {
+                    return Err("aat needs at least one trust anchor and one audience".into());
+                }
+                Some(Verifier::new(anchors, config.audiences))
+            }
+        };
+
         let pdp_bearer = match &self.pdp.bearer_env {
             Some(name) => Some(std::env::var(name).map_err(|_| format!("{name} is not set"))?),
             None => None,
@@ -235,6 +278,7 @@ impl Config {
                 default_scope,
                 internal_callers: self.internal_callers,
                 allowed_authorities: self.allowed_authorities,
+                aat,
             },
             authenticator,
             pdp_endpoint: self.pdp.endpoint,
