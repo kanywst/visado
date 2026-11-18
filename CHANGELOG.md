@@ -4,6 +4,11 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Added
+
+- `deploy/lab`: Envoy, visado, OPA with the AuthZEN plugin and an echo upstream in Docker Compose, with eight scenarios in `demo.sh` that CI runs.
+- A Dockerfile for the server.
+
 ## [0.1.0] - 2026-11-19
 
 First release. Pre-alpha: delegation-chain verification is not implemented yet.

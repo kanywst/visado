@@ -40,7 +40,7 @@ cargo test --workspace
 cargo run -p visado -- deploy/local/visado.toml
 ```
 
-The server expects an AuthZEN PDP; see [deploy/local](deploy/local/). The Transaction Token conformance vectors in [conformance/](conformance/) can be used to test other implementations.
+To see it behind Envoy with a real PDP, run the [lab](deploy/lab/): `docker compose up -d --build && ./demo.sh` in `deploy/lab`. The Transaction Token conformance vectors in [conformance/](conformance/) can be used to test other implementations.
 
 ## Documentation
 

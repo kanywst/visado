@@ -20,7 +20,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 
 - `tonic` ext_authz server. Credential verifiers for WIT+WPT, WIT+HTTP-sig and mTLS (via `wimsey`), JWT-SVID, and OAuth access tokens (RS256/ES256, DPoP).
 - **Gate:** Envoy integration test admits valid callers, rejects each negative case with its reason code, and injects a Txn-Token.
-- **Status:** partly met. The ext_authz service, WIT+WPT and OAuth access token authentication are in, with tests against the gRPC handler. Not yet: HTTP signatures, mTLS, JWT-SVID, DPoP, and a test with a real Envoy.
+- **Status:** partly met. The ext_authz service, WIT+WPT and OAuth access token authentication are in, with tests against the gRPC handler. Runs behind a real Envoy in `deploy/lab`, which CI exercises. Not yet: HTTP signatures, mTLS, JWT-SVID, DPoP.
 
 ## Phase 3: Delegation chains
 
@@ -32,7 +32,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 
 - AuthZEN 1.0 client, the agent-and-principal profile, discovery, fail-closed handling.
 - **Gate:** end to end against OPA with the AuthZEN plugin and one other PDP.
-- **Status:** partly met. The client and the agent profile are in, tested against a stand-in PDP. Not yet run against a real PDP.
+- **Status:** partly met. The client and the agent profile are in and run against OPA with the AuthZEN plugin in `deploy/lab`. Not yet run against a second PDP.
 
 ## Phase 5: Lab, visibility and demos
 
@@ -40,7 +40,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 - Chain view UI, OpenTelemetry spans, and the audit record.
 - Four attack demos: three that visado stops and one that it does not.
 - **Gate:** `docker compose up` reproduces every demo from a clean checkout.
-- **Status:** not started.
+- **Status:** started. `deploy/lab` (Envoy, visado, OPA with the AuthZEN plugin, an echo upstream) runs eight scenarios in CI. Not yet: Dex, Keycloak, SPIRE, agentgateway, the chain view and OpenTelemetry.
 
 ## Phase 6: Interop and launch
 
