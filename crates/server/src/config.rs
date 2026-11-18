@@ -26,6 +26,12 @@ pub struct Config {
     pub internal_callers: BTreeSet<String>,
     #[serde(default)]
     pub user_token_header: Option<String>,
+    #[serde(default)]
+    pub allowed_authorities: BTreeSet<String>,
+    #[serde(default = "default_replay_capacity")]
+    pub replay_capacity: usize,
+    #[serde(default = "default_max_wpt_lifetime")]
+    pub max_wpt_lifetime: u64,
     pub signing_key: KeyFile,
     pub pdp: PdpConfig,
     #[serde(default)]
@@ -67,22 +73,39 @@ pub struct OAuthIssuerConfig {
     pub issuer: String,
     pub audience: String,
     pub jwks_file: PathBuf,
+    /// Prefix for `sub` and `client_id`; required when several issuers are trusted.
+    #[serde(default)]
+    pub subject_prefix: Option<String>,
 }
 
+// Loopback by default: ext_authz responses carry minted Transaction Tokens, so
+// only the proxy should reach the gRPC port.
 fn default_grpc() -> SocketAddr {
-    SocketAddr::from(([0, 0, 0, 0], 9191))
+    SocketAddr::from(([127, 0, 0, 1], 9191))
 }
 
 fn default_http() -> SocketAddr {
-    SocketAddr::from(([0, 0, 0, 0], 8080))
+    SocketAddr::from(([127, 0, 0, 1], 8080))
 }
+
+const fn default_replay_capacity() -> usize {
+    100_000
+}
+
+const fn default_max_wpt_lifetime() -> u64 {
+    60
+}
+
+/// The longest Transaction Token lifetime accepted in configuration, in seconds.
+pub const MAX_TXN_LIFETIME: u64 = 300;
 
 const fn default_lifetime() -> u64 {
     60
 }
 
+// Below Envoy's usual ext_authz timeout, so visado denies before Envoy gives up.
 const fn default_timeout_ms() -> u64 {
-    500
+    150
 }
 
 /// Everything built from the file.
@@ -101,8 +124,45 @@ impl Config {
     pub fn load(path: &Path) -> Result<Loaded, String> {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let config: Self = toml::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+        config.validate()?;
         let base = path.parent().unwrap_or_else(|| Path::new("."));
         config.build(base)
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        if self.trust_domain.trim().is_empty() {
+            return Err("trust_domain is empty".into());
+        }
+        if !(1..=MAX_TXN_LIFETIME).contains(&self.txn_lifetime) {
+            return Err(format!(
+                "txn_lifetime must be 1..={MAX_TXN_LIFETIME} seconds"
+            ));
+        }
+        if self.pdp.timeout_ms == 0 {
+            return Err("pdp.timeout_ms must be positive".into());
+        }
+        if self.replay_capacity == 0 || self.max_wpt_lifetime == 0 {
+            return Err("replay_capacity and max_wpt_lifetime must be positive".into());
+        }
+        if self.pdp.bearer_env.is_some() && !is_https_or_loopback(&self.pdp.endpoint) {
+            return Err("pdp.bearer_env needs an https endpoint (or loopback)".into());
+        }
+        let mut domains = BTreeSet::new();
+        for issuer in &self.wit_issuers {
+            if !domains.insert(&issuer.trust_domain) {
+                return Err(format!(
+                    "duplicate wit_issuers trust_domain {}",
+                    issuer.trust_domain
+                ));
+            }
+        }
+        let mut issuers = BTreeSet::new();
+        for issuer in &self.oauth_issuers {
+            if !issuers.insert(&issuer.issuer) {
+                return Err(format!("duplicate oauth_issuers issuer {}", issuer.issuer));
+            }
+        }
+        Ok(())
     }
 
     fn build(self, base: &Path) -> Result<Loaded, String> {
@@ -112,7 +172,8 @@ impl Config {
             .map_err(|e| format!("signing key: {e}"))?;
         let public_jwk = private.to_public();
 
-        let mut authenticator = Authenticator::new();
+        let mut authenticator =
+            Authenticator::new().with_replay_limits(self.replay_capacity, self.max_wpt_lifetime);
         if let Some(header) = &self.user_token_header {
             authenticator = authenticator.with_user_token_header(header);
         }
@@ -132,12 +193,13 @@ impl Config {
         }
         for issuer in self.oauth_issuers {
             let jwks = read_json(&base.join(&issuer.jwks_file))?;
-            authenticator = authenticator.with_oauth_issuer(OAuthIssuer::new(
-                issuer.issuer,
-                issuer.audience,
-                jwks,
-            ));
+            let mut oauth = OAuthIssuer::new(issuer.issuer, issuer.audience, jwks);
+            if let Some(prefix) = issuer.subject_prefix {
+                oauth = oauth.with_subject_prefix(prefix);
+            }
+            authenticator = authenticator.with_oauth_issuer(oauth);
         }
+        authenticator.check()?;
 
         let pdp_bearer = match &self.pdp.bearer_env {
             Some(name) => Some(std::env::var(name).map_err(|_| format!("{name} is not set"))?),
@@ -155,6 +217,7 @@ impl Config {
                 txn_lifetime: self.txn_lifetime,
                 default_scope,
                 internal_callers: self.internal_callers,
+                allowed_authorities: self.allowed_authorities,
             },
             authenticator,
             pdp_endpoint: self.pdp.endpoint,
@@ -170,4 +233,76 @@ impl Config {
 fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+fn is_https_or_loopback(endpoint: &str) -> bool {
+    endpoint.starts_with("https://")
+        || endpoint.starts_with("http://127.0.0.1")
+        || endpoint.starts_with("http://localhost")
+        || endpoint.starts_with("http://[::1]")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+
+    const BASE: &str = r#"
+trust_domain = "td.example"
+default_scope = "read"
+[signing_key]
+kid = "k"
+jwk_file = "k.json"
+[pdp]
+endpoint = "http://127.0.0.1:8181/access/v1/evaluation"
+"#;
+
+    fn parse(extra: &str) -> Result<(), String> {
+        let config: Config =
+            toml::from_str(&format!("{extra}\n{BASE}")).map_err(|e| e.to_string())?;
+        config.validate()
+    }
+
+    #[test]
+    fn defaults_are_valid_and_loopback() {
+        parse("").unwrap();
+        let config: Config = toml::from_str(BASE).unwrap();
+        assert!(config.grpc_listen.ip().is_loopback());
+        assert!(config.http_listen.ip().is_loopback());
+        assert_eq!(config.pdp.timeout_ms, 150);
+    }
+
+    #[test]
+    fn rejects_bad_values() {
+        assert!(parse("txn_lifetime = 0").is_err());
+        assert!(parse("txn_lifetime = 3600").is_err());
+        assert!(parse("replay_capacity = 0").is_err());
+        assert!(parse("unknown_key = 1").is_err());
+        let blank: Config = toml::from_str(&BASE.replace("td.example", " ")).unwrap();
+        assert!(blank.validate().is_err());
+        let zero: Config = toml::from_str(&format!("{BASE}timeout_ms = 0\n")).unwrap();
+        assert!(zero.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_duplicate_issuers() {
+        let dup = r#"
+[[oauth_issuers]]
+issuer = "https://idp"
+audience = "a"
+jwks_file = "j"
+[[oauth_issuers]]
+issuer = "https://idp"
+audience = "b"
+jwks_file = "j"
+"#;
+        let config: Config = toml::from_str(&format!("{BASE}{dup}")).unwrap();
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn pdp_bearer_needs_tls() {
+        let remote = BASE.replace("http://127.0.0.1:8181", "http://pdp.example");
+        let config: Config = toml::from_str(&format!("{remote}bearer_env = \"T\"\n")).unwrap();
+        assert!(config.validate().is_err());
+    }
 }

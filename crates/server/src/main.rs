@@ -30,10 +30,7 @@ async fn main() -> ExitCode {
         )
         .init();
 
-    if matches!(
-        std::env::args().nth(1).as_deref(),
-        Some("--version" | "-V")
-    ) {
+    if matches!(std::env::args().nth(1).as_deref(), Some("--version" | "-V")) {
         println!("visado {}", env!("CARGO_PKG_VERSION"));
         return ExitCode::SUCCESS;
     }
@@ -76,23 +73,50 @@ async fn run(path: &std::path::Path) -> Result<(), String> {
                 async move { axum::Json(jwks) }
             }),
         );
+    // Bind both before serving, so a port in use fails startup instead of
+    // leaving half the server running.
     let http_listener = tokio::net::TcpListener::bind(loaded.http_listen)
         .await
         .map_err(|e| format!("{}: {e}", loaded.http_listen))?;
+    let grpc_listener = tokio::net::TcpListener::bind(loaded.grpc_listen)
+        .await
+        .map_err(|e| format!("{}: {e}", loaded.grpc_listen))?;
 
-    let grpc_listen = loaded.grpc_listen;
     let gate = Gate::new(loaded.gate, loaded.authenticator, pdp);
     let grpc = tonic::transport::Server::builder()
         .add_service(AuthorizationServer::new(ExtAuthz::new(gate)))
-        .serve_with_shutdown(grpc_listen, shutdown());
-
-    tracing::info!(grpc = %grpc_listen, http = %loaded.http_listen, "visado listening");
+        .serve_with_incoming_shutdown(
+            tonic::transport::server::TcpIncoming::from(grpc_listener),
+            shutdown(),
+        );
     let http = axum::serve(http_listener, http).with_graceful_shutdown(shutdown());
-    let (grpc, http) = tokio::join!(grpc, http);
-    grpc.map_err(|e| e.to_string())?;
-    http.map_err(|e| e.to_string())
+
+    tracing::info!(grpc = %loaded.grpc_listen, http = %loaded.http_listen, "visado listening");
+    tokio::try_join!(
+        async { grpc.await.map_err(|e| format!("grpc: {e}")) },
+        async { http.await.map_err(|e| format!("http: {e}")) },
+    )?;
+    Ok(())
 }
 
+/// Resolves on SIGINT or SIGTERM.
 async fn shutdown() {
-    let _ = tokio::signal::ctrl_c().await;
+    let interrupt = tokio::signal::ctrl_c();
+    #[cfg(unix)]
+    {
+        let Ok(mut term) =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        else {
+            let _ = interrupt.await;
+            return;
+        };
+        tokio::select! {
+            _ = interrupt => {}
+            _ = term.recv() => {}
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = interrupt.await;
+    }
 }

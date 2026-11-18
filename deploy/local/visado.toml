@@ -5,6 +5,7 @@ grpc_listen = "127.0.0.1:9191"
 http_listen = "127.0.0.1:8080"
 txn_lifetime = 60
 default_scope = "tickets.read"
+allowed_authorities = ["tools.td.example"]
 internal_callers = ["spiffe://td.example/agent-a"]
 
 [signing_key]
