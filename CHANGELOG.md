@@ -8,6 +8,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 - `deploy/lab`: Envoy, visado, OPA with the AuthZEN plugin and an echo upstream in Docker Compose, with eight scenarios in `demo.sh` that CI runs.
 - A Dockerfile for the server.
+- OpenTelemetry: one `visado.authorize` span per decision with `visado.*` attributes, exported over OTLP when `[telemetry] otlp_endpoint` is set. The lab sends them to Jaeger.
+- `scripts/check.sh` runs every CI check locally.
 
 ## [0.1.0] - 2026-11-19
 

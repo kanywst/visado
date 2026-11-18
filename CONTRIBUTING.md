@@ -6,7 +6,7 @@ Every commit needs a [Developer Certificate of Origin](https://developercertific
 
 ## Checks
 
-CI runs these; run them before opening a pull request:
+CI runs these; `scripts/check.sh` runs them all. Run it before opening a pull request:
 
 ```bash
 cargo fmt --all -- --check
