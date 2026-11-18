@@ -1,26 +1,27 @@
 //! The decision pipeline end to end, with a stand-in PDP.
 
-#![allow(clippy::unused_async_trait_impl)]
+#![allow(clippy::unused_async_trait_impl, clippy::too_many_lines)]
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
-use envoy_types::ext_authz::v3::pb::{Authorization, CheckRequest};
+use envoy_types::ext_authz::v3::pb::{Authorization, CheckRequest, HeaderAppendAction};
 use envoy_types::pb::envoy::service::auth::v3::attribute_context::{HttpRequest, Request};
 use envoy_types::pb::envoy::service::auth::v3::{AttributeContext, check_response::HttpResponse};
 use visado_authzen::{Decision, EvaluationRequest, Pdp, PdpError};
 use visado_credentials::{Authenticator, OAuthIssuer, WitIssuer};
 use visado_extauthz::{CheckInput, ExtAuthz, Gate, GateConfig, Outcome};
 use visado_testkit::{
-    NOW, OAUTH_ISSUER, TRUST_DOMAIN, access_token, oauth_jwks, pop_key, wit,
+    NOW, OAUTH_ISSUER, TRUST_DOMAIN, access_token, oauth_jwks, pop_key, signed_access_token, wit,
     wit_issuer_verifying_key, wpt,
 };
-use visado_txn_token::{KeySet, Scope, Validation, verify};
+use visado_txn_token::{KeySet, Scope, TxnTokenClaims, Validation, verify};
 use wimsey_jose::SigningKey;
 
 const HOST: &str = "tools.td.example";
-const AUDIENCE: &str = "https://tools.td.example/admin/roles";
+const TICKETS: &str = "https://tools.td.example/tickets";
+const ADMIN: &str = "https://tools.td.example/admin/roles";
 
-/// Allows a call only when the scope covers the action the path implies.
+/// Allows a call only when the scope covers what the path needs.
 struct ScopePdp;
 
 impl Pdp for ScopePdp {
@@ -54,20 +55,30 @@ fn txn_key() -> SigningKey {
     SigningKey::from_ed25519_seed(&[0x51; 32])
 }
 
-fn gate<P: Pdp>(pdp: P) -> Gate<P> {
-    let jwks = serde_json::from_value(oauth_jwks()).unwrap();
-    let authenticator = Authenticator::new()
-        .with_wit_issuer(WitIssuer::new(TRUST_DOMAIN).with_key("wit-1", wit_issuer_verifying_key()))
-        .with_oauth_issuer(OAuthIssuer::new(OAUTH_ISSUER, AUDIENCE, jwks));
-    let config = GateConfig {
+fn config() -> GateConfig {
+    GateConfig {
         trust_domain: TRUST_DOMAIN.into(),
         signing_key: txn_key(),
         kid: "txn-1".into(),
         txn_lifetime: 60,
         default_scope: Scope::parse("tickets.read"),
-        internal_callers: BTreeSet::from(["spiffe://td.example/agent-a".to_owned()]),
-    };
-    Gate::new(config, authenticator, pdp)
+        internal_callers: BTreeSet::from([
+            "spiffe://td.example/agent-a".to_owned(),
+            "spiffe://td.example/agent-b".to_owned(),
+        ]),
+        allowed_authorities: BTreeSet::from([HOST.to_owned()]),
+    }
+}
+
+fn authenticator(audience: &str) -> Authenticator {
+    let jwks = serde_json::from_value(oauth_jwks()).unwrap();
+    Authenticator::new()
+        .with_wit_issuer(WitIssuer::new(TRUST_DOMAIN).with_key("wit-1", wit_issuer_verifying_key()))
+        .with_oauth_issuer(OAuthIssuer::new(OAUTH_ISSUER, audience, jwks))
+}
+
+fn gate<P: Pdp>(pdp: P) -> Gate<P> {
+    Gate::new(config(), authenticator(ADMIN), pdp)
 }
 
 fn input(path: &str, headers: &[(&str, &str)]) -> CheckInput {
@@ -83,15 +94,55 @@ fn input(path: &str, headers: &[(&str, &str)]) -> CheckInput {
     }
 }
 
-fn minted(outcome: &Outcome) -> visado_txn_token::TxnTokenClaims {
+/// A WIT, a WPT for the request target and the optional extra headers.
+fn wimse_call(
+    workload: &str,
+    seed: u8,
+    path: &str,
+    jti: &str,
+    txn: Option<&str>,
+    user: Option<&str>,
+) -> CheckInput {
+    let pop = pop_key(seed);
+    let w = wit(workload, &pop);
+    let audience = format!("https://{HOST}{path}");
+    let p = wpt(
+        &w,
+        &pop,
+        &audience,
+        jti,
+        txn,
+        user.map(|u| ("x-user-token", u)),
+    );
+    let mut headers = vec![
+        ("workload-identity-token", w.clone()),
+        ("authorization", format!("WPT {p}")),
+    ];
+    if let Some(txn) = txn {
+        headers.push(("txn-token", txn.to_owned()));
+    }
+    if let Some(user) = user {
+        headers.push(("x-user-token", user.to_owned()));
+    }
+    let headers: Vec<(&str, &str)> = headers.iter().map(|(n, v)| (*n, v.as_str())).collect();
+    input(path, &headers)
+}
+
+fn minted(outcome: &Outcome) -> (String, TxnTokenClaims) {
     let Outcome::Allow { set, .. } = outcome else {
         panic!("expected allow, got {outcome:?}")
     };
-    let token = &set.iter().find(|(n, _)| n == "txn-token").unwrap().1;
-    let keys = KeySet::new().with_key("txn-1", txn_key().verifying_key());
-    verify(token, &keys, &Validation::new(TRUST_DOMAIN, NOW + 1))
+    let token = set
+        .iter()
+        .find(|(n, _)| n == "txn-token")
         .unwrap()
-        .claims
+        .1
+        .clone();
+    let keys = KeySet::new().with_key("txn-1", txn_key().verifying_key());
+    let claims = verify(&token, &keys, &Validation::new(TRUST_DOMAIN, NOW + 1))
+        .unwrap()
+        .claims;
+    (token, claims)
 }
 
 fn denied(outcome: &Outcome) -> (u16, &str) {
@@ -104,16 +155,43 @@ fn denied(outcome: &Outcome) -> (u16, &str) {
 #[tokio::test]
 async fn user_scope_flows_into_the_transaction_token() {
     let gate = gate(ScopePdp);
-    let pop = pop_key(1);
-    let w = wit("agent-a", &pop);
     let at = access_token(
         "alice",
         "agent-a",
         "roles.write tickets.read",
-        AUDIENCE,
+        ADMIN,
         NOW + 300,
     );
-    let p = wpt(&w, &pop, AUDIENCE, "j1", None, Some(("x-user-token", &at)));
+    let outcome = gate
+        .check(
+            &wimse_call("agent-a", 1, "/admin/roles", "j1", None, Some(&at)),
+            NOW,
+            "txn-1",
+        )
+        .await;
+    let (_, claims) = minted(&outcome);
+    assert_eq!(claims.sub, "alice");
+    assert_eq!(claims.req_wl, "spiffe://td.example/agent-a");
+    assert_eq!(claims.scope.to_string(), "roles.write tickets.read");
+    let Outcome::Allow { remove, .. } = outcome else {
+        unreachable!()
+    };
+    for header in ["authorization", "workload-identity-token", "x-user-token"] {
+        assert!(remove.contains(&header.to_owned()), "{header} is removed");
+    }
+}
+
+#[tokio::test]
+async fn a_renamed_user_token_header_is_still_removed() {
+    let gate = Gate::new(
+        config(),
+        authenticator(ADMIN).with_user_token_header("X-Access-Token"),
+        ScopePdp,
+    );
+    let at = access_token("alice", "agent-a", "roles.write", ADMIN, NOW + 300);
+    let pop = pop_key(1);
+    let w = wit("agent-a", &pop);
+    let p = wpt(&w, &pop, ADMIN, "r1", None, Some(("x-access-token", &at)));
     let outcome = gate
         .check(
             &input(
@@ -121,141 +199,156 @@ async fn user_scope_flows_into_the_transaction_token() {
                 &[
                     ("workload-identity-token", &w),
                     ("authorization", &format!("WPT {p}")),
-                    ("x-user-token", &at),
+                    ("x-access-token", &at),
                 ],
             ),
             NOW,
-            "txn-1",
+            "t",
         )
         .await;
-    let claims = minted(&outcome);
-    assert_eq!(claims.sub, "alice");
-    assert_eq!(claims.req_wl, "spiffe://td.example/agent-a");
-    assert_eq!(claims.scope.to_string(), "roles.write tickets.read");
     let Outcome::Allow { remove, .. } = outcome else {
-        unreachable!()
+        panic!("{outcome:?}")
     };
-    assert!(remove.contains(&"authorization".to_owned()));
-    assert!(remove.contains(&"x-user-token".to_owned()));
+    assert!(remove.contains(&"x-access-token".to_owned()));
 }
 
-/// The agent-to-agent escalation case: agent B, recruited by agent A on a
-/// read-only ticket triage, tries to assign a role. B's scope is the one A was
-/// given, so the PDP refuses.
+/// The agent-to-agent escalation case: a low-privilege user's request is
+/// triaged by agent A, which hands the transaction to agent B. B tries to
+/// assign a role. The Transaction Token carries the user's read-only scope, so
+/// the PDP refuses.
 #[tokio::test]
 async fn a_recruited_agent_cannot_widen_authority() {
     let gate = gate(ScopePdp);
-
-    // Hop 1: agent A, acting for a low-privilege user, reads tickets.
-    let pop_a = pop_key(1);
-    let wit_a = wit("agent-a", &pop_a);
-    let at = access_token("bob", "agent-a", "tickets.read", AUDIENCE, NOW + 300);
-    let p = wpt(
-        &wit_a,
-        &pop_a,
-        "https://tools.td.example/tickets",
-        "a1",
-        None,
-        Some(("x-user-token", &at)),
-    );
+    let at = access_token("bob", "agent-a", "tickets.read", ADMIN, NOW + 300);
     let hop1 = gate
         .check(
-            &input(
-                "/tickets",
-                &[
-                    ("workload-identity-token", &wit_a),
-                    ("authorization", &format!("WPT {p}")),
-                    ("x-user-token", &at),
-                ],
-            ),
+            &wimse_call("agent-a", 1, "/tickets", "a1", None, Some(&at)),
             NOW,
             "txn-esc",
         )
         .await;
-    let Outcome::Allow { set, .. } = &hop1 else {
-        panic!("hop 1 should pass: {hop1:?}")
-    };
-    let txn_token = set[0].1.clone();
+    let (token, claims) = minted(&hop1);
+    assert_eq!(claims.sub, "bob");
 
-    // Hop 2: agent A forwards the transaction to the admin API.
-    let p2 = wpt(&wit_a, &pop_a, AUDIENCE, "a2", Some(&txn_token), None);
     let hop2 = gate
         .check(
-            &input(
-                "/admin/roles",
-                &[
-                    ("workload-identity-token", &wit_a),
-                    ("authorization", &format!("WPT {p2}")),
-                    ("txn-token", &txn_token),
-                ],
-            ),
+            &wimse_call("agent-b", 2, "/admin/roles", "b1", Some(&token), None),
             NOW,
-            "ignored",
+            "x",
         )
         .await;
     assert_eq!(denied(&hop2), (403, "pdp.deny"));
+
+    let hop2_read = gate
+        .check(
+            &wimse_call("agent-b", 2, "/tickets", "b2", Some(&token), None),
+            NOW,
+            "x",
+        )
+        .await;
+    let (forwarded, claims) = minted(&hop2_read);
+    assert_eq!(forwarded, token, "the token is forwarded unchanged");
+    assert_eq!(claims.txn, "txn-esc");
 }
 
 #[tokio::test]
-async fn a_forwarded_token_keeps_its_transaction() {
+async fn forwarding_is_limited_to_internal_workloads() {
     let gate = gate(ScopePdp);
-    let pop = pop_key(1);
-    let w = wit("agent-a", &pop);
     let first = gate
         .check(
-            &input(
-                "/tickets",
-                &[
-                    ("workload-identity-token", &w),
-                    (
-                        "authorization",
-                        &format!(
-                            "WPT {}",
-                            wpt(
-                                &w,
-                                &pop,
-                                "https://tools.td.example/tickets",
-                                "f1",
-                                None,
-                                None
-                            )
-                        ),
-                    ),
-                ],
-            ),
+            &wimse_call("agent-a", 1, "/tickets", "f1", None, None),
             NOW,
             "txn-keep",
         )
         .await;
-    let token = {
-        let Outcome::Allow { set, .. } = &first else {
-            panic!()
-        };
-        set[0].1.clone()
-    };
-    let p = wpt(
-        &w,
-        &pop,
-        "https://tools.td.example/tickets",
-        "f2",
-        Some(&token),
-        None,
+    let (token, _) = minted(&first);
+
+    let outsider = gate
+        .check(
+            &wimse_call("agent-z", 9, "/tickets", "z1", Some(&token), None),
+            NOW,
+            "t",
+        )
+        .await;
+    assert_eq!(denied(&outsider), (403, "txn.untrusted_hop"));
+
+    // A bearer client named like an internal workload is still not one.
+    let at = access_token(
+        "alice",
+        "spiffe://td.example/agent-a",
+        "tickets.read",
+        TICKETS,
+        NOW + 300,
     );
-    let second = gate
+    let gate_tickets = Gate::new(config(), authenticator(TICKETS), ScopePdp);
+    let bearer = gate_tickets
+        .check(
+            &input(
+                "/tickets",
+                &[
+                    ("authorization", &format!("Bearer {at}")),
+                    ("txn-token", &token),
+                ],
+            ),
+            NOW,
+            "t",
+        )
+        .await;
+    assert_eq!(denied(&bearer), (403, "txn.untrusted_hop"));
+
+    // An internal workload with a token that does not verify.
+    let forged = format!("{token}x");
+    let pop = pop_key(1);
+    let w = wit("agent-a", &pop);
+    let p = wpt(&w, &pop, TICKETS, "f2", Some(&forged), None);
+    let bad = gate
         .check(
             &input(
                 "/tickets",
                 &[
                     ("workload-identity-token", &w),
                     ("authorization", &format!("WPT {p}")),
-                    ("txn-token", &token),
+                    ("txn-token", &forged),
                 ],
             ),
             NOW,
-            "txn-new",
+            "t",
         )
         .await;
-    assert_eq!(minted(&second).txn, "txn-keep");
+    assert_eq!(denied(&bad).0, 403);
+    assert!(denied(&bad).1.starts_with("txn."));
+}
+
+#[tokio::test]
+async fn request_target_is_checked_first() {
+    let gate = gate(ScopePdp);
+    let mut other_host = wimse_call("agent-a", 1, "/tickets", "t1", None, None);
+    other_host.authority = "evil.example".into();
+    assert_eq!(
+        denied(&gate.check(&other_host, NOW, "t").await),
+        (403, "request.unknown_authority")
+    );
+
+    for path in [
+        "/tickets/../admin/roles",
+        "/tickets/%2e%2e/admin",
+        "/a//b",
+        "/a/%2F/b",
+        "/a/./b",
+    ] {
+        assert_eq!(
+            denied(&gate.check(&input(path, &[]), NOW, "t").await),
+            (400, "request.unnormalized_path"),
+            "{path}"
+        );
+    }
+
+    let mut no_scheme = input("/tickets", &[]);
+    no_scheme.scheme = String::new();
+    assert_eq!(
+        denied(&gate.check(&no_scheme, NOW, "t").await),
+        (400, "request.no_scheme")
+    );
 }
 
 #[tokio::test]
@@ -266,37 +359,25 @@ async fn rejections() {
         (401, "credential.missing")
     );
 
-    // An outside caller may not bring its own Transaction Token.
-    let pop = pop_key(2);
-    let w = wit("agent-z", &pop);
-    let forged = "eyJhbGciOiJub25lIn0.e30.";
-    let p = wpt(
-        &w,
-        &pop,
-        "https://tools.td.example/tickets",
-        "z1",
-        Some(forged),
-        None,
-    );
+    // A user token without a scope grants nothing, even with a default scope.
+    let no_scope = signed_access_token(&serde_json::json!({
+        "iss": OAUTH_ISSUER, "sub": "alice", "aud": ADMIN, "client_id": "c1", "exp": NOW + 300,
+    }));
     let outcome = gate
         .check(
             &input(
                 "/tickets",
-                &[
-                    ("workload-identity-token", &w),
-                    ("authorization", &format!("WPT {p}")),
-                    ("txn-token", forged),
-                ],
+                &[("authorization", &format!("Bearer {no_scope}"))],
             ),
             NOW,
             "t",
         )
         .await;
-    assert_eq!(denied(&outcome), (403, "txn.untrusted_hop"));
+    assert_eq!(denied(&outcome), (403, "token.no_scope"));
 
     // A PDP outage denies.
     let down = self::gate(DownPdp);
-    let at = access_token("alice", "client-1", "tickets.read", AUDIENCE, NOW + 300);
+    let at = access_token("alice", "client-1", "tickets.read", ADMIN, NOW + 300);
     let outcome = down
         .check(
             &input("/tickets", &[("authorization", &format!("Bearer {at}"))]),
@@ -308,15 +389,27 @@ async fn rejections() {
 }
 
 #[tokio::test]
-async fn grpc_service_maps_outcomes() {
-    let service = ExtAuthz::new(gate(ScopePdp));
-    let mut headers = std::collections::HashMap::new();
-    headers.insert("authorization".to_owned(), "Bearer nope".to_owned());
-    let request = CheckRequest {
+async fn bearer_clients_are_marked_in_req_wl() {
+    let gate = gate(ScopePdp);
+    let at = access_token("alice", "mcp-client", "tickets.read", ADMIN, NOW + 300);
+    let outcome = gate
+        .check(
+            &input("/tickets", &[("authorization", &format!("Bearer {at}"))]),
+            NOW,
+            "t",
+        )
+        .await;
+    let (_, claims) = minted(&outcome);
+    assert_eq!(claims.req_wl, "oauth-client:mcp-client");
+    assert_eq!(claims.sub, "alice");
+}
+
+fn check_request(headers: HashMap<String, String>) -> CheckRequest {
+    CheckRequest {
         attributes: Some(AttributeContext {
             request: Some(Request {
                 http: Some(HttpRequest {
-                    method: "GET".into(),
+                    method: "POST".into(),
                     host: HOST.into(),
                     path: "/tickets".into(),
                     scheme: "https".into(),
@@ -327,19 +420,64 @@ async fn grpc_service_maps_outcomes() {
             }),
             ..AttributeContext::default()
         }),
-    };
-    let response = service
-        .check(tonic::Request::new(request))
+    }
+}
+
+#[tokio::test]
+async fn grpc_service_maps_outcomes() {
+    let service = ExtAuthz::new(Gate::new(config(), authenticator(TICKETS), ScopePdp));
+
+    let rejected = service
+        .check(tonic::Request::new(check_request(HashMap::from([(
+            "authorization".to_owned(),
+            "Bearer nope".to_owned(),
+        )]))))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(
-        response.status.unwrap().code,
+        rejected.status.unwrap().code,
         tonic::Code::PermissionDenied as i32
     );
-    let Some(HttpResponse::DeniedResponse(denied)) = response.http_response else {
+    let Some(HttpResponse::DeniedResponse(body)) = rejected.http_response else {
         panic!()
     };
-    assert_eq!(denied.status.unwrap().code, 401);
-    assert!(denied.body.contains("token.invalid"));
+    assert_eq!(body.status.unwrap().code, 401);
+    assert!(body.body.contains("token.invalid"));
+
+    // The service reads the real clock, so this token expires far in the future.
+    let at = access_token("alice", "client-1", "tickets.read", TICKETS, 4_000_000_000);
+    let allowed = service
+        .check(tonic::Request::new(check_request(HashMap::from([(
+            "authorization".to_owned(),
+            format!("Bearer {at}"),
+        )]))))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(allowed.status.unwrap().code, tonic::Code::Ok as i32);
+    assert!(allowed.dynamic_metadata.unwrap().fields.contains_key("txn"));
+    let Some(HttpResponse::OkResponse(ok)) = allowed.http_response else {
+        panic!()
+    };
+    let txn = ok
+        .headers
+        .iter()
+        .find(|h| h.header.as_ref().unwrap().key == "txn-token")
+        .unwrap();
+    assert_eq!(
+        txn.append_action,
+        HeaderAppendAction::OverwriteIfExistsOrAdd as i32
+    );
+    assert!(ok.headers_to_remove.contains(&"authorization".to_owned()));
+
+    let empty = service
+        .check(tonic::Request::new(CheckRequest::default()))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(
+        matches!(empty.http_response, Some(HttpResponse::DeniedResponse(_))),
+        "malformed requests are denied, not returned as gRPC errors"
+    );
 }

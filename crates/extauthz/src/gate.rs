@@ -4,15 +4,15 @@ use std::collections::BTreeSet;
 
 use serde_json::{Map, Value, json};
 use visado_authzen::{Action, Entity, EvaluationRequest, Pdp};
-use visado_credentials::{Authenticated, Authenticator, Method, RequestView};
+use visado_credentials::{AuthError, Authenticated, Authenticator, Method, RequestView};
 use visado_txn_token::{KeySet, Scope, TxnTokenClaims, Validation, mint, verify};
 use wimsey_jose::SigningKey;
 
-/// Headers removed before the request goes upstream. The upstream gets the
-/// Transaction Token instead (MCP and the Txn-Token draft both forbid
-/// forwarding the inbound access token).
-pub const STRIPPED_HEADERS: [&str; 3] =
-    ["authorization", "workload-identity-token", "x-user-token"];
+/// Headers always removed before the request goes upstream, in addition to the
+/// authenticator's user token header. The upstream gets the Transaction Token
+/// instead (MCP and the Txn-Token draft both forbid forwarding the inbound
+/// access token).
+pub const STRIPPED_HEADERS: [&str; 2] = ["authorization", "workload-identity-token"];
 
 /// Settings for one trust domain.
 #[derive(Debug)]
@@ -25,11 +25,14 @@ pub struct GateConfig {
     pub kid: String,
     /// Lifetime of minted Transaction Tokens, in seconds.
     pub txn_lifetime: u64,
-    /// Scope used when the caller presents no access token.
+    /// Scope for a workload that calls on its own behalf, with no user token.
     pub default_scope: Scope,
-    /// Callers allowed to forward a Transaction Token from an earlier hop.
-    /// Anyone else's inbound `Txn-Token` is rejected.
+    /// Workloads (by WIT `sub`) allowed to forward a Transaction Token from an
+    /// earlier hop. Anyone else's inbound `Txn-Token` is rejected.
     pub internal_callers: BTreeSet<String>,
+    /// Authorities (host and optional port) this gate protects. Requests for
+    /// any other authority are denied. Empty means any authority.
+    pub allowed_authorities: BTreeSet<String>,
 }
 
 /// The parts of the request the gate looks at.
@@ -77,6 +80,7 @@ pub struct Gate<P> {
     authenticator: Authenticator,
     pdp: P,
     txn_keys: KeySet,
+    stripped: Vec<String>,
 }
 
 impl<P: Pdp> Gate<P> {
@@ -84,132 +88,223 @@ impl<P: Pdp> Gate<P> {
     pub fn new(config: GateConfig, authenticator: Authenticator, pdp: P) -> Self {
         let txn_keys =
             KeySet::new().with_key(config.kid.clone(), config.signing_key.verifying_key());
+        let mut stripped: Vec<String> = STRIPPED_HEADERS.iter().map(|h| (*h).to_owned()).collect();
+        stripped.push(authenticator.user_token_header().to_owned());
         Self {
             config,
             authenticator,
             pdp,
             txn_keys,
+            stripped,
         }
     }
 
     /// Decides on `input` at `now`. `txn` is the identifier used if a new
     /// Transaction Token is minted.
     pub async fn check(&self, input: &CheckInput, now: u64, txn: &str) -> Outcome {
-        let view = RequestView {
-            scheme: &input.scheme,
-            authority: &input.authority,
-            path: &input.path,
-            headers: &input.headers,
-        };
-        let caller = match self.authenticator.authenticate(&view, now) {
-            Ok(caller) => caller,
-            Err(e) => {
-                let challenge = if input
-                    .headers
-                    .iter()
-                    .any(|(n, _)| n == "workload-identity-token")
-                {
-                    "WPT"
-                } else {
-                    "Bearer"
-                };
-                return deny(input, None, 401, e.code(), Some(challenge));
+        match self.decide(input, now, txn).await {
+            Ok(allowed) => {
+                audit(input, &allowed.trail, "allow", "ok");
+                Outcome::Allow {
+                    txn: allowed.trail.txn,
+                    set: vec![("txn-token".into(), allowed.token)],
+                    remove: self.stripped.clone(),
+                }
             }
-        };
+            Err(denied) => {
+                audit(input, &denied.trail, "deny", denied.code);
+                Outcome::Deny {
+                    status: denied.status,
+                    code: denied.code.to_owned(),
+                    challenge: denied.challenge.map(ToOwned::to_owned),
+                }
+            }
+        }
+    }
+
+    async fn decide(&self, input: &CheckInput, now: u64, txn: &str) -> Result<Allowed, Denied> {
+        let mut trail = Trail::default();
+        self.check_target(input)?;
+        let caller = self.authenticate(input, now)?;
+        trail.agent.clone_from(&caller.caller);
 
         let inbound = input
             .headers
             .iter()
             .find(|(n, _)| n == "txn-token")
             .map(|(_, v)| v.as_str());
-        let context = match inbound {
-            Some(token) => {
-                if !self.config.internal_callers.contains(&caller.caller) {
-                    return deny(input, Some(&caller), 403, "txn.untrusted_hop", None);
-                }
-                let validation = Validation::new(&self.config.trust_domain, now);
-                match verify(token, &self.txn_keys, &validation) {
-                    Ok(verified) => Context::Forwarded(Box::new(verified.claims)),
-                    Err(e) => return deny(input, Some(&caller), 403, e.code(), None),
-                }
-            }
-            None => Context::Fresh,
+        let forwarded = match inbound {
+            Some(token) => Some(self.accept_forwarded(&caller, token, now, &trail)?),
+            None => None,
         };
-
-        let (principal, scope, txn_id) = match &context {
-            Context::Forwarded(claims) => {
-                (claims.sub.clone(), claims.scope.clone(), claims.txn.clone())
-            }
-            Context::Fresh => {
-                let principal = caller
-                    .user
-                    .as_ref()
-                    .map_or_else(|| caller.caller.clone(), |u| u.subject.clone());
-                let scope = caller
-                    .user
-                    .as_ref()
-                    .and_then(|u| u.scope.as_deref())
-                    .map_or_else(|| self.config.default_scope.clone(), Scope::parse);
-                (principal, scope, txn.to_owned())
-            }
+        let (principal, scope) = match &forwarded {
+            Some(claims) => (claims.sub.clone(), claims.scope.clone()),
+            None => self.principal_and_scope(&caller, &trail)?,
         };
+        trail.principal.clone_from(&principal);
+        trail.txn = forwarded
+            .as_ref()
+            .map_or_else(|| txn.to_owned(), |c| c.txn.clone());
 
-        let request = evaluation_request(input, &caller, &principal, &scope, &txn_id);
-        match self.pdp.evaluate(&request, &txn_id).await {
+        let request = evaluation_request(input, &caller, &principal, &scope, &trail.txn);
+        match self.pdp.evaluate(&request, &trail.txn).await {
             Ok(decision) if decision.allowed => {}
-            Ok(_) => return deny(input, Some(&caller), 403, "pdp.deny", None),
-            Err(e) => return deny(input, Some(&caller), 403, e.code(), None),
+            Ok(_) => return Err(Denied::new(403, "pdp.deny", &trail)),
+            Err(e) => return Err(Denied::new(403, e.code(), &trail)),
         }
 
-        let token = match context {
-            Context::Forwarded(_) => inbound.unwrap_or_default().to_owned(),
-            Context::Fresh => {
-                let claims = TxnTokenClaims {
-                    iss: None,
-                    iat: now,
-                    aud: self.config.trust_domain.clone(),
-                    exp: now + self.config.txn_lifetime,
-                    txn: txn_id.clone(),
-                    sub: principal.clone(),
-                    scope,
-                    req_wl: caller.caller.clone(),
-                    tctx: Some(tctx(&caller)),
-                    rctx: Some(rctx(input)),
-                };
-                match mint(&claims, Some(&self.config.kid), &self.config.signing_key) {
-                    Ok(token) => token,
-                    Err(e) => return deny(input, Some(&caller), 403, e.code(), None),
-                }
-            }
+        let token = if let (Some(_), Some(token)) = (forwarded, inbound) {
+            token.to_owned()
+        } else {
+            let claims = TxnTokenClaims {
+                iss: None,
+                iat: now,
+                aud: self.config.trust_domain.clone(),
+                exp: now + self.config.txn_lifetime,
+                txn: trail.txn.clone(),
+                sub: principal,
+                scope,
+                req_wl: requesting_workload(&caller),
+                tctx: Some(tctx(&caller)),
+                rctx: Some(rctx(input)),
+            };
+            mint(&claims, Some(&self.config.kid), &self.config.signing_key)
+                .map_err(|e| Denied::new(403, e.code(), &trail))?
         };
+        Ok(Allowed { token, trail })
+    }
 
-        audit(input, Some(&caller), &principal, &txn_id, "allow", "ok");
-        Outcome::Allow {
-            txn: txn_id,
-            set: vec![("txn-token".into(), token)],
-            remove: STRIPPED_HEADERS.iter().map(|h| (*h).to_owned()).collect(),
+    fn check_target(&self, input: &CheckInput) -> Result<(), Denied> {
+        let none = Trail::default();
+        if input.scheme.is_empty() {
+            return Err(Denied::new(400, "request.no_scheme", &none));
+        }
+        if !self.config.allowed_authorities.is_empty()
+            && !self.config.allowed_authorities.contains(&input.authority)
+        {
+            return Err(Denied::new(403, "request.unknown_authority", &none));
+        }
+        if !is_normalized(&input.path) {
+            return Err(Denied::new(400, "request.unnormalized_path", &none));
+        }
+        Ok(())
+    }
+
+    fn authenticate(&self, input: &CheckInput, now: u64) -> Result<Authenticated, Denied> {
+        let view = RequestView {
+            scheme: &input.scheme,
+            authority: &input.authority,
+            path: &input.path,
+            headers: &input.headers,
+        };
+        self.authenticator.authenticate(&view, now).map_err(|e| {
+            let wimse = input
+                .headers
+                .iter()
+                .any(|(n, _)| n == "workload-identity-token");
+            let status = if matches!(e, AuthError::ReplayCacheFull) {
+                503
+            } else {
+                401
+            };
+            let mut denied = Denied::new(status, e.code(), &Trail::default());
+            denied.challenge = Some(if wimse { "WPT" } else { "Bearer" });
+            denied
+        })
+    }
+
+    /// An inbound Transaction Token is accepted only from a configured internal
+    /// workload, and only if it verifies against this gate's key and domain.
+    fn accept_forwarded(
+        &self,
+        caller: &Authenticated,
+        token: &str,
+        now: u64,
+        trail: &Trail,
+    ) -> Result<TxnTokenClaims, Denied> {
+        if caller.method != Method::WitWpt || !self.config.internal_callers.contains(&caller.caller)
+        {
+            return Err(Denied::new(403, "txn.untrusted_hop", trail));
+        }
+        let validation = Validation::new(&self.config.trust_domain, now);
+        verify(token, &self.txn_keys, &validation)
+            .map(|verified| verified.claims)
+            .map_err(|e| Denied::new(403, e.code(), trail))
+    }
+
+    /// Who the transaction is for, and with what scope. A user token without a
+    /// scope grants nothing; the default scope is only for a workload calling
+    /// on its own behalf.
+    fn principal_and_scope(
+        &self,
+        caller: &Authenticated,
+        trail: &Trail,
+    ) -> Result<(String, Scope), Denied> {
+        match &caller.user {
+            Some(user) => match user.scope.as_deref().map(Scope::parse) {
+                Some(scope) if !scope.is_empty() => Ok((user.subject.clone(), scope)),
+                _ => Err(Denied::new(403, "token.no_scope", trail)),
+            },
+            None => Ok((caller.caller.clone(), self.config.default_scope.clone())),
         }
     }
 }
 
-fn deny(
-    input: &CheckInput,
-    caller: Option<&Authenticated>,
+/// What is known about the request so far, for the audit event.
+#[derive(Debug, Default, Clone)]
+struct Trail {
+    agent: String,
+    principal: String,
+    txn: String,
+}
+
+struct Allowed {
+    token: String,
+    trail: Trail,
+}
+
+struct Denied {
     status: u16,
-    code: &str,
-    challenge: Option<&str>,
-) -> Outcome {
-    audit(input, caller, "", "", "deny", code);
-    Outcome::Deny {
-        status,
-        code: code.to_owned(),
-        challenge: challenge.map(ToOwned::to_owned),
+    code: &'static str,
+    challenge: Option<&'static str>,
+    trail: Trail,
+}
+
+impl Denied {
+    fn new(status: u16, code: &'static str, trail: &Trail) -> Self {
+        Self {
+            status,
+            code,
+            challenge: None,
+            trail: trail.clone(),
+        }
     }
 }
 
-enum Context {
-    Fresh,
-    Forwarded(Box<TxnTokenClaims>),
+/// Rejects paths an upstream might resolve differently from how they are
+/// authorized: dot segments, encoded dots or slashes, empty segments, and
+/// backslashes.
+fn is_normalized(path: &str) -> bool {
+    let path = path.split(['?', '#']).next().unwrap_or("");
+    if !path.starts_with('/') || path.contains('\\') || path.contains("//") {
+        return false;
+    }
+    let lower = path.to_ascii_lowercase();
+    if lower.contains("%2e") || lower.contains("%2f") || lower.contains("%5c") {
+        return false;
+    }
+    !path
+        .split('/')
+        .any(|segment| segment == "." || segment == "..")
+}
+
+/// `req_wl` for the token. Bearer callers are OAuth clients, not workloads,
+/// so they are marked to keep them apart from workload identifiers.
+fn requesting_workload(caller: &Authenticated) -> String {
+    match caller.method {
+        Method::WitWpt => caller.caller.clone(),
+        Method::Bearer => format!("oauth-client:{}", caller.caller),
+    }
 }
 
 fn resource_id(input: &CheckInput) -> String {
@@ -225,15 +320,19 @@ fn evaluation_request(
     txn: &str,
 ) -> EvaluationRequest {
     let principal = (principal != caller.caller).then(|| Entity::new("user", principal));
-    EvaluationRequest::for_agent(
+    let mut request = EvaluationRequest::for_agent(
         caller.caller.clone(),
         principal,
         Entity::new("http_resource", resource_id(input)),
         Action::new(input.method.clone()),
-    )
-    .with_context("scope", json!(scope.to_string()))
-    .with_context("auth_method", json!(method_name(caller.method)))
-    .with_context("txn", json!(txn))
+    );
+    if caller.method == Method::Bearer {
+        request.subject.kind = "client".into();
+    }
+    request
+        .with_context("scope", json!(scope.to_string()))
+        .with_context("auth_method", json!(method_name(caller.method)))
+        .with_context("txn", json!(txn))
 }
 
 const fn method_name(method: Method) -> &'static str {
@@ -257,19 +356,12 @@ fn rctx(input: &CheckInput) -> Map<String, Value> {
     map
 }
 
-fn audit(
-    input: &CheckInput,
-    caller: Option<&Authenticated>,
-    principal: &str,
-    txn: &str,
-    decision: &str,
-    reason: &str,
-) {
+fn audit(input: &CheckInput, trail: &Trail, decision: &str, reason: &str) {
     tracing::info!(
         target: "visado::audit",
-        txn,
-        agent = caller.map_or("", |c| c.caller.as_str()),
-        principal,
+        txn = %trail.txn,
+        agent = %trail.agent,
+        principal = %trail.principal,
         resource = %resource_id(input),
         action = %input.method,
         decision,

@@ -1,5 +1,6 @@
 //! Envoy ext_authz v3 over gRPC.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -9,6 +10,8 @@ use envoy_types::ext_authz::v3::pb::{
 use envoy_types::ext_authz::v3::{
     CheckResponseExt, DeniedHttpResponseBuilder, OkHttpResponseBuilder,
 };
+use envoy_types::pb::google::protobuf::value::Kind;
+use envoy_types::pb::google::protobuf::{Struct, Value as ProtoValue};
 use tonic::{Request, Response, Status};
 use visado_authzen::Pdp;
 
@@ -38,29 +41,71 @@ fn input_from(request: &CheckRequest) -> Option<CheckInput> {
         .as_ref()?
         .http
         .as_ref()?;
-    let mut headers: Vec<(String, String)> = http
-        .headers
-        .iter()
-        .map(|(k, v)| (k.to_ascii_lowercase(), v.clone()))
-        .collect();
+    // With `encode_raw_headers`, Envoy sends `header_map` and leaves `headers`
+    // empty. `header_map` also keeps repeated headers apart instead of joining
+    // them with commas, so prefer it when present.
+    let mut headers: Vec<(String, String)> = match &http.header_map {
+        Some(map) if !map.headers.is_empty() => map
+            .headers
+            .iter()
+            .map(|h| {
+                let value = if h.raw_value.is_empty() {
+                    h.value.clone()
+                } else {
+                    String::from_utf8_lossy(&h.raw_value).into_owned()
+                };
+                (h.key.to_ascii_lowercase(), value)
+            })
+            .collect(),
+        _ => http
+            .headers
+            .iter()
+            .map(|(k, v)| (k.to_ascii_lowercase(), v.clone()))
+            .collect(),
+    };
     headers.sort();
     Some(CheckInput {
         method: http.method.clone(),
-        scheme: if http.scheme.is_empty() {
-            "https".into()
-        } else {
-            http.scheme.clone()
-        },
+        scheme: http.scheme.clone(),
         authority: http.host.clone(),
         path: http.path.clone(),
         headers,
     })
 }
 
+fn denied_response(status: u16, code: &str, challenge: Option<&str>) -> CheckResponse {
+    let mut denied = DeniedHttpResponseBuilder::new();
+    denied
+        .set_http_status(status_code(status))
+        .add_header("content-type", "application/json", None, false)
+        .set_body(format!(r#"{{"error":"{code}"}}"#));
+    if let Some(challenge) = challenge {
+        denied.add_header("www-authenticate", challenge, None, false);
+    }
+    let mut response = CheckResponse::new();
+    response
+        .set_status(Status::permission_denied(code.to_owned()))
+        .set_http_response(denied);
+    response
+}
+
+fn txn_metadata(txn: &str) -> Struct {
+    let mut fields = HashMap::new();
+    fields.insert(
+        "txn".to_owned(),
+        ProtoValue {
+            kind: Some(Kind::StringValue(txn.to_owned())),
+        },
+    );
+    Struct { fields }
+}
+
 fn status_code(status: u16) -> HttpStatusCode {
     match status {
+        400 => HttpStatusCode::BadRequest,
         401 => HttpStatusCode::Unauthorized,
         403 => HttpStatusCode::Forbidden,
+        503 => HttpStatusCode::ServiceUnavailable,
         _ => HttpStatusCode::InternalServerError,
     }
 }
@@ -71,18 +116,22 @@ impl<P: Pdp + 'static> Authorization for ExtAuthz<P> {
         &self,
         request: Request<CheckRequest>,
     ) -> Result<Response<CheckResponse>, Status> {
+        // Malformed requests are denied in the response, not as gRPC errors,
+        // so Envoy's failure_mode_allow cannot turn them into an allow.
         let Some(input) = input_from(request.get_ref()) else {
-            return Err(Status::invalid_argument("no HTTP request attributes"));
+            return Ok(Response::new(denied_response(
+                400,
+                "request.no_http_attributes",
+                None,
+            )));
         };
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| Status::internal("clock before epoch"))?
-            .as_secs();
+        let Ok(elapsed) = SystemTime::now().duration_since(UNIX_EPOCH) else {
+            return Ok(Response::new(denied_response(500, "internal.clock", None)));
+        };
         let txn = uuid::Uuid::new_v4().to_string();
 
-        let mut response = CheckResponse::new();
-        match self.gate.check(&input, now, &txn).await {
-            Outcome::Allow { set, remove, .. } => {
+        let response = match self.gate.check(&input, elapsed.as_secs(), &txn).await {
+            Outcome::Allow { txn, set, remove } => {
                 let mut ok = OkHttpResponseBuilder::new();
                 for (name, value) in set {
                     ok.add_header(
@@ -95,28 +144,19 @@ impl<P: Pdp + 'static> Authorization for ExtAuthz<P> {
                 for name in remove {
                     ok.remove_header(name);
                 }
+                let mut response = CheckResponse::new();
                 response
                     .set_status(Status::ok("allowed"))
+                    .set_dynamic_metadata(Some(txn_metadata(&txn)))
                     .set_http_response(ok);
+                response
             }
             Outcome::Deny {
                 status,
                 code,
                 challenge,
-            } => {
-                let mut denied = DeniedHttpResponseBuilder::new();
-                denied
-                    .set_http_status(status_code(status))
-                    .add_header("content-type", "application/json", None, false)
-                    .set_body(format!(r#"{{"error":"{code}"}}"#));
-                if let Some(challenge) = challenge {
-                    denied.add_header("www-authenticate", challenge, None, false);
-                }
-                response
-                    .set_status(Status::permission_denied(code))
-                    .set_http_response(denied);
-            }
-        }
+            } => denied_response(status, &code, challenge.as_deref()),
+        };
         Ok(Response::new(response))
     }
 }
