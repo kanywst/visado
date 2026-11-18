@@ -41,7 +41,9 @@ fn main() {
         .as_secs();
 
     // Each workload gets its own proof-of-possession key.
-    let seed = workload.bytes().fold(7u8, |a, b| a.wrapping_mul(31).wrapping_add(b));
+    let seed = workload
+        .bytes()
+        .fold(7u8, |a, b| a.wrapping_mul(31).wrapping_add(b));
     let pop = visado_testkit::pop_key(seed);
     let wit = wimsey_wit::issue(
         &WitClaims {
