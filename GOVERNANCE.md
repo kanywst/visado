@@ -1,6 +1,6 @@
 # Governance
 
-visado is a vendor-neutral open source project. This document is deliberately short while the project is young.
+visado is a vendor-neutral open source project. This document stays short while the project is young.
 
 ## Roles
 
@@ -15,8 +15,8 @@ visado is a vendor-neutral open source project. This document is deliberately sh
 
 ## Adding maintainers
 
-A contributor with a sustained record of good contributions can be nominated by a maintainer and confirmed by maintainer consensus.
+A maintainer can nominate a contributor with a sustained record of good contributions. Maintainer consensus confirms the nomination.
 
 ## Changing this document
 
-Through the significant-change process above.
+Use the significant-change process above.

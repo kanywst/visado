@@ -1,6 +1,6 @@
 # Conformance vectors
 
-Language-neutral test vectors. Each suite is one JSON file:
+Language-neutral test vectors, one JSON file per suite. Each file has these fields:
 
 | Field | Meaning |
 | --- | --- |
