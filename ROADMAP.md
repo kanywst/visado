@@ -26,7 +26,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 
 - `NormalizedChain`, the invariant engine and the authority algebra. AAT-02 decoder, then asor-03, then the RFC 8693 `act` adapter.
 - **Gate:** all 229 published AAT vectors and the 36 asor-03 vectors pass.
-- **Status:** not started.
+- **Status:** partly met. `visado-chain` (the normalized model) and `visado-chain-aat` (§8 verification, 229/229 AAT vectors at the expected step) are in. Not yet: the separate invariant engine and authority algebra, asor-03, the RFC 8693 `act` adapter, and use from ext_authz.
 
 ## Phase 4: AuthZEN
 

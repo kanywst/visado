@@ -10,6 +10,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - A Dockerfile for the server.
 - OpenTelemetry: one `visado.authorize` span per decision with `visado.*` attributes, exported over OTLP when `[telemetry] otlp_endpoint` is set. The lab sends them to Jaeger.
 - `scripts/check.sh` runs every CI check locally.
+- `visado-chain`: the format-neutral delegation chain model (`NormalizedChain`, `Hop`, signer binding, link, assurance) and the `ChainDecoder` trait.
+- `visado-chain-aat`: Attenuating Agent Token verification per draft-niyikiza-oauth-attenuating-agent-tokens-02, §8 steps 1 to 7, with errors that name the failing step. Not yet used by the server.
+- The 229 published AAT JWS vectors in `conformance/aat/`, from tenuo-ai/tenuo (Apache-2.0), all passing. A root `NOTICE` file records the attribution.
 
 ## [0.1.0] - 2026-11-19
 
