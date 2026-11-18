@@ -76,11 +76,17 @@ pub fn wit(workload: &str, pop: &SigningKey) -> String {
 /// If `id` is not a valid identifier.
 #[must_use]
 pub fn wit_for(id: &str, pop: &SigningKey) -> String {
+    wit_at(id, pop, NOW)
+}
+
+/// A WIT for `id` bound to `pop`, issued at `now` and valid for 10 minutes.
+#[must_use]
+pub fn wit_at(id: &str, pop: &SigningKey, now: u64) -> String {
     let claims = WitClaims {
         iss: Some("https://wit.td.example".into()),
         sub: WorkloadIdentifier::parse(id).expect("valid identifier"),
-        iat: Some(NOW - 5),
-        exp: NOW + 600,
+        iat: Some(now - 5),
+        exp: now + 600,
         jti: None,
         cnf: Confirmation {
             jwk: Jwk::from_verifying_key(&pop.verifying_key()),
@@ -108,9 +114,23 @@ pub fn wpt(
     txn_token: Option<&str>,
     user: Option<(&str, &str)>,
 ) -> String {
+    wpt_at(wit, pop, audience, jti, txn_token, user, NOW)
+}
+
+/// Like [`wpt`], expiring 60 seconds after `now`.
+#[must_use]
+pub fn wpt_at(
+    wit: &str,
+    pop: &SigningKey,
+    audience: &str,
+    jti: &str,
+    txn_token: Option<&str>,
+    user: Option<(&str, &str)>,
+    now: u64,
+) -> String {
     let claims = WptClaims {
         aud: audience.into(),
-        exp: NOW + 60,
+        exp: now + 60,
         jti: jti.into(),
         wth: wimsey_wpt::wit_thumbprint(wit),
         tth: txn_token.map(wimsey_wpt::txn_token_thumbprint),

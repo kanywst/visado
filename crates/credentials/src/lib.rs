@@ -53,6 +53,9 @@ pub struct Authenticated {
     pub method: Method,
     /// The user's access token, when one was presented and bound.
     pub user: Option<AccessToken>,
+    /// The key the caller proved possession of: the WIT `cnf` key for
+    /// [`Method::WitWpt`], `None` for [`Method::Bearer`].
+    pub proof_key: Option<wimsey_jose::VerifyingKey>,
 }
 
 /// Verifies callers against configured trust anchors.
@@ -222,6 +225,7 @@ impl Authenticator {
             caller: caller.to_owned(),
             method: Method::WitWpt,
             user,
+            proof_key: Some(verified.pop_key.clone()),
         })
     }
 
@@ -243,6 +247,7 @@ impl Authenticator {
             caller,
             method: Method::Bearer,
             user: Some(token),
+            proof_key: None,
         })
     }
 }
