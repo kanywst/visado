@@ -2266,6 +2266,7 @@ name = "visado-chain-aat"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
+ "ryu",
  "serde_json",
  "sha2",
  "visado-chain",
