@@ -1,0 +1,25 @@
+[package]
+name = "visado-chain-aat"
+description = "Verify Attenuating Agent Token chains (draft-niyikiza-oauth-attenuating-agent-tokens)."
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+visado-chain = { workspace = true }
+wimsey-jose = { workspace = true }
+base64 = { workspace = true }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+base64 = { workspace = true }
+
+[lints]
+workspace = true
