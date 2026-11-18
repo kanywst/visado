@@ -19,6 +19,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 - `visado-chain-aat`: duplicate JSON member detection is linear, so a header with thousands of members no longer costs time before the signature check.
 - `visado-chain-aat`: JCS number serialization breaks ties between equally short digit strings to even, as RFC 8785 requires (`905750064395076.25` is `905750064395076.2`). Digits come from the `ryu` crate. Before, some numbers were judged admissible or not the wrong way round.
+- `visado-chain-aat`: with two trust anchors that share a key under different issuers, the root is matched to the anchor whose issuer equals `iss`, not to the first anchor whose key verifies.
 
 ## [0.1.0] - 2026-11-19
 
