@@ -23,3 +23,14 @@ updates:
       actions-all:
         patterns:
           - "*"
+
+  - package-ecosystem: npm
+    directory: "/website"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps(website)"
+    groups:
+      website-all:
+        patterns:
+          - "*"
