@@ -190,12 +190,8 @@ fn es_number(x: f64) -> Option<String> {
     if x < 0.0 {
         return es_number(-x).map(|s| format!("-{s}"));
     }
-    // `{:e}` prints the shortest digits that round-trip, as `d.ddde<exp>`.
-    let sci = format!("{x:e}");
-    let (mantissa, exp) = sci.split_once('e')?;
-    let digits: String = mantissa.chars().filter(char::is_ascii_digit).collect();
+    let (digits, n) = shortest_digits(x)?;
     let k = i64::try_from(digits.len()).ok()?;
-    let n = exp.parse::<i64>().ok()? + 1;
     let out = if k <= n && n <= 21 {
         let zeros = usize::try_from(n - k).ok()?;
         format!("{digits}{}", "0".repeat(zeros))
@@ -215,6 +211,32 @@ fn es_number(x: f64) -> Option<String> {
         }
     };
     Some(out)
+}
+
+/// The shortest decimal digits that round-trip to `x` (positive, finite),
+/// with ties between equally short candidates broken to even (ECMA-262
+/// §6.1.6.1.20 Note 2, which RFC 8785 §3.2.2.3 relies on). Returns the
+/// digits without leading or trailing zeros and `n` such that
+/// `x = 0.digits × 10^n`.
+///
+/// Ryū picks the closest candidate and breaks ties to even; Rust's `{:e}`
+/// rounds a tie up, so it is not used here.
+fn shortest_digits(x: f64) -> Option<(String, i64)> {
+    let mut buffer = ryu::Buffer::new();
+    let text = buffer.format_finite(x);
+    let (mantissa, exp) = match text.find(['e', 'E']) {
+        Some(i) => (&text[..i], text[i + 1..].parse::<i64>().ok()?),
+        None => (text, 0),
+    };
+    let (int, frac) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+    let all: String = int.chars().chain(frac.chars()).collect();
+    let leading = all.len() - all.trim_start_matches('0').len();
+    let digits = all.trim_start_matches('0').trim_end_matches('0').to_owned();
+    if digits.is_empty() {
+        return None;
+    }
+    let n = i64::try_from(int.len()).ok()? - i64::try_from(leading).ok()? + exp;
+    Some((digits, n))
 }
 
 /// An exact decimal: `(-1)^negative × digits × 10^exponent`, normalized so
@@ -594,6 +616,18 @@ mod tests {
             ("123.456", "123.456"),
             ("-2.5", "-2.5"),
             ("9007199254740993", "9007199254740992"),
+            ("5e-324", "5e-324"),
+            ("1.7976931348623157e308", "1.7976931348623157e+308"),
+            ("1e23", "1e+23"),
+            ("0.000001234", "0.000001234"),
+            ("1.234e-7", "1.234e-7"),
+            // Ties between two equally short candidates go to the even digit.
+            ("905750064395076.25", "905750064395076.2"),
+            ("905750064395077.25", "905750064395077.2"),
+            ("562949953421312.25", "562949953421312.2"),
+            ("600000000000000.25", "600000000000000.2"),
+            ("600000000000000.75", "600000000000000.8"),
+            ("-905750064395076.25", "-905750064395076.2"),
         ] {
             assert_eq!(number(input).jcs().as_deref(), Some(jcs), "{input}");
         }
@@ -608,6 +642,7 @@ mod tests {
             "1152921504606847000",
             "-0",
             "1.0",
+            "905750064395076.2",
         ] {
             assert!(number(ok).is_admissible(), "{ok}");
         }
@@ -617,6 +652,8 @@ mod tests {
             "1152921504606846976",
             "1e400",
             "1e-400",
+            "905750064395076.3",
+            "905750064395076.25",
         ] {
             assert!(!number(bad).is_admissible(), "{bad}");
         }
