@@ -3,9 +3,10 @@
 //!
 //! [`Verifier::verify`] runs the §8 algorithm for one tool invocation: chain
 //! size and cycle checks, the root against a trust anchor, each link (holder
-//! key, depth, time, attenuation, `par_hash`), the invocation against the
-//! leaf's constraints, chain audience, and the PoP JWT. A failure reports the
-//! §8 [`Step`] and a stable [`code`](AatError::code).
+//! key, depth, time, attenuation, `par_hash`), the PoP JWT signature, the
+//! invocation against the leaf's constraints, chain audience, and the rest of
+//! the PoP JWT. A failure reports the §8 [`Step`] and a stable
+//! [`code`](AatError::code).
 //!
 //! The [`ChainDecoder`](visado_chain::ChainDecoder) implementation runs steps
 //! 1 to 5 only and yields a [`NormalizedChain`](visado_chain::NormalizedChain).

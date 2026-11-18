@@ -154,3 +154,41 @@ fn decode_marks_no_holder_proof() {
         .unwrap();
     assert!(authorized.chain.holder_proof);
 }
+
+#[test]
+fn pop_signature_is_checked_before_arguments() {
+    let tools = json!({ TOOL: { "path": { "constraint_type": "exact", "value": "/a" } } });
+    let token = root(&root_claims(&tools));
+    let chain = vec![token.clone()];
+    let verifier = Verifier::new(vec![anchor(ISSUER)], vec![AUDIENCE.to_owned()]);
+    let bad_args = r#"{"path":"/b"}"#;
+    let forged = pop(&token, "root-1", &json!({ "path": "/b" }), &anchor_key());
+    let err = verify(&verifier, &chain, &forged, bad_args).unwrap_err();
+    assert_eq!(err.step(), Step::S7b);
+    let signed = pop(&token, "root-1", &json!({ "path": "/b" }), &holder_key());
+    let err = verify(&verifier, &chain, &signed, bad_args).unwrap_err();
+    assert_eq!(err.step(), Step::S6b);
+}
+
+/// One `any` over `n` `one_of` clauses: `n + 1` constraint nodes.
+fn wide_tools(n: usize) -> Value {
+    let clauses: Vec<Value> = (0..n)
+        .map(|i| json!({ "constraint_type": "one_of", "values": [format!("v{i}")] }))
+        .collect();
+    json!({ TOOL: { "path": { "constraint_type": "any", "constraints": clauses } } })
+}
+
+#[test]
+fn constraint_nodes_are_capped() {
+    let token = root(&root_claims(&wide_tools(1024)));
+    let chain = vec![token.clone()];
+    let verifier = Verifier::new(vec![anchor(ISSUER)], vec![AUDIENCE.to_owned()]);
+    let err = visado_chain::ChainDecoder::decode(&verifier, &chain, NOW).unwrap_err();
+    assert_eq!(err.step(), Step::S3n);
+
+    let token = root(&root_claims(&wide_tools(1023)));
+    let chain = vec![token.clone()];
+    let args = r#"{"path":"v1022"}"#;
+    let proof = pop(&token, "root-1", &json!({ "path": "v1022" }), &holder_key());
+    assert_eq!(verify(&verifier, &chain, &proof, args), Ok(()));
+}

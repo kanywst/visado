@@ -1,5 +1,6 @@
 //! Argument constraints (§3.3, §3.4) and their subsumption rules (§4.5).
 
+use std::cell::OnceCell;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::error::Step;
@@ -85,15 +86,18 @@ fn bound_within(
     }
 }
 
+/// The JCS forms of a constraint's value list, built once at parse time.
+type JcsSet = BTreeSet<String>;
+
 /// A well-formed core constraint.
 #[derive(Debug, Clone)]
 enum Constraint {
     Exact(Canon),
     Range(Range),
-    OneOf(Vec<Canon>),
-    NotOneOf(Vec<Canon>),
-    Contains(Vec<Canon>),
-    Subset(Vec<Canon>),
+    OneOf(JcsSet),
+    NotOneOf(JcsSet),
+    Contains(JcsSet),
+    Subset(JcsSet),
     Wildcard,
     All(Vec<Constraint>),
     Any(Vec<Constraint>),
@@ -116,11 +120,17 @@ pub(crate) struct ToolMap {
 impl ToolMap {
     /// Parses a constraint map and checks that every constraint in it is
     /// well-formed and at most `max_depth` deep (§3.4; §8 steps 3n and 4o).
-    pub(crate) fn parse(members: &[(String, Value)], max_depth: usize) -> Option<Self> {
+    /// Each constraint node takes one from `nodes`; the map is rejected when
+    /// it runs out.
+    pub(crate) fn parse(
+        members: &[(String, Value)],
+        max_depth: usize,
+        nodes: &mut usize,
+    ) -> Option<Self> {
         let mut named = BTreeMap::new();
         let mut star = members.is_empty();
         for (key, value) in members {
-            let entry = parse_entry(value, max_depth)?;
+            let entry = parse_entry(value, max_depth, nodes)?;
             if key == STAR {
                 if entry.optional || !matches!(entry.constraint, Constraint::Wildcard) {
                     return None;
@@ -184,7 +194,7 @@ impl ToolMap {
         for (key, value) in args {
             match self.named.get(key) {
                 Some(entry) => {
-                    if !check(&entry.constraint, value) {
+                    if !check(&entry.constraint, &Arg::new(value)) {
                         return false;
                     }
                 }
@@ -198,13 +208,13 @@ impl ToolMap {
     }
 }
 
-fn parse_entry(value: &Value, max_depth: usize) -> Option<Entry> {
+fn parse_entry(value: &Value, max_depth: usize, nodes: &mut usize) -> Option<Entry> {
     let optional = match value.get("optional") {
         None => false,
         Some(Value::Bool(b)) => *b,
         Some(_) => return None,
     };
-    let constraint = parse_constraint(value, 1, max_depth, true)?;
+    let constraint = parse_constraint(value, 1, max_depth, true, nodes)?;
     Some(Entry {
         constraint,
         optional,
@@ -216,10 +226,12 @@ fn parse_constraint(
     level: usize,
     max_depth: usize,
     top: bool,
+    nodes: &mut usize,
 ) -> Option<Constraint> {
     if level > max_depth {
         return None;
     }
+    *nodes = nodes.checked_sub(1)?;
     let members = value.as_object()?;
     let kind = value.get("constraint_type")?.as_str()?;
     let allowed: &[&str] = match kind {
@@ -254,15 +266,15 @@ fn parse_constraint(
         }
         "range" => Constraint::Range(parse_range(value)?),
         "one_of" => {
-            let values = canon_list(value.get("values")?)?;
+            let values = jcs_set(value.get("values")?)?;
             if values.is_empty() {
                 return None;
             }
             Constraint::OneOf(values)
         }
-        "not_one_of" => Constraint::NotOneOf(canon_list(value.get("excluded")?)?),
-        "contains" => Constraint::Contains(canon_list(value.get("required")?)?),
-        "subset" => Constraint::Subset(canon_list(value.get("allowed")?)?),
+        "not_one_of" => Constraint::NotOneOf(jcs_set(value.get("excluded")?)?),
+        "contains" => Constraint::Contains(jcs_set(value.get("required")?)?),
+        "subset" => Constraint::Subset(jcs_set(value.get("allowed")?)?),
         "wildcard" => Constraint::Wildcard,
         _ => {
             let clauses = value.get("constraints")?.as_array()?;
@@ -271,7 +283,7 @@ fn parse_constraint(
             }
             let parsed = clauses
                 .iter()
-                .map(|c| parse_constraint(c, level + 1, max_depth, false))
+                .map(|c| parse_constraint(c, level + 1, max_depth, false, nodes))
                 .collect::<Option<Vec<_>>>()?;
             if kind == "all" {
                 Constraint::All(parsed)
@@ -310,43 +322,62 @@ fn parse_range(value: &Value) -> Option<Range> {
     Some(Range { min, max })
 }
 
-fn canon_list(value: &Value) -> Option<Vec<Canon>> {
-    Some(value.as_array()?.iter().map(Canon::of).collect())
+fn jcs_set(value: &Value) -> Option<JcsSet> {
+    Some(value.as_array()?.iter().map(Value::jcs).collect())
 }
 
-fn jcs_set(items: &[Canon]) -> BTreeSet<&str> {
-    items.iter().map(|c| c.jcs.as_str()).collect()
+/// An argument value with its JCS forms, each computed at most once however
+/// many constraint nodes look at it.
+struct Arg<'a> {
+    value: &'a Value,
+    jcs: OnceCell<String>,
+    items: OnceCell<Option<JcsSet>>,
+}
+
+impl<'a> Arg<'a> {
+    fn new(value: &'a Value) -> Self {
+        Self {
+            value,
+            jcs: OnceCell::new(),
+            items: OnceCell::new(),
+        }
+    }
+
+    fn jcs(&self) -> &str {
+        self.jcs.get_or_init(|| self.value.jcs())
+    }
+
+    /// The distinct JCS forms of the elements, if the value is an array.
+    fn items(&self) -> Option<&JcsSet> {
+        self.items
+            .get_or_init(|| {
+                self.value
+                    .as_array()
+                    .map(|items| items.iter().map(Value::jcs).collect())
+            })
+            .as_ref()
+    }
 }
 
 /// The runtime `check` predicate (§3.4).
-fn check(constraint: &Constraint, value: &Value) -> bool {
+fn check(constraint: &Constraint, arg: &Arg<'_>) -> bool {
     match constraint {
         Constraint::Wildcard => true,
-        Constraint::Exact(c) => value.jcs() == c.jcs,
-        Constraint::Range(r) => match value {
+        Constraint::Exact(c) => arg.jcs() == c.jcs,
+        Constraint::Range(r) => match arg.value {
             Value::Number(n) => r.accepts(n.to_f64()),
             _ => false,
         },
-        Constraint::OneOf(values) => {
-            let v = value.jcs();
-            values.iter().any(|c| c.jcs == v)
-        }
-        Constraint::NotOneOf(excluded) => {
-            let v = value.jcs();
-            excluded.iter().all(|c| c.jcs != v)
-        }
-        Constraint::Contains(required) => value.as_array().is_some_and(|items| {
-            let have: BTreeSet<String> = items.iter().map(Value::jcs).collect();
-            required.iter().all(|c| have.contains(&c.jcs))
-        }),
-        Constraint::Subset(allowed) => value.as_array().is_some_and(|items| {
-            let allowed = jcs_set(allowed);
-            items
-                .iter()
-                .all(|item| allowed.contains(item.jcs().as_str()))
-        }),
-        Constraint::All(clauses) => clauses.iter().all(|c| check(c, value)),
-        Constraint::Any(clauses) => clauses.iter().any(|c| check(c, value)),
+        Constraint::OneOf(values) => values.contains(arg.jcs()),
+        Constraint::NotOneOf(excluded) => !excluded.contains(arg.jcs()),
+        Constraint::Contains(required) => arg
+            .items()
+            .is_some_and(|have| required.iter().all(|r| have.contains(r))),
+        // `is_subset` stops at once when there are more distinct items than
+        // allowed values, so the cost is bounded by the constraint's size.
+        Constraint::Subset(allowed) => arg.items().is_some_and(|have| have.is_subset(allowed)),
+        Constraint::All(clauses) => clauses.iter().all(|c| check(c, arg)),
+        Constraint::Any(clauses) => clauses.iter().any(|c| check(c, arg)),
     }
 }
 
@@ -359,12 +390,10 @@ fn subsumes(parent: &Constraint, child: &Constraint) -> bool {
         (C::Exact(p), C::Exact(c)) => p.jcs == c.jcs,
         (C::Range(p), C::Range(c)) => c.within(*p),
         (C::Range(p), C::Exact(c)) => c.number.is_some_and(|x| p.accepts(x)),
-        (C::OneOf(p), C::OneOf(c)) => !c.is_empty() && jcs_set(c).is_subset(&jcs_set(p)),
-        (C::OneOf(p), C::Exact(c)) => p.iter().any(|v| v.jcs == c.jcs),
-        (C::NotOneOf(p), C::NotOneOf(c)) | (C::Contains(p), C::Contains(c)) => {
-            jcs_set(p).is_subset(&jcs_set(c))
-        }
-        (C::Subset(p), C::Subset(c)) => jcs_set(c).is_subset(&jcs_set(p)),
+        (C::OneOf(p), C::OneOf(c)) => !c.is_empty() && c.is_subset(p),
+        (C::OneOf(p), C::Exact(c)) => p.contains(&c.jcs),
+        (C::NotOneOf(p), C::NotOneOf(c)) | (C::Contains(p), C::Contains(c)) => p.is_subset(c),
+        (C::Subset(p), C::Subset(c)) => c.is_subset(p),
         (C::All(p), C::All(c)) => p.iter().all(|cp| c.iter().any(|cd| subsumes(cp, cd))),
         (C::Any(p), C::Any(c)) => c.iter().all(|cd| p.iter().any(|cp| subsumes(cp, cd))),
         _ => false,
@@ -379,7 +408,7 @@ mod tests {
 
     fn map(json: &str) -> ToolMap {
         let v = parse(json.as_bytes()).unwrap();
-        ToolMap::parse(v.as_object().unwrap(), 32).unwrap()
+        ToolMap::parse(v.as_object().unwrap(), 32, &mut 1024).unwrap()
     }
 
     #[test]
@@ -411,7 +440,7 @@ mod tests {
         ] {
             let v = parse(bad.as_bytes()).unwrap();
             assert!(
-                ToolMap::parse(v.as_object().unwrap(), 32).is_none(),
+                ToolMap::parse(v.as_object().unwrap(), 32, &mut 1024).is_none(),
                 "{bad}"
             );
         }
@@ -428,5 +457,30 @@ mod tests {
         assert!(!m.permits(args(r#"{"path":"/a","head":6}"#).as_object().unwrap()));
         assert!(!m.permits(args(r#"{"path":"/a","x":1}"#).as_object().unwrap()));
         assert!(!m.permits(args(r#"{"head":1}"#).as_object().unwrap()));
+    }
+
+    #[test]
+    fn node_budget() {
+        let clauses = [r#"{"constraint_type":"one_of","values":[1,2]}"#; 9].join(",");
+        let json = format!(r#"{{"a":{{"constraint_type":"any","constraints":[{clauses}]}}}}"#);
+        let v = parse(json.as_bytes()).unwrap();
+        let members = v.as_object().unwrap();
+        let mut nodes = 10;
+        assert!(ToolMap::parse(members, 32, &mut nodes).is_some());
+        assert_eq!(nodes, 0);
+        assert!(ToolMap::parse(members, 32, &mut 9).is_none());
+    }
+
+    #[test]
+    fn set_constraints() {
+        let m = map(
+            r#"{"tags":{"constraint_type":"all","constraints":[{"constraint_type":"contains","required":["a"]},{"constraint_type":"subset","allowed":["a","b",1.0]}]},"mode":{"constraint_type":"not_one_of","excluded":["x"]}}"#,
+        );
+        let ok = |s: &str| m.permits(parse(s.as_bytes()).unwrap().as_object().unwrap());
+        assert!(ok(r#"{"tags":["a","b","a",1],"mode":"y"}"#));
+        assert!(!ok(r#"{"tags":["b"],"mode":"y"}"#));
+        assert!(!ok(r#"{"tags":["a","c"],"mode":"y"}"#));
+        assert!(!ok(r#"{"tags":["a"],"mode":"x"}"#));
+        assert!(!ok(r#"{"tags":"a","mode":"y"}"#));
     }
 }
