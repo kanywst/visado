@@ -1,6 +1,6 @@
 # Spec map
 
-Pinned revisions and where the code departs from them. Checked 2026-11-19.
+Pinned revisions and where the code departs from them. Checked 2026-11-18.
 
 ## Pinned revisions
 
@@ -44,7 +44,8 @@ No divergences: all 229 vectors in [conformance/aat](conformance/aat/) give the 
 | JSON nesting | Not limited beyond MAX_CONSTRAINT_DEPTH | At most 256 levels; deeper payloads fail at signature-step parsing (3b, 4b, 7b) |
 | Principal | AAT has no `sub` | `Principal::Unspecified` in the normalized chain |
 | HTTP and MCP binding | Out of scope (§1) | `AAT-Chain` and `AAT-PoP` headers; tool and arguments from a JSON-RPC `tools/call` body (see `docs/bindings.md`) |
-| Requests that are not one tool call | Not defined | JSON-RPC batches, non-JSON bodies, malformed `tools/call` and a missing body on POST/PUT/PATCH are denied (`chain.bad_invocation`); other JSON-RPC methods are the tool `mcp:<method>`; body-less GET/HEAD/DELETE/OPTIONS are the tool `<METHOD> <path>` |
+| Requests that are not one tool call | Not defined | Only two forms are accepted: a JSON-RPC `tools/call` object, and a GET, HEAD, DELETE or OPTIONS request with no body and no query string (tool `<METHOD> <path>`, arguments `{}`). Everything else is denied (`chain.bad_invocation`): batches, other JSON-RPC methods, non-JSON or unreadable bodies, malformed `tools/call`, query strings, and a missing body on POST, PUT or PATCH |
+| Requests without a chain | Not defined | With `[aat]` configured, a request without `AAT-Chain` is still allowed unless `required = true`; the chain then only narrows callers that present one |
 | Who may present a chain | Holder proves possession with the PoP | Only a WIT caller, and the leaf `cnf` must be the WIT key; bearer-only callers are denied (`chain.unbound_caller`) |
 | Audience (§9.5) | `aud` and `aat_aud` optional | The server requires both by default (`require_chain_aud`, `require_pop_aud`), so a chain cannot be replayed at another enforcement point |
 | PoP replay | Shared state across replicas (§7.3) | In-memory cache of 100 000 entries per process |
