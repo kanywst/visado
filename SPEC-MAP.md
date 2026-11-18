@@ -42,6 +42,8 @@ No divergences: all 229 vectors in [conformance/aat](conformance/aat/) give the 
 | Root `iss` is a URI | Required (step 3k) | A scheme, a colon, and no whitespace or control characters |
 | JSON nesting | Not limited beyond MAX_CONSTRAINT_DEPTH | At most 256 levels; deeper payloads fail at signature-step parsing (3b, 4b, 7b) |
 | Principal | AAT has no `sub` | `Principal::Unspecified` in the normalized chain |
+| `aud` type | Checked at step 6c | Checked right after step 5 and reported as 6c, so `decode()` also rejects an `aud` that is not a string or an array of strings |
+| `decode()` | Not defined | Steps 1 to 5 and the `aud` type check. No PoP, so the chain has `holder_proof: false` |
 
 ## AuthZEN: choices
 

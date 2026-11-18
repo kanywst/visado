@@ -15,11 +15,16 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `visado-chain-aat`: Attenuating Agent Token verification per draft-niyikiza-oauth-attenuating-agent-tokens-02, §8 steps 1 to 7, with errors that name the failing step. Not yet used by the server.
 - The 229 published AAT JWS vectors in `conformance/aat/`, from tenuo-ai/tenuo (Apache-2.0), all passing. A root `NOTICE` file records the attribution.
 
+### Changed
+
+- `visado-chain`: `NormalizedChain` has `holder_proof`. `ChainDecoder::decode` sets it to `false`; `visado-chain-aat`'s `Verifier::verify` sets it to `true` after the PoP check.
+
 ### Fixed
 
 - `visado-chain-aat`: duplicate JSON member detection is linear, so a header with thousands of members no longer costs time before the signature check.
 - `visado-chain-aat`: JCS number serialization breaks ties between equally short digit strings to even, as RFC 8785 requires (`905750064395076.25` is `905750064395076.2`). Digits come from the `ryu` crate. Before, some numbers were judged admissible or not the wrong way round.
 - `visado-chain-aat`: with two trust anchors that share a key under different issuers, the root is matched to the anchor whose issuer equals `iss`, not to the first anchor whose key verifies.
+- `visado-chain-aat`: `decode()` rejects an `aud` that is not a string or an array of strings instead of reading it as unrestricted.
 
 ## [0.1.0] - 2026-11-19
 

@@ -105,3 +105,52 @@ fn anchors_sharing_a_key_are_picked_by_iss() {
     let err = verify(&verifier, &chain, &proof, ARGS).unwrap_err();
     assert_eq!(err.step(), Step::S3k);
 }
+
+#[test]
+fn decode_rejects_malformed_aud() {
+    for aud in [
+        json!([1]),
+        json!(7),
+        json!({}),
+        json!(null),
+        json!([AUDIENCE, 7]),
+    ] {
+        let mut claims = root_claims(&wildcard_tools());
+        claims["aud"] = aud.clone();
+        let chain = vec![root(&claims)];
+        let verifier = Verifier::new(vec![anchor(ISSUER)], vec![AUDIENCE.to_owned()]);
+        let err = visado_chain::ChainDecoder::decode(&verifier, &chain, NOW).unwrap_err();
+        assert_eq!(err.step(), Step::S6c, "{aud}");
+    }
+}
+
+#[test]
+fn decode_marks_no_holder_proof() {
+    let mut claims = root_claims(&wildcard_tools());
+    claims["aud"] = json!([AUDIENCE]);
+    let token = root(&claims);
+    let proof = pop(&token, "root-1", &json!({ "path": "/a" }), &holder_key());
+    let chain = vec![token];
+    let verifier = Verifier::new(vec![anchor(ISSUER)], vec![AUDIENCE.to_owned()]);
+    let decoded = visado_chain::ChainDecoder::decode(&verifier, &chain, NOW).unwrap();
+    assert!(!decoded.holder_proof);
+    assert_eq!(
+        decoded.hops[0].audience.as_deref(),
+        Some([AUDIENCE.to_owned()].as_slice())
+    );
+    let authorized = verifier
+        .verify(
+            &Presentation {
+                chain: &chain,
+                pop: &proof,
+            },
+            &Invocation {
+                tool: TOOL,
+                args_json: ARGS,
+            },
+            NOW,
+            None,
+        )
+        .unwrap();
+    assert!(authorized.chain.holder_proof);
+}

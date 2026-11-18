@@ -145,6 +145,8 @@ struct Token<'a> {
     holder: HolderKey,
     tools: BTreeMap<String, ToolMap>,
     tools_jcs: String,
+    /// `aud` as a list, once checked to be a string or array of strings.
+    audience: Option<Vec<String>>,
     claims: Value,
 }
 
@@ -206,7 +208,7 @@ impl Verifier {
         self.chain_audience(&chain.tokens)?;
         let pop_jti = self.pop(leaf, presentation.pop, invocation.tool, &args, now, replay)?;
         Ok(Authorized {
-            chain: normalize(&chain),
+            chain: normalize(&chain, true),
             pop_jti,
         })
     }
@@ -235,6 +237,18 @@ impl Verifier {
                 Step::S5,
                 "chain length does not match leaf depth",
             ));
+        }
+        // The type half of step 6c, run here so a decoded chain never
+        // reads a malformed `aud` as unrestricted.
+        for (i, token) in tokens.iter_mut().enumerate() {
+            if let Some(aud) = token.claims.get("aud") {
+                let list = audience_list(aud).ok_or(AatError::at(
+                    Step::S6c,
+                    i,
+                    "aud is not a string or an array of strings",
+                ))?;
+                token.audience = Some(list);
+            }
         }
         Ok(Verified { anchor, tokens })
     }
@@ -353,6 +367,7 @@ impl Verifier {
             holder,
             tools,
             tools_jcs,
+            audience: None,
             claims,
         };
         Ok((anchor, token))
@@ -460,6 +475,7 @@ impl Verifier {
             holder,
             tools,
             tools_jcs,
+            audience: None,
             claims,
         })
     }
@@ -502,12 +518,11 @@ impl Verifier {
     fn chain_audience(&self, tokens: &[Token<'_>]) -> Result<(), AatError> {
         let mut any = false;
         for (i, token) in tokens.iter().enumerate() {
-            let Some(aud) = token.claims.get("aud") else {
+            let Some(values) = &token.audience else {
                 continue;
             };
             any = true;
-            let ok = audience_list(aud)
-                .is_some_and(|values| values.iter().any(|v| self.audiences.iter().any(|a| a == v)));
+            let ok = values.iter().any(|v| self.audiences.iter().any(|a| a == v));
             if !ok {
                 return Err(AatError::at(
                     Step::S6c,
@@ -611,10 +626,12 @@ impl ChainDecoder for Verifier {
     type Input = [String];
     type Error = AatError;
 
-    /// §8 steps 1 to 5 only: no invocation, audience or PoP checks. The
-    /// result must not authorize an invocation on its own (§7.3).
+    /// §8 steps 1 to 5, plus the check that every `aud` is a string or an
+    /// array of strings. No invocation, audience match or PoP checks, so
+    /// `holder_proof` is `false` and the result must not authorize an
+    /// invocation on its own (§7.3).
     fn decode(&self, input: &[String], now: i64) -> Result<NormalizedChain, AatError> {
-        self.chain(input, now).map(|chain| normalize(&chain))
+        self.chain(input, now).map(|chain| normalize(&chain, false))
     }
 }
 
@@ -636,7 +653,7 @@ fn attenuation(
     first.map_or(Ok(()), Err)
 }
 
-fn normalize(chain: &Verified<'_>) -> NormalizedChain {
+fn normalize(chain: &Verified<'_>, holder_proof: bool) -> NormalizedChain {
     let mut hops: Vec<Hop> = Vec::with_capacity(chain.tokens.len());
     for token in &chain.tokens {
         let actor = ActorId::Key(KeyThumbprint(token.holder.thumbprint.clone()));
@@ -683,7 +700,7 @@ fn normalize(chain: &Verified<'_>) -> NormalizedChain {
                 issued_at: token.iat,
                 expires_at: token.exp,
             },
-            audience: token.claims.get("aud").and_then(audience_list),
+            audience: token.audience.clone(),
             cnf: Some(Cnf {
                 thumbprint: KeyThumbprint(token.holder.thumbprint.clone()),
             }),
@@ -698,6 +715,7 @@ fn normalize(chain: &Verified<'_>) -> NormalizedChain {
             key: KeyThumbprint(chain.anchor.thumbprint.clone()),
         },
         hops,
+        holder_proof,
     }
 }
 

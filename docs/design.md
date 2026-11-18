@@ -57,7 +57,7 @@ Three layers, so a new draft is a new plugin:
 3. An `AuthorityAlgebra` per RAR detail type implements `subsumes(parent, child)` and `permits(leaf, action)`. Unknown types are denied.
 
 ```rust
-struct NormalizedChain { profile: Profile, principal: Principal, root: TrustRef, hops: Vec<Hop> }
+struct NormalizedChain { profile: Profile, principal: Principal, root: TrustRef, hops: Vec<Hop>, holder_proof: bool }
 struct Hop {
     depth: u32, max_depth: Option<u32>, actor: ActorId, delegator: Option<ActorId>,
     signer: KeyThumbprint, signer_binding: SignerBinding, // RootAnchor | ParentCnf | AuthServer | Unverified
@@ -67,7 +67,7 @@ struct Hop {
 }
 ```
 
-Only `Verified` hops are used for authorization. `Declared` hops, such as inner RFC 8693 `act` entries, go to the audit record and Txn-Token context only.
+Only `Verified` hops are used for authorization, and only when `holder_proof` is true: the presenter proved possession of the leaf key for this request. `ChainDecoder::decode` checks the chain only and sets it to false. `Declared` hops, such as inner RFC 8693 `act` entries, go to the audit record and Txn-Token context only.
 
 Order of formats:
 

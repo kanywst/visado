@@ -138,7 +138,8 @@ fn run(vector: &Value, suite: &Value) -> Option<String> {
 
     if let Ok(authorized) = result {
         let hops = &authorized.chain.hops;
-        let ok = hops.len() == chain.len()
+        let ok = authorized.chain.holder_proof
+            && hops.len() == chain.len()
             && hops.iter().all(|h| h.assurance == Assurance::Verified)
             && hops.first().is_some_and(|h| {
                 h.signer_binding == SignerBinding::RootAnchor && h.link == Link::Root
@@ -149,8 +150,17 @@ fn run(vector: &Value, suite: &Value) -> Option<String> {
         if !ok {
             return Some(format!("{id}: normalized chain is inconsistent"));
         }
-        let decoded = verifier.decode(&chain, now).ok();
-        if decoded.as_ref() != Some(&authorized.chain) {
+        let Ok(decoded) = verifier.decode(&chain, now) else {
+            return Some(format!("{id}: decode() rejects a permitted chain"));
+        };
+        if decoded.holder_proof {
+            return Some(format!("{id}: decode() claims a holder proof"));
+        }
+        let proved = visado_chain::NormalizedChain {
+            holder_proof: true,
+            ..decoded
+        };
+        if proved != authorized.chain {
             return Some(format!("{id}: decode() disagrees with verify()"));
         }
     }
