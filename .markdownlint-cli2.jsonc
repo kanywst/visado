@@ -8,5 +8,11 @@
     "MD041": false,
     "MD060": false
   },
-  "ignores": ["target/**"]
+  "ignores": [
+    "target/**",
+    // Generated from the repository Markdown by website/scripts/sync-docs.mjs.
+    "website/src/content/docs/**",
+    "website/node_modules/**",
+    "website/dist/**"
+  ]
 }

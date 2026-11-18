@@ -1,0 +1,31 @@
+---
+import Default from '@astrojs/starlight/components/Footer.astro';
+---
+
+<Default />
+<p class="legal">
+  © 2026 The visado Authors. Licensed under{' '}
+  <a href="https://github.com/kanywst/visado/blob/main/LICENSE">Apache-2.0</a>.
+</p>
+<p class="legal tm">
+  Third-party logos are trademarks of their respective owners and are used to show compatibility;
+  their use does not imply endorsement.
+</p>
+
+<style>
+  .legal {
+    margin-top: 2.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--sl-color-hairline);
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  .legal.tm {
+    margin-top: 0.4rem;
+    padding-top: 0;
+    border-top: 0;
+  }
+  .legal a {
+    color: inherit;
+  }
+</style>

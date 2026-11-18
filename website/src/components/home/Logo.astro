@@ -1,0 +1,94 @@
+---
+// A third-party project logo with its name. Logos in src/assets/logos/ are the
+// projects' own files, unmodified (cncf/artwork, agentgateway/agentgateway).
+import envoy from '../../assets/logos/envoy-icon-color.svg';
+import istio from '../../assets/logos/istio-icon-color.svg';
+import spiffe from '../../assets/logos/spiffe-icon-color.svg';
+import spire from '../../assets/logos/spire-icon-color.svg';
+import opa from '../../assets/logos/opa-icon-color.svg';
+import openfga from '../../assets/logos/openfga-icon-color.svg';
+import cedar from '../../assets/logos/cedar-icon-color.svg';
+import agwLight from '../../assets/logos/agentgateway-logo.svg';
+import agwDark from '../../assets/logos/agentgateway-logo-dark.svg';
+
+const icons = { envoy, istio, spiffe, spire, opa, openfga, cedar };
+const names: Record<string, string> = {
+  envoy: 'Envoy',
+  istio: 'Istio',
+  spiffe: 'SPIFFE',
+  spire: 'SPIRE',
+  opa: 'Open Policy Agent',
+  openfga: 'OpenFGA',
+  cedar: 'Cedar',
+  agentgateway: 'agentgateway',
+};
+
+interface Props {
+  name: keyof typeof names;
+  href: string;
+  size?: 'sm' | 'md';
+}
+const { name, href, size = 'md' } = Astro.props;
+const icon = name in icons ? icons[name as keyof typeof icons] : undefined;
+---
+
+<a class:list={['logo', size]} href={href}>
+  {
+    icon ? (
+      <>
+        <img src={icon.src} alt="" width="28" height="28" />
+        <span>{names[name]}</span>
+      </>
+    ) : (
+      <>
+        <img class="wordmark light" src={agwLight.src} alt="agentgateway" height="28" />
+        <img class="wordmark dark" src={agwDark.src} alt="agentgateway" height="28" />
+      </>
+    )
+  }
+</a>
+
+<style>
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--sl-color-gray-1);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: var(--sl-text-sm);
+    line-height: 1;
+    padding: 0.35rem 0;
+  }
+  .logo:hover span {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  img {
+    height: 1.6rem;
+    width: auto;
+    max-width: none;
+    flex: none;
+  }
+  .sm img {
+    height: 1.2rem;
+  }
+  /* The agentgateway file has wide built-in margins around the wordmark. */
+  .logo .wordmark {
+    height: 3rem;
+    margin: -0.75rem -0.6rem;
+  }
+  .sm .wordmark {
+    height: 2.4rem;
+    margin: -0.6rem -0.5rem;
+  }
+  .wordmark.light {
+    display: none;
+  }
+  :global([data-theme='light']) .wordmark.light {
+    display: block;
+  }
+  :global([data-theme='light']) .wordmark.dark {
+    display: none;
+  }
+</style>
