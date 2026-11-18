@@ -67,6 +67,7 @@ fn config() -> GateConfig {
             "spiffe://td.example/agent-b".to_owned(),
         ]),
         allowed_authorities: BTreeSet::from([HOST.to_owned()]),
+        aat: None,
     }
 }
 
@@ -91,6 +92,7 @@ fn input(path: &str, headers: &[(&str, &str)]) -> CheckInput {
             .iter()
             .map(|(n, v)| ((*n).into(), (*v).into()))
             .collect(),
+        body: None,
     }
 }
 

@@ -5,9 +5,16 @@ use std::collections::BTreeSet;
 use serde_json::{Map, Value, json};
 use tracing::Instrument;
 use visado_authzen::{Action, Entity, EvaluationRequest, Pdp};
+use visado_chain::NormalizedChain;
+use visado_chain_aat::{Invocation, MemoryReplayCache, Presentation, Verifier, jwk_thumbprint};
 use visado_credentials::{AuthError, Authenticated, Authenticator, Method, RequestView};
 use visado_txn_token::{KeySet, Scope, TxnTokenClaims, Validation, mint, verify};
 use wimsey_jose::SigningKey;
+
+/// The header carrying an AAT chain, root first, comma-separated.
+pub const AAT_CHAIN_HEADER: &str = "aat-chain";
+/// The header carrying the AAT proof of possession.
+pub const AAT_POP_HEADER: &str = "aat-pop";
 
 /// Headers always removed before the request goes upstream, in addition to the
 /// authenticator's user token header. The upstream gets the Transaction Token
@@ -34,6 +41,9 @@ pub struct GateConfig {
     /// Authorities (host and optional port) this gate protects. Requests for
     /// any other authority are denied. Empty means any authority.
     pub allowed_authorities: BTreeSet<String>,
+    /// AAT delegation-chain verification. `None` rejects requests that carry
+    /// an `AAT-Chain` header.
+    pub aat: Option<Verifier>,
 }
 
 /// The parts of the request the gate looks at.
@@ -49,6 +59,8 @@ pub struct CheckInput {
     pub path: String,
     /// Headers, names lowercased.
     pub headers: Vec<(String, String)>,
+    /// The request body, when the proxy sends it.
+    pub body: Option<String>,
 }
 
 /// What to do with the request.
@@ -82,6 +94,7 @@ pub struct Gate<P> {
     pdp: P,
     txn_keys: KeySet,
     stripped: Vec<String>,
+    aat_replay: MemoryReplayCache,
 }
 
 impl<P: Pdp> Gate<P> {
@@ -90,6 +103,7 @@ impl<P: Pdp> Gate<P> {
         let txn_keys =
             KeySet::new().with_key(config.kid.clone(), config.signing_key.verifying_key());
         let mut stripped: Vec<String> = STRIPPED_HEADERS.iter().map(|h| (*h).to_owned()).collect();
+        stripped.extend([AAT_CHAIN_HEADER.to_owned(), AAT_POP_HEADER.to_owned()]);
         stripped.push(authenticator.user_token_header().to_owned());
         Self {
             config,
@@ -97,6 +111,7 @@ impl<P: Pdp> Gate<P> {
             pdp,
             txn_keys,
             stripped,
+            aat_replay: MemoryReplayCache::new(100_000),
         }
     }
 
@@ -151,6 +166,7 @@ impl<P: Pdp> Gate<P> {
         self.check_target(input)?;
         let caller = self.authenticate(input, now)?;
         trail.agent.clone_from(&caller.caller);
+        let chain = self.verify_chain(input, &caller, now, &trail)?;
 
         let inbound = input
             .headers
@@ -170,7 +186,10 @@ impl<P: Pdp> Gate<P> {
             .as_ref()
             .map_or_else(|| txn.to_owned(), |c| c.txn.clone());
 
-        let request = evaluation_request(input, &caller, &principal, &scope, &trail.txn);
+        let mut request = evaluation_request(input, &caller, &principal, &scope, &trail.txn);
+        if let Some(chain) = &chain {
+            request = request.with_context("chain", chain_context(chain));
+        }
         match self.pdp.evaluate(&request, &trail.txn).await {
             Ok(decision) if decision.allowed => {}
             Ok(_) => return Err(Denied::new(403, "pdp.deny", &trail)),
@@ -189,13 +208,69 @@ impl<P: Pdp> Gate<P> {
                 sub: principal,
                 scope,
                 req_wl: requesting_workload(&caller),
-                tctx: Some(tctx(&caller)),
+                tctx: Some(tctx(&caller, chain.as_ref())),
                 rctx: Some(rctx(input)),
             };
             mint(&claims, Some(&self.config.kid), &self.config.signing_key)
                 .map_err(|e| Denied::new(403, e.code(), &trail))?
         };
         Ok(Allowed { token, trail })
+    }
+
+    /// Verifies an AAT chain if the request carries one (see docs/bindings.md).
+    /// With a WIT, the chain's holder must be the workload that proved
+    /// possession of the WIT key.
+    fn verify_chain(
+        &self,
+        input: &CheckInput,
+        caller: &Authenticated,
+        now: u64,
+        trail: &Trail,
+    ) -> Result<Option<NormalizedChain>, Denied> {
+        let header = |name: &str| {
+            input
+                .headers
+                .iter()
+                .find(|(n, _)| n == name)
+                .map(|(_, v)| v.as_str())
+        };
+        let Some(chain_header) = header(AAT_CHAIN_HEADER) else {
+            return Ok(None);
+        };
+        let Some(verifier) = &self.config.aat else {
+            return Err(Denied::new(403, "chain.unsupported", trail));
+        };
+        let pop =
+            header(AAT_POP_HEADER).ok_or_else(|| Denied::new(401, "chain.missing_pop", trail))?;
+        let chain: Vec<String> = chain_header
+            .split(',')
+            .map(|t| t.trim().to_owned())
+            .collect();
+        let (tool, args) =
+            invocation(input).ok_or_else(|| Denied::new(400, "chain.bad_invocation", trail))?;
+        let now = i64::try_from(now).map_err(|_| Denied::new(500, "internal.clock", trail))?;
+        let authorized = verifier
+            .verify(
+                &Presentation { chain: &chain, pop },
+                &Invocation {
+                    tool: &tool,
+                    args_json: &args,
+                },
+                now,
+                Some(&self.aat_replay),
+            )
+            .map_err(|e| Denied::new(403, e.code(), trail))?;
+        if let Some(key) = &caller.proof_key {
+            let holder = authorized
+                .chain
+                .leaf()
+                .and_then(|leaf| leaf.cnf.as_ref())
+                .map(|c| c.thumbprint.0.as_str());
+            if holder != Some(jwk_thumbprint(key).as_str()) {
+                return Err(Denied::new(403, "chain.holder_mismatch", trail));
+            }
+        }
+        Ok(Some(authorized.chain))
     }
 
     fn check_target(&self, input: &CheckInput) -> Result<(), Denied> {
@@ -366,11 +441,60 @@ const fn method_name(method: Method) -> &'static str {
     }
 }
 
-fn tctx(caller: &Authenticated) -> Map<String, Value> {
+fn tctx(caller: &Authenticated, chain: Option<&NormalizedChain>) -> Map<String, Value> {
     let mut map = Map::new();
     map.insert("agent".into(), json!(caller.caller));
     map.insert("auth_method".into(), json!(method_name(caller.method)));
+    if let Some(chain) = chain {
+        map.insert("chain".into(), chain_context(chain));
+    }
     map
+}
+
+/// The chain as the PDP and the Transaction Token see it: format, depth, the
+/// holders from root to leaf, and the leaf's authority.
+fn chain_context(chain: &NormalizedChain) -> Value {
+    let holders: Vec<String> = chain
+        .hops
+        .iter()
+        .filter_map(|hop| hop.cnf.as_ref().map(|c| c.thumbprint.0.clone()))
+        .collect();
+    json!({
+        "profile": chain.profile.as_str(),
+        "issuer": chain.root.issuer,
+        "depth": chain.hops.len().saturating_sub(1),
+        "holders": holders,
+        "authority": chain.leaf().map(|leaf| leaf.authority.json.clone()),
+    })
+}
+
+/// The tool and its arguments: from an MCP `tools/call` body, or the method
+/// and path with no arguments.
+fn invocation(input: &CheckInput) -> Option<(String, String)> {
+    #[derive(serde::Deserialize)]
+    struct Call<'a> {
+        method: &'a str,
+        #[serde(borrow)]
+        params: Option<Params<'a>>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Params<'a> {
+        name: String,
+        #[serde(borrow)]
+        arguments: Option<&'a serde_json::value::RawValue>,
+    }
+    if let Some(body) = &input.body
+        && let Ok(call) = serde_json::from_str::<Call<'_>>(body)
+        && call.method == "tools/call"
+    {
+        let params = call.params?;
+        let args = params
+            .arguments
+            .map_or("{}", serde_json::value::RawValue::get);
+        return Some((params.name, args.to_owned()));
+    }
+    let path = input.path.split(['?', '#']).next().unwrap_or("");
+    Some((format!("{} {path}", input.method), "{}".to_owned()))
 }
 
 fn rctx(input: &CheckInput) -> Map<String, Value> {

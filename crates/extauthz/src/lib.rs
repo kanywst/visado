@@ -14,5 +14,7 @@
 mod gate;
 mod service;
 
-pub use gate::{CheckInput, Gate, GateConfig, Outcome, STRIPPED_HEADERS};
+pub use gate::{
+    AAT_CHAIN_HEADER, AAT_POP_HEADER, CheckInput, Gate, GateConfig, Outcome, STRIPPED_HEADERS,
+};
 pub use service::ExtAuthz;
