@@ -64,7 +64,7 @@ Sources: PR body and diff, `gh pr diff 4611 --repo dexidp/dex`.
 - The resource-vs-audience check is limited: Dex does not verify that `resource` is governed by `audience`.
 - Single resource only.
 - No step-up, and no server-side `jti` tracking.
-- `sub` is Dex's opaque encoding, which the Resource AS must map. My inference: this matters for Keycloak's user linking.
+- `sub` is Dex's opaque encoding, which the Resource AS must map. Inference: this matters for Keycloak's user linking.
 
 ## 2. Resource AS requirements (draft-06 §4.4, RFC 7523)
 

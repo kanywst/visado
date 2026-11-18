@@ -1,43 +1,58 @@
 # visado
 
-**See and verify every hop of an AI agent's delegation chain, and hand it downstream as an IETF Transaction Token.**
+[![ci](https://github.com/kanywst/visado/actions/workflows/ci.yml/badge.svg)](https://github.com/kanywst/visado/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/kanywst/visado/badge)](https://scorecard.dev/viewer/?uri=github.com/kanywst/visado)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-*visado* is Spanish for "visa'd": checked and allowed through.
+visado is an authorization service for AI agent traffic. At each enforcement point it verifies the caller's workload credential and the delegation chain behind the request, asks an [AuthZEN](https://openid.net/specs/authorization-api-1_0.html) policy decision point, and passes the verified chain downstream as an [OAuth Transaction Token](https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/).
 
-> **Pre-design.** Nothing is implemented yet. This repository holds the research, scope and design. See [ROADMAP.md](ROADMAP.md).
+> [!IMPORTANT]
+> visado is pre-alpha and implements Internet-Drafts that are still changing. Only the Transaction Token library exists today. See the [roadmap](ROADMAP.md).
 
-## The problem
+## How it fits
 
-An agent calls another agent, which calls a tool. By the last hop, the service receiving the call usually knows a bearer token and little else. It cannot tell who the request is really for, which agents it passed through, or whether any of them widened the authority they were given. This is the confused deputy problem, and multi-agent systems make it routine.
+```text
+user ── ID-JAG ──> agent A ── WIT + WPT, delegation token ──> [Envoy | agentgateway] ── Txn-Token ──> agent B ──> tool
+                                                                     │ ext_authz
+                                                                  visado ── AuthZEN ──> PDP
+```
 
-The standards to fix it now exist in pieces:
+visado runs behind Envoy, Istio or agentgateway as an ext_authz service. It follows the composition in [draft-ietf-wimse-aims](https://datatracker.ietf.org/doc/draft-ietf-wimse-aims/). It does not issue identities, log users in, evaluate policy or route traffic; see [docs/scope.md](docs/scope.md).
 
-- IETF WIMSE says who a workload is.
-- Agent delegation tokens say who acted for whom.
-- OAuth Transaction Tokens carry the verified context through a call chain.
-- ID-JAG starts the chain at the user's identity provider.
-- OpenID AuthZEN asks a policy engine for the decision.
+## Components
 
-No open-source component puts them together where the call is enforced.
+| Component | Spec | Status |
+| --- | --- | --- |
+| [`visado-txn-token`](crates/txn-token) | draft-ietf-oauth-transaction-tokens-11 | alpha: mint, verify, replace, request parsing |
+| Caller authentication (WIT/WPT, HTTP signatures, mTLS, SVIDs, OAuth access tokens) | WIMSE drafts via [wimsey](https://github.com/kanywst/wimsey) | planned |
+| Delegation chains (AAT, asor, RFC 8693 `act`) | see [SPEC-MAP.md](SPEC-MAP.md) | planned |
+| AuthZEN client | AuthZEN 1.0 | planned |
+| ext_authz server, token endpoint, chain view | | planned |
 
-## What visado does
+## Try it
 
-At each enforcement point (Envoy, Istio or agentgateway, through ext_authz), visado:
+```bash
+git clone https://github.com/kanywst/visado
+cd visado
+cargo test --workspace
+```
 
-1. verifies the caller's workload credential (WIMSE WIT with WPT, HTTP signatures or mTLS; SPIFFE SVIDs; OAuth access tokens),
-2. verifies the delegation chain and checks that authority only narrows at each hop,
-3. asks any AuthZEN 1.0 policy decision point whether the call is allowed,
-4. mints a Transaction Token carrying the verified chain for the services behind it,
-5. records the decision as an audit record and an OpenTelemetry span, and shows the chain per request.
+The Transaction Token conformance vectors are in [conformance/](conformance/) and can be used to test other implementations.
 
-It does not issue identities, log users in, evaluate policy or route traffic. See [docs/scope.md](docs/scope.md).
+## Documentation
 
-## Documents
+- [docs/scope.md](docs/scope.md): what visado covers and what it leaves to other projects
+- [docs/design.md](docs/design.md): request pipeline and plugin interfaces
+- [SPEC-MAP.md](SPEC-MAP.md): pinned draft revisions and known divergences
+- [docs/research/](docs/research/): background research
 
-- [docs/scope.md](docs/scope.md): what visado is and is not
-- [docs/design.md](docs/design.md): the request pipeline, plugins and the reference lab
-- [docs/research/](docs/research/): the research behind both
-- [ROADMAP.md](ROADMAP.md): phases toward a CNCF Sandbox application
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Commits need a DCO sign-off. visado follows the [CNCF Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Security
+
+Do not open a public issue for a vulnerability. Follow [SECURITY.md](SECURITY.md).
 
 ## License
 

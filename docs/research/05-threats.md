@@ -69,7 +69,7 @@ Reason codes are proposals.
    *Without:* the server trusts the outermost `sub` and returns tenant-A data.
    *With visado:* `chain.link_mismatch` (parent hash or root `txn` differs). With a correctly formed chain, the Txn-Token `tctx.tenant=B` against resource tenant A gives `pdp.deny:tenant_mismatch`.
 
-**Recommended honesty slide:** run postmark-style BCC exfiltration through visado and show that it **succeeds**, because the malicious code sits behind the gateway. That draws a clean scope boundary and pre-empts critics.
+Also run postmark-style BCC exfiltration through visado and show that it succeeds, because the malicious code sits behind the gateway.
 
 ## Gaps and confidence
 
