@@ -192,11 +192,19 @@ fn aat_detail(tools: &Value) -> Value {
     json!([{ "type": "attenuating_agent_token", "tools": tools }])
 }
 
-/// A root AAT from [`AAT_ISSUER`] delegating `tools` to `holder`.
+/// A root AAT from [`AAT_ISSUER`] delegating `tools` to `holder`, for the
+/// enforcement point `audience`.
 #[must_use]
-pub fn aat_root(jti: &str, holder: &SigningKey, tools: &Value, now: u64, max_depth: u32) -> String {
+pub fn aat_root(
+    jti: &str,
+    holder: &SigningKey,
+    tools: &Value,
+    now: u64,
+    max_depth: u32,
+    audience: &str,
+) -> String {
     let payload = json!({
-        "jti": jti, "iss": AAT_ISSUER, "iat": now, "exp": now + 600,
+        "jti": jti, "iss": AAT_ISSUER, "aud": audience, "iat": now, "exp": now + 600,
         "del_depth": 0, "del_max_depth": max_depth,
         "cnf": { "jwk": Jwk::from_verifying_key(&holder.verifying_key()) },
         "authorization_details": aat_detail(tools),

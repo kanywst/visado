@@ -51,6 +51,7 @@ fn main() {
         }),
         now,
         3,
+        &format!("http://{AUTHORITY}"),
     );
     let child_jti = format!("child-{nonce}");
     let child = visado_testkit::aat_child(
