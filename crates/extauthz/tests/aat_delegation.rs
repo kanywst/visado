@@ -31,8 +31,8 @@ impl Pdp for AllowPdp {
     }
 }
 
-fn gate() -> Gate<AllowPdp> {
-    let config = GateConfig {
+fn gate_config() -> GateConfig {
+    GateConfig {
         trust_domain: TRUST_DOMAIN.into(),
         signing_key: SigningKey::from_ed25519_seed(&[0x51; 32]),
         kid: "txn-1".into(),
@@ -47,11 +47,14 @@ fn gate() -> Gate<AllowPdp> {
             )],
             vec![AUDIENCE.to_owned()],
         )),
-    };
+    }
+}
+
+fn gate() -> Gate<AllowPdp> {
     let authenticator = Authenticator::new().with_wit_issuer(
         WitIssuer::new(TRUST_DOMAIN).with_key("wit-1", wit_issuer_verifying_key()),
     );
-    Gate::new(config, authenticator, AllowPdp)
+    Gate::new(gate_config(), authenticator, AllowPdp)
 }
 
 /// Agent A (key 1) holds `read_file` on any path and `delete_file`; it
@@ -66,6 +69,7 @@ fn chain() -> (String, String) {
         }),
         NOW,
         3,
+        AUDIENCE,
     );
     let child = aat_child(
         "child-1",
@@ -160,4 +164,71 @@ async fn agent_b_may_use_only_what_it_was_given() {
         .check(&call("agent-z", 9, "read_file", &read, 4), NOW, "t")
         .await;
     assert!(code(&stolen).starts_with("aat."), "{}", code(&stolen));
+}
+
+#[tokio::test]
+async fn bodies_that_are_not_one_tool_call_are_refused() {
+    let gate = gate();
+    let read = json!({ "path": "/data/report.pdf" });
+    let mut batch = call("agent-b", 2, "read_file", &read, 10);
+    batch.body = Some(format!("[{}]", batch.body.clone().unwrap()));
+    assert_eq!(
+        code(&gate.check(&batch, NOW, "t").await),
+        "chain.bad_invocation"
+    );
+
+    let mut missing = call("agent-b", 2, "read_file", &read, 11);
+    missing.body = None;
+    assert_eq!(
+        code(&gate.check(&missing, NOW, "t").await),
+        "chain.bad_invocation"
+    );
+
+    let mut garbage = call("agent-b", 2, "read_file", &read, 12);
+    garbage.body = Some("not json".into());
+    assert_eq!(
+        code(&gate.check(&garbage, NOW, "t").await),
+        "chain.bad_invocation"
+    );
+}
+
+#[tokio::test]
+async fn a_bearer_caller_cannot_present_a_chain() {
+    let jwks = serde_json::from_value(visado_testkit::oauth_jwks()).unwrap();
+    let mut config = gate_config();
+    config.aat = Some(Verifier::new(
+        vec![TrustAnchor::new(
+            AAT_ISSUER,
+            aat_anchor_key().verifying_key(),
+        )],
+        vec![AUDIENCE.to_owned()],
+    ));
+    let gate = Gate::new(
+        config,
+        Authenticator::new().with_oauth_issuer(visado_credentials::OAuthIssuer::new(
+            visado_testkit::OAUTH_ISSUER,
+            format!("https://{HOST}/mcp"),
+            jwks,
+        )),
+        AllowPdp,
+    );
+    let read = json!({ "path": "/data/report.pdf" });
+    let mut request = call("agent-b", 2, "read_file", &read, 20);
+    let at = visado_testkit::access_token(
+        "alice",
+        "client-1",
+        "tools.call",
+        &format!("https://{HOST}/mcp"),
+        NOW + 300,
+    );
+    request
+        .headers
+        .retain(|(n, _)| n != "authorization" && n != "workload-identity-token");
+    request
+        .headers
+        .push(("authorization".into(), format!("Bearer {at}")));
+    assert_eq!(
+        code(&gate.check(&request, NOW, "t").await),
+        "chain.unbound_caller"
+    );
 }
