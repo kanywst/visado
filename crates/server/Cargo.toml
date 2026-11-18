@@ -1,0 +1,36 @@
+[package]
+name = "visado"
+description = "visado server: Envoy ext_authz service that verifies agent callers, asks an AuthZEN PDP and mints Transaction Tokens."
+readme = "../../README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "visado"
+path = "src/main.rs"
+
+[dependencies]
+visado-authzen = { workspace = true }
+visado-credentials = { workspace = true }
+visado-extauthz = { workspace = true }
+visado-txn-token = { workspace = true }
+wimsey-jose = { workspace = true }
+envoy-types = { workspace = true }
+tonic = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+jsonwebtoken = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,7 @@
+{
+  "alg": "Ed25519",
+  "crv": "Ed25519",
+  "d": "UVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVE",
+  "kty": "OKP",
+  "x": "wFDFY3pE-oYp__PMzOIwDLNipj2Z2V_FQUUmb0MyRFo"
+}
