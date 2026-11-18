@@ -47,6 +47,7 @@ fn gate_config() -> GateConfig {
             )],
             vec![AUDIENCE.to_owned()],
         )),
+        require_chain: false,
     }
 }
 
@@ -184,6 +185,22 @@ async fn bodies_that_are_not_one_tool_call_are_refused() {
         "chain.bad_invocation"
     );
 
+    let mut other_method = call("agent-b", 2, "read_file", &read, 13);
+    other_method.body = Some(r#"{"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":"file:///etc/passwd"}}"#.into());
+    assert_eq!(
+        code(&gate.check(&other_method, NOW, "t").await),
+        "chain.bad_invocation"
+    );
+
+    let mut query = call("agent-b", 2, "read_file", &read, 14);
+    query.method = "GET".into();
+    query.body = None;
+    query.path = "/mcp?anything=1".into();
+    assert_eq!(
+        code(&gate.check(&query, NOW, "t").await),
+        "chain.bad_invocation"
+    );
+
     let mut garbage = call("agent-b", 2, "read_file", &read, 12);
     garbage.body = Some("not json".into());
     assert_eq!(
@@ -230,5 +247,32 @@ async fn a_bearer_caller_cannot_present_a_chain() {
     assert_eq!(
         code(&gate.check(&request, NOW, "t").await),
         "chain.unbound_caller"
+    );
+}
+
+#[tokio::test]
+async fn a_required_chain_cannot_be_left_out() {
+    let mut config = gate_config();
+    config.require_chain = true;
+    let gate = Gate::new(
+        config,
+        Authenticator::new().with_wit_issuer(
+            WitIssuer::new(TRUST_DOMAIN).with_key("wit-1", wit_issuer_verifying_key()),
+        ),
+        AllowPdp,
+    );
+    let mut request = call(
+        "agent-b",
+        2,
+        "read_file",
+        &json!({ "path": "/data/report.pdf" }),
+        30,
+    );
+    request
+        .headers
+        .retain(|(n, _)| n != "aat-chain" && n != "aat-pop");
+    assert_eq!(
+        code(&gate.check(&request, NOW, "t").await),
+        "chain.required"
     );
 }

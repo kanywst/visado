@@ -73,7 +73,9 @@ fn input_from(request: &CheckRequest) -> Option<CheckInput> {
         body: if !http.body.is_empty() {
             Some(http.body.clone())
         } else if !http.raw_body.is_empty() {
-            String::from_utf8(http.raw_body.clone()).ok()
+            // Not UTF-8 is kept as an unreadable body rather than dropped, so
+            // it cannot pass as "no body".
+            Some(String::from_utf8_lossy(&http.raw_body).into_owned())
         } else {
             None
         },
