@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 
 use serde_json::{Map, Value, json};
+use tracing::Instrument;
 use visado_authzen::{Action, Entity, EvaluationRequest, Pdp};
 use visado_credentials::{AuthError, Authenticated, Authenticator, Method, RequestView};
 use visado_txn_token::{KeySet, Scope, TxnTokenClaims, Validation, mint, verify};
@@ -102,7 +103,30 @@ impl<P: Pdp> Gate<P> {
     /// Decides on `input` at `now`. `txn` is the identifier used if a new
     /// Transaction Token is minted.
     pub async fn check(&self, input: &CheckInput, now: u64, txn: &str) -> Outcome {
-        match self.decide(input, now, txn).await {
+        let resource = resource_id(input);
+        let span = tracing::info_span!(
+            "visado.authorize",
+            otel.name = %format!("visado.authorize {resource}"),
+            otel.kind = "server",
+            http.request.method = %input.method,
+            url.full = %resource,
+            visado.txn = tracing::field::Empty,
+            visado.agent = tracing::field::Empty,
+            visado.principal = tracing::field::Empty,
+            visado.decision = tracing::field::Empty,
+            visado.reason = tracing::field::Empty,
+        );
+        let result = self.decide(input, now, txn).instrument(span.clone()).await;
+        let (trail, decision, reason) = match &result {
+            Ok(allowed) => (&allowed.trail, "allow", "ok"),
+            Err(denied) => (&denied.trail, "deny", denied.code),
+        };
+        span.record("visado.txn", trail.txn.as_str());
+        span.record("visado.agent", trail.agent.as_str());
+        span.record("visado.principal", trail.principal.as_str());
+        span.record("visado.decision", decision);
+        span.record("visado.reason", reason);
+        match result {
             Ok(allowed) => {
                 audit(input, &allowed.trail, "allow", "ok");
                 Outcome::Allow {
