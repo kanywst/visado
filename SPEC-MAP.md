@@ -11,7 +11,7 @@ Pinned revisions and where the code departs from them. Checked 2026-11-18.
 | [draft-ietf-oauth-identity-assertion-authz-grant](https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/06/) | -06 | (planned) | |
 | [draft-niyikiza-oauth-attenuating-agent-tokens](https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/) | -02 | (planned) | |
 | [draft-asor-wimse-agent-delegation-chain](https://datatracker.ietf.org/doc/draft-asor-wimse-agent-delegation-chain/03/) | -03 | (planned) | |
-| [OpenID AuthZEN Authorization API](https://openid.net/specs/authorization-api-1_0.html) | 1.0 Final | (planned) | |
+| [OpenID AuthZEN Authorization API](https://openid.net/specs/authorization-api-1_0.html) | 1.0 Final | `visado-authzen` | Single evaluation and metadata discovery |
 
 WIMSE credentials (WIT, WPT, HTTP signatures, mTLS) come from [wimsey](https://github.com/kanywst/wimsey), which keeps its own spec map.
 
@@ -26,3 +26,20 @@ WIMSE credentials (WIT, WPT, HTTP signatures, mTLS) come from [wimsey](https://g
 | `req_wl` with several workloads | Ambiguous (§9.2) | Opaque string, replaced on each replacement |
 | Signature algorithms | Not restricted | `Ed25519`, `EdDSA`, `ES256` only |
 | Subject token type for a WIT | No URN defined | Not handled in this crate; the service decides |
+
+## AuthZEN: choices
+
+| Topic | Spec | visado |
+| --- | --- | --- |
+| Agent acting for a user | Not defined | `subject` is the agent (`type: agent`); the user is `context.principal` |
+| `X-Request-ID` echo | PDP MUST echo (§11) | A different echo is an error; a missing echo is tolerated |
+| Non-boolean `decision` | Must be boolean | Treated as an error, so the request is denied |
+| Batch and search APIs | Defined | Not used |
+
+## WIMSE credentials: choices
+
+| Topic | Draft | visado |
+| --- | --- | --- |
+| User token next to a WPT | Bound through `oth` | Read from `x-user-token` (configurable) and used only when `oth` binds it |
+| WPT replay | `jti` | In-memory cache per process; when full, new proofs are rejected |
+| Key selection | Not specified | The unverified `sub` trust domain and `kid` select a configured key; the signature is then checked |

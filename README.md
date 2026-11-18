@@ -7,7 +7,7 @@
 visado is an authorization service for AI agent traffic. At each enforcement point it verifies the caller's workload credential and the delegation chain behind the request, asks an [AuthZEN](https://openid.net/specs/authorization-api-1_0.html) policy decision point, and passes the verified chain downstream as an [OAuth Transaction Token](https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/).
 
 > [!IMPORTANT]
-> visado is pre-alpha and implements Internet-Drafts that are still changing. Only the Transaction Token library exists today. See the [roadmap](ROADMAP.md).
+> visado is pre-alpha and implements Internet-Drafts that are still changing. Delegation-chain verification is not implemented yet. See the [roadmap](ROADMAP.md).
 
 ## How it fits
 
@@ -23,11 +23,13 @@ visado runs behind Envoy, Istio or agentgateway as an ext_authz service. It foll
 
 | Component | Spec | Status |
 | --- | --- | --- |
-| [`visado-txn-token`](crates/txn-token) | draft-ietf-oauth-transaction-tokens-11 | alpha: mint, verify, replace, request parsing |
-| Caller authentication (WIT/WPT, HTTP signatures, mTLS, SVIDs, OAuth access tokens) | WIMSE drafts via [wimsey](https://github.com/kanywst/wimsey) | planned |
+| [`visado-txn-token`](crates/txn-token) | draft-ietf-oauth-transaction-tokens-11 | alpha: mint, verify, replace, request parsing, conformance vectors |
+| [`visado-credentials`](crates/credentials) | WIMSE WIT and WPT via [wimsey](https://github.com/kanywst/wimsey), OAuth access tokens | alpha; HTTP signatures, mTLS and SVIDs planned |
+| [`visado-authzen`](crates/authzen) | AuthZEN 1.0 | alpha: evaluation and discovery; batch and search not used |
+| [`visado-extauthz`](crates/extauthz) | Envoy ext_authz v3 | alpha |
+| [`visado`](crates/server) | | alpha: server binary |
 | Delegation chains (AAT, asor, RFC 8693 `act`) | see [SPEC-MAP.md](SPEC-MAP.md) | planned |
-| AuthZEN client | AuthZEN 1.0 | planned |
-| ext_authz server, token endpoint, chain view | | planned |
+| Chain view, OpenTelemetry | | planned |
 
 ## Try it
 
@@ -35,9 +37,10 @@ visado runs behind Envoy, Istio or agentgateway as an ext_authz service. It foll
 git clone https://github.com/kanywst/visado
 cd visado
 cargo test --workspace
+cargo run -p visado -- deploy/local/visado.toml
 ```
 
-The Transaction Token conformance vectors are in [conformance/](conformance/) and can be used to test other implementations.
+The server expects an AuthZEN PDP; see [deploy/local](deploy/local/). The Transaction Token conformance vectors in [conformance/](conformance/) can be used to test other implementations.
 
 ## Documentation
 
