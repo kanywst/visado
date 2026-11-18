@@ -1,0 +1,82 @@
+/*
+ * visado site theme. One accent: the violet of a visa stamp. Green and red are
+ * reserved for allow and deny, the way the lab reports them.
+ */
+
+:root {
+  --sl-font: 'Instrument Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --sl-font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sl-text-h1: 2.25rem;
+  --sl-line-height: 1.65;
+
+  /* Dark (Starlight's default theme). */
+  --sl-color-accent-low: #241b42;
+  --sl-color-accent: #8f78e0;
+  --sl-color-accent-high: #d9cffb;
+  --sl-color-white: #e6edf3;
+  --sl-color-gray-1: #d0d7de;
+  --sl-color-gray-2: #b1bac4;
+  --sl-color-gray-3: #8d96a0;
+  --sl-color-gray-4: #6e7681;
+  --sl-color-gray-5: #30363d;
+  --sl-color-gray-6: #161b22;
+  --sl-color-black: #0d1117;
+
+  --v-allow: #4ac17e;
+  --v-allow-ink: #8ee0b0;
+  --v-deny: #f0716a;
+  --v-deny-ink: #ffaba5;
+  --v-stamp: #a996ec;
+  --v-rule: #262c34;
+  --v-panel: #11161d;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #ece6fb;
+  --sl-color-accent: #5b3fa0;
+  --sl-color-accent-high: #3a2575;
+  --sl-color-white: #161e25;
+  --sl-color-gray-1: #232d36;
+  --sl-color-gray-2: #38444f;
+  --sl-color-gray-3: #52606b;
+  --sl-color-gray-4: #7b8791;
+  --sl-color-gray-5: #cdd4d9;
+  --sl-color-gray-6: #eef1f3;
+  --sl-color-gray-7: #f6f8f9;
+  --sl-color-black: #ffffff;
+
+  --v-allow: #1a7444;
+  --v-allow-ink: #145c36;
+  --v-deny: #b42318;
+  --v-deny-ink: #912018;
+  --v-stamp: #5b3fa0;
+  --v-rule: #e2e7ea;
+  --v-panel: #f7f8fa;
+}
+
+/* Headings: tight, heavier than body, never shouting. */
+.sl-markdown-content :is(h1, h2, h3, h4) {
+  letter-spacing: -0.012em;
+}
+h1#_top {
+  letter-spacing: -0.02em;
+}
+
+/* Tables in the synced docs carry most of the facts; keep them legible. */
+.sl-markdown-content table {
+  font-size: var(--sl-text-sm);
+}
+.sl-markdown-content code {
+  font-size: 0.875em;
+}
+
+/* Visible keyboard focus everywhere, in the accent. */
+:focus-visible {
+  outline: 2px solid var(--sl-color-accent);
+  outline-offset: 2px;
+}
+
+.site-title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}

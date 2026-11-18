@@ -1,0 +1,10 @@
+---
+// The homepage replaces Starlight's hero with its own; other pages keep the default.
+import Default from '@astrojs/starlight/components/Hero.astro';
+import HomeHero from './home/HomeHero.astro';
+
+const { id } = Astro.locals.starlightRoute;
+const isHome = id === '' || id === 'index';
+---
+
+{isHome ? <HomeHero /> : <Default />}

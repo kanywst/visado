@@ -1,0 +1,692 @@
+---
+import { Code } from '@astrojs/starlight/components';
+import { url } from './url';
+import Logo from './Logo.astro';
+
+const site = {
+  envoy: 'https://www.envoyproxy.io/',
+  istio: 'https://istio.io/',
+  agentgateway: 'https://agentgateway.dev/',
+  spiffe: 'https://spiffe.io/',
+  spire: 'https://spiffe.io/docs/latest/spire-about/',
+  opa: 'https://www.openpolicyagent.org/',
+  openfga: 'https://openfga.dev/',
+  cedar: 'https://www.cedarpolicy.com/',
+};
+
+const repo = 'https://github.com/kanywst/visado';
+
+const quickstart = `git clone https://github.com/kanywst/visado
+cd visado/deploy/lab
+docker compose up -d --build
+./demo.sh`;
+
+// One ext_authz Check call runs these in order and stops at the first failure.
+// Source: docs/design.md (pipeline) and CHANGELOG.md / ROADMAP.md (status).
+const steps = [
+  {
+    name: 'Sanitize',
+    body: 'Deny authorities outside allowed_authorities and paths an upstream could resolve differently. Accept an inbound Txn-Token only from a configured internal caller.',
+    state: 'done',
+    status: 'In v0.1.0',
+  },
+  {
+    name: 'Authenticate',
+    body: 'Verify a WIMSE Workload Identity Token with its proof of possession (WPT), or an OAuth access token. Keys come from configuration, never from URLs inside a token.',
+    state: 'done',
+    status: 'In v0.1.0. HTTP signatures, mTLS, JWT-SVID and DPoP are planned.',
+  },
+  {
+    name: 'Verify the delegation chain',
+    body: 'Decode AAT, asor and RFC 8693 act chains into one model, then check that the principal never changes and that authority only narrows.',
+    state: 'wip',
+    status: 'In progress. Not in a release yet.',
+  },
+  {
+    name: 'Authorize',
+    body: 'Send an AuthZEN 1.0 evaluation request: the agent is the subject, the user is context.principal. Timeouts, transport errors, non-200 answers and non-boolean decisions all deny.',
+    state: 'done',
+    status: 'In v0.1.0.',
+  },
+  {
+    name: 'Mint',
+    body: 'Sign a Transaction Token (typ txntoken+jwt), add it as the Txn-Token header and remove the inbound Authorization header before the request goes upstream.',
+    state: 'done',
+    status: 'In v0.1.0. JWKS at /.well-known/jwks.json.',
+  },
+  {
+    name: 'Record',
+    body: 'Write a JSON audit event and a visado.authorize OpenTelemetry span for every decision, with a stable reason code on denials.',
+    state: 'done',
+    status: 'Audit events in v0.1.0; spans unreleased. Chain view planned.',
+  },
+];
+
+const specs = [
+  { name: 'OAuth Transaction Tokens', href: 'https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/11/', rev: 'draft-ietf-oauth-transaction-tokens-11', state: 'done', status: 'Mint, verify, replace, request parsing. 5 valid and 22 negative conformance vectors.' },
+  { name: 'OpenID AuthZEN Authorization API', href: 'https://openid.net/specs/authorization-api-1_0.html', rev: '1.0 Final', state: 'done', status: 'Single evaluation and metadata discovery. Batch and search are not used.' },
+  { name: 'WIMSE workload credentials (WIT, WPT)', href: 'https://github.com/kanywst/wimsey', rev: 'pinned in wimsey', state: 'done', status: 'WIT with WPT. HTTP signatures and mTLS are planned.' },
+  { name: 'JWT access tokens', href: 'https://www.rfc-editor.org/rfc/rfc9068', rev: 'RFC 9068', state: 'done', status: 'Accepted alone or bound to a WPT. Sender-constrained (cnf) tokens are rejected until DPoP lands.' },
+  { name: 'Envoy external authorization', href: 'https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/auth/v3/external_auth.proto', rev: 'ext_authz v3', state: 'done', status: 'gRPC service. Runs behind Envoy in the lab.' },
+  { name: 'Attenuating Agent Tokens (AAT)', href: 'https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/', rev: 'draft-niyikiza-oauth-attenuating-agent-tokens-02', state: 'wip', status: 'Decoder being built against the 229 published vectors. Not in a release yet.' },
+  { name: 'Agent delegation chain (asor)', href: 'https://datatracker.ietf.org/doc/draft-asor-wimse-agent-delegation-chain/03/', rev: 'draft-asor-wimse-agent-delegation-chain-03', state: 'todo', status: '' },
+  { name: 'Identity Assertion Authorization Grant (ID-JAG)', href: 'https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/06/', rev: 'draft-ietf-oauth-identity-assertion-authz-grant-06', state: 'todo', status: '' },
+  { name: 'WIMSE AI agent identity (AIMS)', href: 'https://datatracker.ietf.org/doc/draft-ietf-wimse-aims/01/', rev: 'draft-ietf-wimse-aims-01', state: 'ref', status: 'The composition visado follows. Not implemented as such yet.' },
+];
+
+const stateLabel: Record<string, string> = { done: 'Implemented', wip: 'In progress', todo: 'Planned', ref: 'Reference' };
+
+const elsewhere = [
+  { need: 'Issuing workload identities', use: 'SPIRE, any WIMSE issuer' },
+  { need: 'User login, ID-JAG issuance', use: 'Dex, Keycloak, Okta, Entra, Casdoor' },
+  { need: 'OAuth authorization server, agent IdP', use: 'Keycloak, zeroid, ToolHive' },
+  { need: 'Policy evaluation', use: 'Any AuthZEN 1.0 PDP' },
+  { need: 'Routing, MCP multiplexing, LLM proxying', use: 'agentgateway, Envoy, ContextForge' },
+  { need: 'Vaulting SaaS tokens, consent UI', use: 'Zalando Agentic Identity Broker, Infisical Agent Vault' },
+];
+
+// From ROADMAP.md. Re-check when the roadmap changes.
+const phases = [
+  { n: 0, name: 'Foundation', state: 'done', status: 'Met' },
+  { n: 1, name: 'Transaction Tokens', state: 'done', status: 'Met' },
+  { n: 2, name: 'ext_authz and caller authentication', state: 'wip', status: 'Partly met' },
+  { n: 3, name: 'Delegation chains', state: 'wip', status: 'In progress' },
+  { n: 4, name: 'AuthZEN', state: 'wip', status: 'Partly met' },
+  { n: 5, name: 'Lab, visibility and demos', state: 'wip', status: 'Started' },
+  { n: 6, name: 'Interop and launch', state: 'todo', status: 'Not started' },
+];
+
+const help = [
+  'Caller authentication with HTTP Message Signatures, mTLS, JWT-SVID and DPoP',
+  'Running the AuthZEN profile against a second PDP besides OPA',
+  'Dex, Keycloak, SPIRE and agentgateway in the lab',
+  'Transaction Token interop with other implementations, using the conformance vectors',
+];
+---
+
+<div class="home not-content">
+  <section aria-labelledby="quick">
+    <h2 id="quick">Quick start</h2>
+    <p class="lead">
+      The lab puts visado behind Envoy with OPA as the policy decision point and runs the eight
+      scenarios above. You need Docker with Compose.
+    </p>
+    <div class="code"><Code code={quickstart} lang="sh" frame="terminal" title="Terminal" /></div>
+    <p class="aside">
+      Each decision also shows up as a <code>visado.authorize</code> span in Jaeger at
+      <code>http://127.0.0.1:16686</code>. The demo keys are public; do not reuse them.{' '}
+      <a href={url('/getting-started/')}>Lab guide</a>
+    </p>
+  </section>
+
+  <section aria-labelledby="how">
+    <h2 id="how">How a request goes through</h2>
+    <p class="lead">
+      The proxy sends each request to visado over ext_authz. visado runs the steps below in order and
+      stops at the first failure. Only an allowed request reaches the upstream, carrying a
+      Transaction Token instead of the caller's credentials.
+    </p>
+    <figure class="flow">
+      <div class="flow-scroll">
+      <img class="only-light" src={url('/flow-light.svg')} width="1000" height="330" alt="User logs in with an IdP; agent A calls through Envoy, Istio or agentgateway with a WIT, WPT and delegation chain; the proxy asks visado over ext_authz; visado asks a policy decision point over AuthZEN; the request continues to agent B and a tool with a Transaction Token." />
+      <img class="only-dark" src={url('/flow-dark.svg')} width="1000" height="330" alt="" aria-hidden="true" />
+      </div>
+      <figcaption>
+        <span class="role">Proxy</span>
+        <Logo name="envoy" href={site.envoy} size="sm" />
+        <Logo name="istio" href={site.istio} size="sm" />
+        <Logo name="agentgateway" href={site.agentgateway} size="sm" />
+        <span class="role">PDP in the lab</span>
+        <Logo name="opa" href={site.opa} size="sm" />
+      </figcaption>
+    </figure>
+    <ol class="steps">
+      {
+        steps.map((s) => (
+          <li>
+            <h3>{s.name}</h3>
+            <p>{s.body}</p>
+            <p class:list={['state', s.state]}>{s.status}</p>
+          </li>
+        ))
+      }
+    </ol>
+    <p class="aside">Full pipeline and plugin interfaces: <a href={url('/concepts/design/')}>design</a>.</p>
+  </section>
+
+  <section aria-labelledby="standards">
+    <h2 id="standards">Standards, pinned</h2>
+    <p class="lead">
+      visado has no token format of its own. It implements published specifications at a fixed
+      revision and records every place it departs from them.
+    </p>
+    <div class="table-wrap">
+      <table class="specs">
+        <thead>
+          <tr><th scope="col">Specification</th><th scope="col">Revision</th><th scope="col">Status</th></tr>
+        </thead>
+        <tbody>
+          {
+            specs.map((s) => (
+              <tr>
+                <th scope="row"><a href={s.href}>{s.name}</a></th>
+                <td><code>{s.rev}</code></td>
+                <td>
+                  <span class:list={['pill', s.state]}>{stateLabel[s.state]}</span>
+                  {s.status && <span class="detail">{s.status}</span>}
+                </td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="aside">
+      Divergences and choices, section by section: <a href={url('/spec-map/')}>spec map</a>.
+      The Transaction Token vectors in <a href={`${repo}/tree/main/conformance`}><code>conformance/</code></a>
+      can test other implementations.
+    </p>
+  </section>
+
+  <section aria-labelledby="scope">
+    <h2 id="scope">What it is, and what it is not</h2>
+    <div class="split">
+      <div>
+        <p>
+          visado is the check at the enforcement point. It authenticates the caller, verifies the chain
+          of delegation behind the request, gets a decision and hands the next hop a token that says
+          who is acting for whom.
+        </p>
+        <p>
+          It is not a policy decision point, not an identity provider and not a gateway. It has no
+          policy language: decisions come from an AuthZEN 1.0 PDP. The lab uses OPA with the AuthZEN
+          plugin; a Cedar or OpenFGA deployment reaches visado through an AuthZEN endpoint in front of
+          it.
+        </p>
+        <p>
+          SPIRE issues the workload identities visado verifies. Envoy, Istio and agentgateway route the
+          traffic and call visado through ext_authz.
+        </p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <caption>Use something else for</caption>
+          <thead>
+            <tr><th scope="col">Need</th><th scope="col">Use</th></tr>
+          </thead>
+          <tbody>
+            {
+              elsewhere.map((e) => (
+                <tr>
+                  <td>{e.need}</td>
+                  <td>{e.use}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="works">
+      <h3>Works with</h3>
+      <dl>
+        <div>
+          <dt>Calls visado over ext_authz</dt>
+          <dd>
+            <Logo name="envoy" href={site.envoy} />
+            <Logo name="istio" href={site.istio} />
+            <Logo name="agentgateway" href={site.agentgateway} />
+          </dd>
+          <dd class="fine">Envoy runs in the lab. Istio and agentgateway use the same ext_authz v3 API and are not in the lab yet.</dd>
+        </div>
+        <div>
+          <dt>Issues the identities visado verifies</dt>
+          <dd>
+            <Logo name="spiffe" href={site.spiffe} />
+            <Logo name="spire" href={site.spire} />
+          </dd>
+          <dd class="fine">WIT verification is in v0.1.0. SPIRE in the lab and X.509-SVID and JWT-SVID verification are planned.</dd>
+        </div>
+        <div>
+          <dt>Decides, behind an AuthZEN 1.0 API</dt>
+          <dd>
+            <Logo name="opa" href={site.opa} />
+            <Logo name="cedar" href={site.cedar} />
+            <Logo name="openfga" href={site.openfga} />
+          </dd>
+          <dd class="fine">OPA with the AuthZEN plugin runs in the lab. Cedar and OpenFGA need an AuthZEN endpoint in front of them and are untested.</dd>
+        </div>
+      </dl>
+    </div>
+    <p class="aside">Scope in full, with neighbouring projects: <a href={url('/concepts/scope/')}>scope</a>.</p>
+  </section>
+
+  <section aria-labelledby="security">
+    <h2 id="security">Security</h2>
+    <div class="cols">
+      <div>
+        <h3>Fails closed</h3>
+        <ul>
+          <li>Any verification error, PDP error or non-boolean decision denies the request.</li>
+          <li>Inbound credentials are removed before the request goes upstream; a Txn-Token is forwarded only from configured internal callers.</li>
+          <li>Ambiguous paths and unknown authorities are denied before authentication.</li>
+          <li>Both listeners bind to loopback by default.</li>
+        </ul>
+        <p><a href={url('/security/threats/')}>Threat model</a>, including the incidents visado does not stop.</p>
+      </div>
+      <div>
+        <h3>Signed releases</h3>
+        <p>
+          Every release asset, the SPDX SBOM and <code>SHA256SUMS</code> are signed keylessly with
+          cosign, and the binaries carry SLSA build provenance. The release notes show the
+          <code>cosign verify-blob</code> command for that release.
+        </p>
+        <p><a href={`${repo}/releases`}>Releases</a></p>
+      </div>
+      <div>
+        <h3>Reporting a vulnerability</h3>
+        <p>
+          Use GitHub private vulnerability reporting. Do not open a public issue or pull request.
+        </p>
+        <p><a href={url('/security/policy/')}>Security policy</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="roadmap">
+    <h2 id="roadmap">Where it stands</h2>
+    <div class="split">
+      <ol class="phases">
+        {
+          phases.map((p) => (
+            <li>
+              <span class="num">{p.n}</span>
+              <span class="pname">{p.name}</span>
+              <span class:list={['pill', p.state]}>{p.status}</span>
+            </li>
+          ))
+        }
+      </ol>
+      <div>
+        <h3>Help wanted</h3>
+        <ul>
+          {help.map((h) => <li>{h}</li>)}
+        </ul>
+        <p>
+          <a href={`${repo}/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22`}>Open help-wanted issues</a>
+        </p>
+        <p>
+          <a href={url('/roadmap/')}>Full roadmap, with the gate for each phase</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="community">
+    <h2 id="community">Get involved</h2>
+    <ul class="links">
+      <li>
+        <a href={`${repo}/issues`}>GitHub issues</a>
+        <span>Bugs, questions, spec discussions.</span>
+      </li>
+      <li>
+        <a href={url('/contributing/')}>Contributing</a>
+        <span>Every commit needs a DCO sign-off (<code>git commit -s</code>).</span>
+      </li>
+      <li>
+        <a href={url('/code-of-conduct/')}>Code of Conduct</a>
+        <span>Expected behaviour, and how to report a violation.</span>
+      </li>
+    </ul>
+  </section>
+</div>
+
+<style>
+  .home {
+    margin-top: 3rem;
+  }
+  section {
+    padding-block: 3.25rem;
+    border-top: 1px solid var(--v-rule);
+  }
+  h2 {
+    margin: 0;
+    font-size: clamp(1.5rem, 1.2rem + 1vw, 1.95rem);
+    font-weight: 620;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: var(--sl-color-white);
+  }
+  h3 {
+    margin: 0 0 0.5rem;
+    font-size: var(--sl-text-lg);
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+  p,
+  li {
+    color: var(--sl-color-gray-2);
+    line-height: 1.6;
+  }
+  p {
+    margin: 0 0 0.85rem;
+  }
+  a {
+    color: var(--sl-color-accent-high);
+    text-underline-offset: 3px;
+  }
+  :global([data-theme='light']) a {
+    color: var(--sl-color-accent);
+  }
+  code {
+    font-family: var(--sl-font-mono);
+    font-size: 0.86em;
+    background: var(--sl-color-gray-6);
+    padding: 0.08em 0.3em;
+    border-radius: 3px;
+  }
+  .lead {
+    margin: 0.75rem 0 1.75rem;
+    max-width: 44rem;
+    font-size: var(--sl-text-base);
+  }
+  .aside {
+    margin-top: 1.25rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+  .code {
+    max-width: 44rem;
+  }
+
+  .flow {
+    margin: 0 0 2.25rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--sl-color-black);
+  }
+  .flow-scroll {
+    overflow-x: auto;
+  }
+  .flow figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 1rem;
+    padding: 0.6rem 1rem;
+    border-top: 1px solid var(--sl-color-gray-5);
+    background: var(--sl-color-black);
+  }
+  .role {
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  .role + :global(.logo) {
+    margin-inline-start: -0.25rem;
+  }
+  .role:not(:first-child) {
+    margin-inline-start: 0.75rem;
+    padding-inline-start: 1rem;
+    border-inline-start: 1px solid var(--sl-color-gray-5);
+  }
+
+  .works {
+    margin-top: 2.75rem;
+  }
+  .works dl {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+    gap: 1.5rem 2.25rem;
+    margin: 1rem 0 0;
+  }
+  .works dt {
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    margin-bottom: 0.5rem;
+  }
+  .works dd {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.25rem;
+    align-items: center;
+  }
+  .works dd.fine {
+    display: block;
+    margin-top: 0.6rem;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+    line-height: 1.5;
+  }
+  .flow img {
+    display: block;
+    width: 100%;
+    min-width: 640px;
+    height: auto;
+  }
+  .only-dark {
+    display: block;
+  }
+  .only-light {
+    display: none !important;
+  }
+  :global([data-theme='light']) .only-dark {
+    display: none !important;
+  }
+  :global([data-theme='light']) .only-light {
+    display: block !important;
+  }
+
+  .steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    counter-reset: step;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+    gap: 1.75rem 2.25rem;
+  }
+  .steps li {
+    counter-increment: step;
+    position: relative;
+    padding-inline-start: 2.6rem;
+  }
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    inset-inline-start: 0;
+    top: 0.05rem;
+    width: 1.8rem;
+    height: 1.8rem;
+    display: grid;
+    place-items: center;
+    border: 1.5px solid var(--v-stamp);
+    border-radius: 50%;
+    font-family: var(--sl-font-mono);
+    font-size: var(--sl-text-sm);
+    color: var(--v-stamp);
+  }
+  .steps h3 {
+    font-size: var(--sl-text-base);
+    margin-bottom: 0.3rem;
+  }
+  .steps p {
+    margin: 0 0 0.4rem;
+    font-size: var(--sl-text-sm);
+  }
+  .steps .state {
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  .steps .state.wip {
+    color: var(--sl-color-accent-high);
+  }
+  :global([data-theme='light']) .steps .state.wip {
+    color: var(--sl-color-accent);
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--sl-text-sm);
+  }
+  caption {
+    text-align: start;
+    font-weight: 600;
+    color: var(--sl-color-white);
+    padding-bottom: 0.5rem;
+  }
+  th,
+  td {
+    text-align: start;
+    vertical-align: top;
+    padding: 0.7rem 1rem 0.7rem 0;
+    border-bottom: 1px solid var(--v-rule);
+    color: var(--sl-color-gray-2);
+  }
+  thead th {
+    font-weight: 600;
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-xs);
+    border-bottom-color: var(--sl-color-gray-5);
+  }
+  tbody th {
+    font-weight: 600;
+  }
+  td code {
+    white-space: nowrap;
+    background: none;
+    padding: 0;
+    color: var(--sl-color-gray-1);
+  }
+  .detail {
+    display: block;
+    margin-top: 0.3rem;
+  }
+  .pill {
+    display: inline-block;
+    padding: 0.05rem 0.5rem;
+    border-radius: 999px;
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+    border: 1px solid currentColor;
+    white-space: nowrap;
+  }
+  .pill.done {
+    color: var(--v-allow-ink);
+  }
+  .pill.wip {
+    color: var(--sl-color-accent-high);
+  }
+  :global([data-theme='light']) .pill.wip {
+    color: var(--sl-color-accent);
+  }
+  .pill.todo,
+  .pill.ref {
+    color: var(--sl-color-gray-3);
+  }
+
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 2.5rem;
+    margin-top: 1.5rem;
+  }
+  .split > div > p {
+    max-width: 38rem;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 2.25rem;
+    margin-top: 1.5rem;
+  }
+  ul {
+    margin: 0 0 1rem;
+    padding-inline-start: 1.1rem;
+  }
+  ul li {
+    margin-bottom: 0.45rem;
+  }
+  ul li::marker {
+    color: var(--sl-color-gray-4);
+  }
+
+  .phases {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .phases li {
+    display: grid;
+    grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--v-rule);
+  }
+  .phases .num {
+    font-family: var(--sl-font-mono);
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-4);
+  }
+  .phases .pname {
+    color: var(--sl-color-gray-1);
+  }
+
+  .links {
+    list-style: none;
+    padding: 0;
+    margin: 1.5rem 0 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 1.25rem 2.25rem;
+  }
+  .links a {
+    display: block;
+    font-weight: 600;
+    font-size: var(--sl-text-lg);
+    margin-bottom: 0.25rem;
+  }
+  .links span {
+    font-size: var(--sl-text-sm);
+  }
+
+  @media (max-width: 40rem) {
+    .specs thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    .specs tr {
+      display: block;
+      padding: 0.85rem 0;
+      border-bottom: 1px solid var(--v-rule);
+    }
+    .specs th,
+    .specs td {
+      display: block;
+      border: 0;
+      padding: 0.15rem 0;
+    }
+    .specs td code {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      color: var(--sl-color-gray-3);
+    }
+  }
+  @media (max-width: 50rem) {
+    .split {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    section {
+      padding-block: 2.5rem;
+    }
+  }
+</style>
