@@ -6,6 +6,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ### Added
 
+- The gate verifies an AAT chain sent in `AAT-Chain` and `AAT-PoP` (see `docs/bindings.md`), reads the tool and arguments from an MCP `tools/call` body, requires the chain's holder to be the WIT key when a WIT is present, and passes the chain to the PDP and into the Transaction Token `tctx`. Configured with `[aat]` in the server file.
 - `deploy/lab`: Envoy, visado, OPA with the AuthZEN plugin and an echo upstream in Docker Compose, with eight scenarios in `demo.sh` that CI runs.
 - A Dockerfile for the server.
 - OpenTelemetry: one `visado.authorize` span per decision with `visado.*` attributes, exported over OTLP when `[telemetry] otlp_endpoint` is set. The lab sends them to Jaeger.

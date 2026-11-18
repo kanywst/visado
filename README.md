@@ -7,7 +7,7 @@
 visado is an authorization service for AI agent traffic. At each enforcement point it verifies the caller's workload credential and the delegation chain behind the request, asks an [AuthZEN](https://openid.net/specs/authorization-api-1_0.html) policy decision point, and passes the verified chain downstream as an [OAuth Transaction Token](https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/).
 
 > [!IMPORTANT]
-> visado is pre-alpha and implements Internet-Drafts that are still changing. AAT delegation-chain verification is a library and not yet used by the server. See the [roadmap](ROADMAP.md).
+> visado is pre-alpha and implements Internet-Drafts that are still changing. AAT is the only delegation-chain format so far. See the [roadmap](ROADMAP.md).
 
 ## How it fits
 
@@ -29,7 +29,7 @@ visado runs behind Envoy, Istio or agentgateway as an ext_authz service. It foll
 | [`visado-extauthz`](crates/extauthz) | Envoy ext_authz v3 | alpha |
 | [`visado`](crates/server) | | alpha: server binary |
 | [`visado-chain`](crates/chain) | | alpha: normalized chain model and decoder trait |
-| [`visado-chain-aat`](crates/chain-aat) | draft-niyikiza-oauth-attenuating-agent-tokens-02 | alpha: §8 verification, 229/229 published vectors; not yet used by the server |
+| [`visado-chain-aat`](crates/chain-aat) | draft-niyikiza-oauth-attenuating-agent-tokens-02 | alpha: §8 verification, 229/229 published vectors, enforced by the gate |
 | Delegation chains (asor, RFC 8693 `act`) | see [SPEC-MAP.md](SPEC-MAP.md) | planned |
 | Chain view, OpenTelemetry | | planned |
 
