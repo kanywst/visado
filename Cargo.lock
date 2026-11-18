@@ -2076,6 +2076,7 @@ dependencies = [
  "jsonwebtoken",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror",
  "visado-testkit",
  "wimsey-identifier",
