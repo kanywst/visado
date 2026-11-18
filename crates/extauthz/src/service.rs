@@ -70,6 +70,13 @@ fn input_from(request: &CheckRequest) -> Option<CheckInput> {
         authority: http.host.clone(),
         path: http.path.clone(),
         headers,
+        body: if !http.body.is_empty() {
+            Some(http.body.clone())
+        } else if !http.raw_body.is_empty() {
+            String::from_utf8(http.raw_body.clone()).ok()
+        } else {
+            None
+        },
     })
 }
 
