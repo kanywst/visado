@@ -42,6 +42,14 @@ done
 tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT
 
+# Wait for the PDP: the first evaluations after startup can be slow.
+for _ in $(seq 60); do
+  args=(-s -o /dev/null -w '%{http_code}' -H 'Host: tools.td.example')
+  while IFS= read -r line; do args+=(-H "$line"); done < <(headers agent-a /tickets --user warmup tickets.read)
+  [ "$(curl "${args[@]}" "$URL/tickets")" = "200" ] && break
+  sleep 1
+done
+
 none() { :; }
 
 call 401 "no credentials" /tickets none

@@ -13,7 +13,7 @@ jwk_file = "keys/txn-signing.private.jwk.json"
 
 [pdp]
 endpoint = "http://pdp:8181/access/v1/evaluation"
-timeout_ms = 150
+timeout_ms = 500
 
 [[wit_issuers]]
 trust_domain = "td.example"
