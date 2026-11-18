@@ -21,6 +21,10 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ### Fixed
 
+- The gate no longer treats a request that is not one MCP tool call as the path tool: batches, non-JSON bodies, malformed `tools/call` and missing bodies are denied.
+- A bearer-only caller can no longer present an AAT chain; only a WIT caller whose key is the chain's holder can.
+- The server requires `aud` on the chain and `aat_aud` on the proof by default.
+
 - `visado-chain-aat`: the PoP JWT signature (steps 7a and 7b) is checked before the arguments are matched against the constraints (6b), as §8 recommends. Constraint value sets are built once when the token is parsed, each argument's JCS form is computed once, and a token may carry at most `Limits::max_constraint_nodes` (default 1024) constraint nodes. A request with a wide `any` and large arguments no longer costs tens of milliseconds before the sender is authenticated.
 - `visado-chain-aat`: duplicate JSON member detection is linear, so a header with thousands of members no longer costs time before the signature check.
 - `visado-chain-aat`: JCS number serialization breaks ties between equally short digit strings to even, as RFC 8785 requires (`905750064395076.25` is `905750064395076.2`). Digits come from the `ryu` crate. Before, some numbers were judged admissible or not the wrong way round.

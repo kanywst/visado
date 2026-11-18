@@ -9,7 +9,7 @@ Pinned revisions and where the code departs from them. Checked 2026-11-19.
 | [draft-ietf-oauth-transaction-tokens](https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/11/) | -11 | `visado-txn-token` | Mint, verify, replace, request parsing |
 | [draft-ietf-wimse-aims](https://datatracker.ietf.org/doc/draft-ietf-wimse-aims/01/) | -01 | (design) | Reference composition, not yet implemented |
 | [draft-ietf-oauth-identity-assertion-authz-grant](https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/06/) | -06 | (planned) | |
-| [draft-niyikiza-oauth-attenuating-agent-tokens](https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/) | -02 | `visado-chain-aat` | §8 chain and PoP verification; 229/229 published vectors. Not yet used by ext_authz |
+| [draft-niyikiza-oauth-attenuating-agent-tokens](https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/) | -02 | `visado-chain-aat` | §8 chain and PoP verification; 229/229 published vectors. Enforced by the gate (`docs/bindings.md`) |
 | [draft-asor-wimse-agent-delegation-chain](https://datatracker.ietf.org/doc/draft-asor-wimse-agent-delegation-chain/03/) | -03 | (planned) | |
 | [OpenID AuthZEN Authorization API](https://openid.net/specs/authorization-api-1_0.html) | 1.0 Final | `visado-authzen` | Single evaluation and metadata discovery |
 
@@ -43,6 +43,11 @@ No divergences: all 229 vectors in [conformance/aat](conformance/aat/) give the 
 | Root `iss` is a URI | Required (step 3k) | A scheme, a colon, and no whitespace or control characters |
 | JSON nesting | Not limited beyond MAX_CONSTRAINT_DEPTH | At most 256 levels; deeper payloads fail at signature-step parsing (3b, 4b, 7b) |
 | Principal | AAT has no `sub` | `Principal::Unspecified` in the normalized chain |
+| HTTP and MCP binding | Out of scope (§1) | `AAT-Chain` and `AAT-PoP` headers; tool and arguments from a JSON-RPC `tools/call` body (see `docs/bindings.md`) |
+| Requests that are not one tool call | Not defined | JSON-RPC batches, non-JSON bodies, malformed `tools/call` and a missing body on POST/PUT/PATCH are denied (`chain.bad_invocation`); other JSON-RPC methods are the tool `mcp:<method>`; body-less GET/HEAD/DELETE/OPTIONS are the tool `<METHOD> <path>` |
+| Who may present a chain | Holder proves possession with the PoP | Only a WIT caller, and the leaf `cnf` must be the WIT key; bearer-only callers are denied (`chain.unbound_caller`) |
+| Audience (§9.5) | `aud` and `aat_aud` optional | The server requires both by default (`require_chain_aud`, `require_pop_aud`), so a chain cannot be replayed at another enforcement point |
+| PoP replay | Shared state across replicas (§7.3) | In-memory cache of 100 000 entries per process |
 | `aud` type | Checked at step 6c | Checked right after step 5 and reported as 6c, so `decode()` also rejects an `aud` that is not a string or an array of strings |
 | `decode()` | Not defined | Steps 1 to 5 and the `aud` type check. No PoP, so the chain has `holder_proof: false` |
 
