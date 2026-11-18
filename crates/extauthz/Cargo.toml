@@ -1,0 +1,31 @@
+[package]
+name = "visado-extauthz"
+description = "The visado decision pipeline and its Envoy ext_authz gRPC service."
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+visado-authzen = { workspace = true }
+visado-credentials = { workspace = true }
+visado-txn-token = { workspace = true }
+wimsey-jose = { workspace = true }
+envoy-types = { workspace = true }
+tonic = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+visado-testkit = { workspace = true }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

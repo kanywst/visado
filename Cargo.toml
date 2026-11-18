@@ -5,6 +5,7 @@ members = [
     "crates/authzen",
     "crates/credentials",
     "crates/testkit",
+    "crates/extauthz",
 ]
 
 [workspace.package]
