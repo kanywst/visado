@@ -4,9 +4,10 @@
 //! signatures and links, and produces a [`NormalizedChain`]. Code after the
 //! decoder works on this model only, so a new format is a new decoder.
 //!
-//! Only [`Assurance::Verified`] hops may be used for authorization.
-//! [`Assurance::Declared`] hops are for the audit record and the Transaction
-//! Token context.
+//! Only [`Assurance::Verified`] hops may be used for authorization, and only
+//! from a chain whose [`holder_proof`](NormalizedChain::holder_proof) is
+//! `true`. [`Assurance::Declared`] hops are for the audit record and the
+//! Transaction Token context.
 
 use std::fmt;
 
@@ -120,7 +121,9 @@ pub struct Cnf {
 /// Whether a hop was cryptographically checked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Assurance {
-    /// Signature, signer binding and link were checked.
+    /// Signature, signer binding and link were checked. This says nothing
+    /// about whether the presenter holds the leaf key; see
+    /// [`NormalizedChain::holder_proof`].
     Verified,
     /// Carried as data only, such as an inner RFC 8693 `act` entry.
     Declared,
@@ -168,6 +171,11 @@ pub struct NormalizedChain {
     pub root: TrustRef,
     /// The hops, first hop first. Never empty.
     pub hops: Vec<Hop>,
+    /// Whether the presenter proved possession of the leaf holder key for
+    /// this request. [`ChainDecoder::decode`] checks the chain only and sets
+    /// `false`; a format's request verification sets `true` after checking
+    /// the proof.
+    pub holder_proof: bool,
 }
 
 impl NormalizedChain {
@@ -185,7 +193,8 @@ pub trait ChainError: std::error::Error {
 }
 
 /// Parses one chain format, checks its signatures and links, and produces a
-/// [`NormalizedChain`].
+/// [`NormalizedChain`] with [`holder_proof`](NormalizedChain::holder_proof)
+/// set to `false`. A decoded chain alone must not authorize a request.
 pub trait ChainDecoder {
     /// What the decoder reads, such as a list of compact JWS.
     type Input: ?Sized;
