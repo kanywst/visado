@@ -123,19 +123,20 @@ pub fn wpt(
 
 /// An access token from [`OAUTH_ISSUER`] for `sub`, with `client_id`, `scope`
 /// and `aud`, expiring at `exp`.
-///
-/// # Panics
-///
-/// Never.
 #[must_use]
 pub fn access_token(sub: &str, client_id: &str, scope: &str, aud: &str, exp: u64) -> String {
-    let header = json!({ "typ": "at+jwt", "alg": "EdDSA", "kid": "idp-1" });
-    let claims = json!({
+    signed_access_token(&json!({
         "iss": OAUTH_ISSUER, "sub": sub, "aud": aud, "client_id": client_id,
         "scope": scope, "iat": NOW - 5, "exp": exp, "jti": format!("at-{sub}-{exp}"),
-    });
+    }))
+}
+
+/// An access token with exactly `claims`, signed by the test OAuth issuer.
+#[must_use]
+pub fn signed_access_token(claims: &Value) -> String {
+    let header = json!({ "typ": "at+jwt", "alg": "EdDSA", "kid": "idp-1" });
     let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header).expect("json"));
-    let c = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&claims).expect("json"));
+    let c = URL_SAFE_NO_PAD.encode(serde_json::to_vec(claims).expect("json"));
     let input = format!("{h}.{c}");
     let sig = URL_SAFE_NO_PAD.encode(oauth_key().sign(input.as_bytes()));
     format!("{input}.{sig}")

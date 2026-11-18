@@ -10,6 +10,7 @@ pub struct OAuthIssuer {
     issuer: String,
     audience: String,
     jwks: JwkSet,
+    prefix: Option<String>,
 }
 
 impl OAuthIssuer {
@@ -21,7 +22,20 @@ impl OAuthIssuer {
             issuer: issuer.into(),
             audience: audience.into(),
             jwks,
+            prefix: None,
         }
+    }
+
+    /// Prefixes `sub` and `client_id` from this issuer, so they cannot collide
+    /// with identifiers from another issuer or with workload identifiers.
+    #[must_use]
+    pub fn with_subject_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.prefix = Some(prefix.into());
+        self
+    }
+
+    pub(crate) const fn has_prefix(&self) -> bool {
+        self.prefix.is_some()
     }
 }
 
@@ -30,9 +44,9 @@ impl OAuthIssuer {
 pub struct AccessToken {
     /// `iss`.
     pub issuer: String,
-    /// `sub`: the user or client the token was issued for.
+    /// `sub`, with the issuer's subject prefix if one is configured.
     pub subject: String,
-    /// `client_id`, falling back to `azp`.
+    /// `client_id`, falling back to `azp`, with the issuer's subject prefix.
     pub client_id: Option<String>,
     /// `scope`, space-delimited.
     pub scope: Option<String>,
@@ -51,6 +65,12 @@ struct Claims {
     azp: Option<String>,
     #[serde(default)]
     scope: Option<String>,
+    #[serde(default)]
+    scp: Option<serde_json::Value>,
+    #[serde(default)]
+    nbf: Option<u64>,
+    #[serde(default)]
+    cnf: Option<serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -105,13 +125,44 @@ pub(crate) fn verify(
     if now >= claims.exp.saturating_add(leeway) {
         return Err(AuthError::Expired);
     }
+    if claims
+        .nbf
+        .is_some_and(|nbf| nbf > now.saturating_add(leeway))
+    {
+        return Err(AuthError::AccessToken("not yet valid".into()));
+    }
+    // Proof of possession for DPoP or mTLS-bound tokens is not implemented, so
+    // accepting one as a plain bearer token would drop its binding.
+    if claims.cnf.is_some() {
+        return Err(AuthError::SenderConstrained);
+    }
+    let prefix = issuer.prefix.as_deref().unwrap_or("");
     Ok(AccessToken {
         issuer: claims.iss,
-        subject: claims.sub,
-        client_id: claims.client_id.or(claims.azp),
-        scope: claims.scope,
+        subject: format!("{prefix}{}", claims.sub),
+        client_id: claims
+            .client_id
+            .or(claims.azp)
+            .map(|c| format!("{prefix}{c}")),
+        scope: claims
+            .scope
+            .or_else(|| claims.scp.as_ref().and_then(scp_to_scope)),
         expires_at: claims.exp,
     })
+}
+
+/// `scp` as used by some issuers instead of `scope`: a string or an array of
+/// strings.
+fn scp_to_scope(scp: &serde_json::Value) -> Option<String> {
+    match scp {
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Array(values) => values
+            .iter()
+            .map(|v| v.as_str().map(ToOwned::to_owned))
+            .collect::<Option<Vec<_>>>()
+            .map(|v| v.join(" ")),
+        _ => None,
+    }
 }
 
 fn unverified_iss(token: &str) -> Result<String, AuthError> {

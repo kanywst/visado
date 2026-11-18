@@ -23,6 +23,9 @@ pub enum AuthError {
     /// The WPT's `jti` was already used.
     #[error("proof replayed")]
     Replay,
+    /// The replay cache is full, so the proof cannot be recorded.
+    #[error("replay cache full")]
+    ReplayCacheFull,
     /// A user token was sent but the WPT does not bind it.
     #[error("user token not bound by the proof")]
     UnboundUserToken,
@@ -35,6 +38,9 @@ pub enum AuthError {
     /// The access token has expired.
     #[error("access token expired")]
     Expired,
+    /// The access token is sender-constrained (`cnf`), which is not supported.
+    #[error("sender-constrained access tokens are not supported")]
+    SenderConstrained,
     /// A bearer-only caller's token names no client.
     #[error("access token names no client")]
     NoClient,
@@ -55,10 +61,12 @@ impl AuthError {
             Self::Wit(_) => "wit.invalid",
             Self::Wpt(_) => "wpt.invalid",
             Self::Replay => "wpt.replay",
+            Self::ReplayCacheFull => "wpt.replay_cache_full",
             Self::UnboundUserToken => "credential.unbound_user_token",
             Self::UntrustedIssuer => "token.untrusted_issuer",
             Self::AccessToken(_) => "token.invalid",
             Self::Expired => "token.expired",
+            Self::SenderConstrained => "token.sender_constrained",
             Self::NoClient => "token.no_client",
             Self::Internal => "internal",
         }

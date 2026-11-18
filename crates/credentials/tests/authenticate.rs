@@ -193,3 +193,75 @@ fn bearer_only_caller_is_the_client() {
     assert_eq!(ok.method, Method::Bearer);
     assert_eq!(ok.user.unwrap().scope.as_deref(), Some("files.read"));
 }
+
+#[test]
+fn access_token_edge_cases() {
+    use serde_json::json;
+    use visado_testkit::signed_access_token;
+    let auth = authenticator();
+    let base = json!({
+        "iss": OAUTH_ISSUER, "sub": "alice", "aud": AUDIENCE, "client_id": "c1", "exp": NOW + 300,
+    });
+    let with = |key: &str, value: serde_json::Value| {
+        let mut claims = base.clone();
+        claims[key] = value;
+        format!("Bearer {}", signed_access_token(&claims))
+    };
+
+    let bound = with("cnf", json!({ "jkt": "abc" }));
+    assert_eq!(
+        run(&auth, &[("authorization", &bound)]).unwrap_err(),
+        "token.sender_constrained"
+    );
+
+    let early = with("nbf", json!(NOW + 3600));
+    assert_eq!(
+        run(&auth, &[("authorization", &early)]).unwrap_err(),
+        "token.invalid"
+    );
+
+    let scp = with("scp", json!(["files.read", "files.write"]));
+    let ok = run(&auth, &[("authorization", &scp)]).unwrap();
+    assert_eq!(
+        ok.user.unwrap().scope.as_deref(),
+        Some("files.read files.write")
+    );
+}
+
+#[test]
+fn long_jti_is_rejected() {
+    let auth = authenticator();
+    let pop = pop_key(1);
+    let w = wit("agent-a", &pop);
+    let p = wpt(&w, &pop, AUDIENCE, &"j".repeat(300), None, None);
+    let err = run(
+        &auth,
+        &[
+            ("workload-identity-token", &w),
+            ("authorization", &format!("WPT {p}")),
+        ],
+    )
+    .unwrap_err();
+    assert_eq!(err, "wpt.invalid");
+}
+
+#[test]
+fn issuers_need_prefixes_when_several_are_trusted() {
+    let jwks = || serde_json::from_value(oauth_jwks()).unwrap();
+    let two = Authenticator::new()
+        .with_oauth_issuer(OAuthIssuer::new("https://a", "x", jwks()))
+        .with_oauth_issuer(OAuthIssuer::new("https://b", "x", jwks()));
+    assert!(two.check().is_err());
+    let prefixed = Authenticator::new()
+        .with_oauth_issuer(OAuthIssuer::new("https://a", "x", jwks()).with_subject_prefix("a:"))
+        .with_oauth_issuer(OAuthIssuer::new("https://b", "x", jwks()).with_subject_prefix("b:"));
+    assert!(prefixed.check().is_ok());
+
+    let auth = Authenticator::new().with_oauth_issuer(
+        OAuthIssuer::new(OAUTH_ISSUER, AUDIENCE, jwks()).with_subject_prefix("idp:"),
+    );
+    let at = access_token("alice", "c1", "s", AUDIENCE, NOW + 300);
+    let ok = run(&auth, &[("authorization", &format!("Bearer {at}"))]).unwrap();
+    assert_eq!(ok.caller, "idp:c1");
+    assert_eq!(ok.user.unwrap().subject, "idp:alice");
+}

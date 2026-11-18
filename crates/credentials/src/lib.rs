@@ -28,6 +28,9 @@ pub use wimse::WitIssuer;
 
 use replay::ReplayCache;
 
+/// The longest WPT `jti` accepted, in bytes.
+pub const MAX_JTI_LEN: usize = 256;
+
 /// The `Workload-Identity-Token` header, lowercased.
 pub const WIT_HEADER: &str = "workload-identity-token";
 
@@ -72,7 +75,7 @@ impl Authenticator {
             oauth_issuers: Vec::new(),
             user_token_header: "x-user-token".into(),
             leeway: 30,
-            max_wpt_lifetime: 300,
+            max_wpt_lifetime: 60,
             replay: Mutex::new(ReplayCache::new(100_000)),
         }
     }
@@ -97,6 +100,38 @@ impl Authenticator {
     pub fn with_user_token_header(mut self, name: &str) -> Self {
         self.user_token_header = name.to_ascii_lowercase();
         self
+    }
+
+    /// The header that carries the user's access token next to a WPT,
+    /// lowercased. Callers that forward requests must remove it.
+    #[must_use]
+    pub fn user_token_header(&self) -> &str {
+        &self.user_token_header
+    }
+
+    /// Bounds the WPT replay cache: at most `capacity` live proofs, each with
+    /// a lifetime of at most `max_wpt_lifetime` seconds. Defaults: 100 000
+    /// and 60. When the cache is full, new proofs are rejected.
+    #[must_use]
+    pub fn with_replay_limits(mut self, capacity: usize, max_wpt_lifetime: u64) -> Self {
+        self.replay = Mutex::new(ReplayCache::new(capacity));
+        self.max_wpt_lifetime = max_wpt_lifetime;
+        self
+    }
+
+    /// Checks that identifiers from different OAuth issuers cannot collide:
+    /// with more than one issuer, each needs a subject prefix.
+    ///
+    /// # Errors
+    ///
+    /// A description of the problem.
+    pub fn check(&self) -> Result<(), String> {
+        if self.oauth_issuers.len() > 1 && self.oauth_issuers.iter().any(|i| !i.has_prefix()) {
+            return Err(
+                "with more than one OAuth issuer, every issuer needs a subject_prefix".into(),
+            );
+        }
+        Ok(())
     }
 
     /// Clock-skew tolerance in seconds, at most 60. Default 30.
@@ -153,14 +188,20 @@ impl Authenticator {
         }
         let wpt = wimsey_wpt::verify(proof, &verified.pop_key, &validation)
             .map_err(|e| AuthError::Wpt(e.to_string()))?;
+        if wpt.claims.jti.len() > MAX_JTI_LEN {
+            return Err(AuthError::Wpt("jti too long".into()));
+        }
 
-        let fresh = self.replay.lock().map_err(|_| AuthError::Internal)?.insert(
-            &wpt.claims.jti,
+        let caller = verified.claims.sub.as_str();
+        let recorded = self.replay.lock().map_err(|_| AuthError::Internal)?.insert(
+            replay::key(caller, &wpt.claims.jti),
             wpt.claims.exp.saturating_add(self.leeway),
             now,
         );
-        if !fresh {
-            return Err(AuthError::Replay);
+        match recorded {
+            replay::Insert::Fresh => {}
+            replay::Insert::Seen => return Err(AuthError::Replay),
+            replay::Insert::Full => return Err(AuthError::ReplayCacheFull),
         }
 
         let user = match user_token {
@@ -178,7 +219,7 @@ impl Authenticator {
             }
         };
         Ok(Authenticated {
-            caller: verified.claims.sub.as_str().to_owned(),
+            caller: caller.to_owned(),
             method: Method::WitWpt,
             user,
         })
