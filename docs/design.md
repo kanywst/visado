@@ -1,6 +1,6 @@
 # Design (draft)
 
-Status: 2026-11-19. Steps 1, 2, 4, 5 and 6 (audit events only) are implemented; delegation chains (step 3), DPoP, HTTP signatures, mTLS, JWT-SVID, OpenTelemetry and the chain view are not. Sections marked **Open** need a decision before the code that depends on them.
+Status: 2026-11-19. Steps 1, 2, 4, 5 and 6 (audit events only) are implemented; delegation chains (step 3), DPoP, HTTP signatures, mTLS, JWT-SVID, OpenTelemetry and the chain view are not. Items marked Open need a decision before the code that depends on them.
 
 ## Request pipeline
 
@@ -24,7 +24,7 @@ inbound request (via Envoy / Istio / agentgateway ext_authz)
 
 ### 2. Authenticate
 
-`CredentialVerifier` implementations, tried according to what the request carries:
+`CredentialVerifier` implementations, chosen by what the request carries:
 
 | Verifier | Input | Built on |
 | --- | --- | --- |
@@ -43,7 +43,7 @@ Trust rules:
 
 ### 3. Delegation chain
 
-Three layers, so new drafts are plugins:
+Three layers, so a new draft is a new plugin:
 
 1. `ChainDecoder` per format parses, canonicalizes, checks signatures and links (`par_hash`, `sd_hash`, receipts, or nesting only), and produces a `NormalizedChain`.
 2. A format-neutral invariant engine checks:
@@ -71,7 +71,7 @@ Only `Verified` hops are used for authorization. `Declared` hops, such as inner 
 
 Order of formats:
 
-1. AAT (draft-niyikiza-oauth-attenuating-agent-tokens-02): 229 published vectors and per-hop signing by the parent's `cnf` key.
+1. AAT (draft-niyikiza-oauth-attenuating-agent-tokens-02): 229 published vectors, and each hop is signed by the parent's `cnf` key.
 2. asor (draft-asor-wimse-agent-delegation-chain-03) on the same decoder.
 3. RFC 8693 `act` adapter at Declared assurance.
 4. Delegate SD-JWT once it has vectors.
@@ -80,14 +80,14 @@ Order of formats:
 
 AuthZEN 1.0 `POST /access/v1/evaluation`, PDP endpoint discovered from `/.well-known/authzen-configuration` or configured.
 
-**Open: the agent-and-principal profile.** AuthZEN does not say how to carry an agent acting for a user. Proposal:
+Open: the agent-and-principal profile. AuthZEN does not say how to carry an agent acting for a user. Proposal:
 
 - `subject` is the leaf agent (`type: agent`, `id`: workload identifier).
 - `context.principal` is the original subject.
 - `context.chain` carries the hop list and a chain digest.
 - `context.assurance` records which hops were verified.
 
-Propose this to the AuthZEN WG once it works end to end.
+To be proposed to the AuthZEN WG once it works end to end.
 
 - `X-Request-ID` is set to the `txn` value and checked in the echo.
 - Timeouts, transport errors, non-200 responses or a non-boolean `decision` all deny.
@@ -108,7 +108,7 @@ Per draft-ietf-oauth-transaction-tokens-11:
   - `rctx`: request metadata
 - Injected with `ok_response.headers` (`Txn-Token`, overwrite), with `Authorization` in `headers_to_remove`. The txn id and chain digest also go into `dynamic_metadata` for later filters and access logs.
 - A token endpoint (RFC 8693 profile) serves services that want a Txn-Token without the gateway, and handles replacement: `txn`, `sub` and `aud` stay the same, scope never widens, and expired tokens are refused.
-- **Open:** there is no `subject_token_type` URN for a WIT. Use a private URN and propose one to the WIMSE and OAuth WGs.
+- Open: there is no `subject_token_type` URN for a WIT. Use a private URN and propose one to the WIMSE and OAuth WGs.
 
 ### 6. Record
 
@@ -128,7 +128,7 @@ Per draft-ietf-oauth-transaction-tokens-11:
   - `visado.deny.hop`
   - `visado.txn`
 - GenAI and MCP semantic-convention attributes are added where they apply.
-- Deny reasons use stable, language-neutral codes, shared with the conformance vectors. Examples:
+- Deny reasons are stable, language-neutral codes shared with the conformance vectors, for example:
   - `credential.audience_mismatch`
   - `wpt.replay`
   - `chain.link_mismatch`
@@ -137,10 +137,10 @@ Per draft-ietf-oauth-transaction-tokens-11:
 
 ## Deployment modes
 
-1. **ext_authz server** (v0): `tonic` + `envoy-types` gRPC. One server covers Envoy, Istio (`CUSTOM` action) and agentgateway, which vendors the same proto.
-2. **Token endpoint and UI** (v0): `axum` for the RFC 8693 endpoint, JWKS, health, `/api/requests/{id}/chain` with SSE, and an embedded single-page chain view.
-3. **agentgateway ExtMcp** (later): tool-aware AuthZEN requests at the MCP method layer.
-4. **Standalone PEP** (later, only if asked): `hyper` 1.x + `tower` + `rustls`. Not `pingora`, which brings its own lifecycle and OpenSSL by default.
+1. ext_authz server (v0): `tonic` + `envoy-types` gRPC. One server covers Envoy, Istio (`CUSTOM` action) and agentgateway, which vendors the same proto.
+2. Token endpoint and UI (v0): `axum` for the RFC 8693 endpoint, JWKS, health, `/api/requests/{id}/chain` with SSE, and an embedded single-page chain view.
+3. agentgateway ExtMcp (later): tool-aware AuthZEN requests at the MCP method layer.
+4. Standalone PEP (later, only if asked): `hyper` 1.x + `tower` + `rustls`. Not `pingora`, which brings its own lifecycle and OpenSSL by default.
 
 ## Workspace layout
 
@@ -175,7 +175,7 @@ Known setup constraints, from reading the code (not yet run):
 - the ID-JAG audience must be the Keycloak realm issuer
 - Keycloak users must be pre-linked by Dex's opaque `sub`
 
-The lab doubles as the attack demos in [research/05-threats.md](research/05-threats.md):
+The lab also hosts the attack demos in [research/05-threats.md](research/05-threats.md):
 
 - agent-to-agent escalation
 - token passthrough and replay
