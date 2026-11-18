@@ -22,6 +22,8 @@ docker compose up -d --build
 
 Envoy also normalizes `%2e%2e` and `//` before visado sees the path; visado rejects any that still arrive.
 
+Each decision is also a `visado.authorize` span in Jaeger at <http://127.0.0.1:16686>.
+
 The policy is in `policy/visado.rego`: `/admin/` needs `roles.write`, everything else `tickets.read`.
 
 The demo keys are public. Do not reuse them.

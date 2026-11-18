@@ -23,3 +23,6 @@ keys = [{ kid = "wit-1", jwk_file = "keys/wit-issuer.jwk.json" }]
 issuer = "https://idp.example"
 audience = "http://tools.td.example"
 jwks_file = "keys/oauth-jwks.json"
+
+[telemetry]
+otlp_endpoint = "http://jaeger:4317"

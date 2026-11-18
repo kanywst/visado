@@ -51,4 +51,14 @@ call 403 "outside workload forwards bob's transaction" /tickets headers agent-z 
 call 403 "user token without the admin scope" /admin/roles headers agent-a /admin/roles --user bob tickets.read
 call 200 "admin user through agent-a" /admin/roles headers agent-a /admin/roles --user carol "roles.write tickets.read"
 
+# visado exports one span per decision to Jaeger.
+sleep 6
+spans=$(curl -s 'http://127.0.0.1:16686/api/traces?service=visado&limit=50' | jq '[.data[].spans[] | select(.operationName | startswith("visado.authorize"))] | length')
+if [ "${spans:-0}" -gt 0 ]; then
+  printf 'ok    %-58s %s\n' "authorization spans in Jaeger" "$spans"
+else
+  printf 'FAIL  %-58s none found\n' "authorization spans in Jaeger"
+  failures=$((failures + 1))
+fi
+
 exit "$failures"

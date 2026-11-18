@@ -17,7 +17,7 @@ services:
     volumes:
       - ./visado.toml:/etc/visado/visado.toml:ro
       - ../local/keys:/etc/visado/keys:ro
-    depends_on: [pdp]
+    depends_on: [pdp, jaeger]
 
   pdp:
     image: ghcr.io/kanywst/opa-authzen-plugin:0.12.1
@@ -30,6 +30,11 @@ services:
     volumes:
       - ./pdp.yaml:/config.yaml:ro
       - ./policy:/policy:ro
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.65.0
+    ports:
+      - "16686:16686"
 
   upstream:
     image: mendhak/http-https-echo:37
