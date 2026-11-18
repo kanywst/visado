@@ -26,3 +26,9 @@ pub use verify::{
     Authorized, DETAIL_TYPE, Invocation, Limits, POP_TYP, Policy, Presentation, TYP, TrustAnchor,
     Verifier,
 };
+
+/// The RFC 7638 SHA-256 thumbprint of `key`, as AAT uses it to name holders.
+#[must_use]
+pub fn jwk_thumbprint(key: &wimsey_jose::VerifyingKey) -> String {
+    jws::key_thumbprint(key)
+}
