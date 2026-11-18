@@ -4,6 +4,10 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-19
+
+First release. Pre-alpha: delegation-chain verification is not implemented yet.
+
 ### Added
 
 - `visado-txn-token`: mint, verify and replace OAuth Transaction Tokens (draft-ietf-oauth-transaction-tokens-11), and parse token requests. Errors have stable codes.
@@ -16,4 +20,5 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - OAuth issuers can carry a `subject_prefix`; with more than one issuer, every issuer needs one.
 - Sender-constrained access tokens (`cnf`) are rejected until DPoP and mTLS binding exist. `scp` is read when `scope` is absent, and `nbf` is checked.
 
-[Unreleased]: https://github.com/kanywst/visado/commits/main
+[Unreleased]: https://github.com/kanywst/visado/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/kanywst/visado/releases/tag/v0.1.0
