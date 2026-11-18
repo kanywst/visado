@@ -1,0 +1,11 @@
+visado
+Copyright The visado authors
+
+This product includes software developed by The visado authors and
+licensed under the Apache License, Version 2.0.
+
+conformance/aat/aat-jws-vectors.json is the AAT JWS test vector suite from
+Tenuo (https://github.com/tenuo-ai/tenuo), licensed under the Apache License,
+Version 2.0. Its NOTICE reads:
+
+  Copyright 2025-2026 Tenuo Contributors
