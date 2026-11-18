@@ -30,7 +30,7 @@ static_resources:
                         allow_partial_message: false
                       grpc_service:
                         envoy_grpc: { cluster_name: visado }
-                        timeout: 0.5s
+                        timeout: 1s
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router

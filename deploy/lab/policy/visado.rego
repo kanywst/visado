@@ -15,7 +15,3 @@ allow if {
 	needs in scope
 }
 
-# A request carrying a verified AAT chain was already limited by the chain.
-allow if {
-	input.context.chain.profile == "aat-02"
-}
