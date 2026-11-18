@@ -11,11 +11,10 @@ visado is an authorization service for AI agent traffic. At each enforcement poi
 
 ## How it fits
 
-```text
-user ── ID-JAG ──> agent A ── WIT + WPT, delegation token ──> [Envoy | agentgateway] ── Txn-Token ──> agent B ──> tool
-                                                                     │ ext_authz
-                                                                  visado ── AuthZEN ──> PDP
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/flow-dark.svg">
+  <img alt="Agent A calls through Envoy; Envoy asks visado over ext_authz; visado asks the PDP over AuthZEN and the request reaches agent B with a Transaction Token" src="docs/assets/flow-light.svg">
+</picture>
 
 visado runs behind Envoy, Istio or agentgateway as an ext_authz service. It follows the composition in [draft-ietf-wimse-aims](https://datatracker.ietf.org/doc/draft-ietf-wimse-aims/). It does not issue identities, log users in, evaluate policy or route traffic; see [docs/scope.md](docs/scope.md).
 
