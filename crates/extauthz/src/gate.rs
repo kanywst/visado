@@ -240,6 +240,12 @@ impl<P: Pdp> Gate<P> {
         let Some(verifier) = &self.config.aat else {
             return Err(Denied::new(403, "chain.unsupported", trail));
         };
+        // The chain must belong to the caller. Only a WIT caller has proved
+        // possession of a key that can be compared with the chain's holder, so
+        // a bearer-only caller cannot present a chain.
+        let Some(key) = &caller.proof_key else {
+            return Err(Denied::new(403, "chain.unbound_caller", trail));
+        };
         let pop =
             header(AAT_POP_HEADER).ok_or_else(|| Denied::new(401, "chain.missing_pop", trail))?;
         let chain: Vec<String> = chain_header
@@ -260,15 +266,13 @@ impl<P: Pdp> Gate<P> {
                 Some(&self.aat_replay),
             )
             .map_err(|e| Denied::new(403, e.code(), trail))?;
-        if let Some(key) = &caller.proof_key {
-            let holder = authorized
-                .chain
-                .leaf()
-                .and_then(|leaf| leaf.cnf.as_ref())
-                .map(|c| c.thumbprint.0.as_str());
-            if holder != Some(jwk_thumbprint(key).as_str()) {
-                return Err(Denied::new(403, "chain.holder_mismatch", trail));
-            }
+        let holder = authorized
+            .chain
+            .leaf()
+            .and_then(|leaf| leaf.cnf.as_ref())
+            .map(|c| c.thumbprint.0.as_str());
+        if holder != Some(jwk_thumbprint(key).as_str()) {
+            return Err(Denied::new(403, "chain.holder_mismatch", trail));
         }
         Ok(Some(authorized.chain))
     }
@@ -468,33 +472,54 @@ fn chain_context(chain: &NormalizedChain) -> Value {
     })
 }
 
-/// The tool and its arguments: from an MCP `tools/call` body, or the method
-/// and path with no arguments.
+/// The tool and its arguments the chain must authorize.
+///
+/// - A JSON-RPC `tools/call` object: `params.name` and the exact text of
+///   `params.arguments` (an object, `{}` when absent).
+/// - Any other JSON-RPC object: the tool `mcp:<method>`, no arguments.
+/// - No body on a method without one (GET, HEAD, DELETE, OPTIONS): the tool
+///   `<METHOD> <path>`, no arguments.
+///
+/// Anything else is refused rather than guessed: a batch array, a body that is
+/// not JSON, a malformed `tools/call`, or a missing body on a method that
+/// carries one (the proxy may not be sending bodies).
 fn invocation(input: &CheckInput) -> Option<(String, String)> {
+    use serde_json::value::RawValue;
+
     #[derive(serde::Deserialize)]
     struct Call<'a> {
-        method: &'a str,
-        #[serde(borrow)]
-        params: Option<Params<'a>>,
+        method: String,
+        #[serde(borrow, default)]
+        params: Option<&'a RawValue>,
     }
     #[derive(serde::Deserialize)]
     struct Params<'a> {
         name: String,
-        #[serde(borrow)]
-        arguments: Option<&'a serde_json::value::RawValue>,
+        #[serde(borrow, default)]
+        arguments: Option<&'a RawValue>,
     }
-    if let Some(body) = &input.body
-        && let Ok(call) = serde_json::from_str::<Call<'_>>(body)
-        && call.method == "tools/call"
-    {
-        let params = call.params?;
-        let args = params
-            .arguments
-            .map_or("{}", serde_json::value::RawValue::get);
-        return Some((params.name, args.to_owned()));
+
+    let Some(body) = input.body.as_deref().filter(|b| !b.trim().is_empty()) else {
+        let bodiless = matches!(input.method.as_str(), "GET" | "HEAD" | "DELETE" | "OPTIONS");
+        if !bodiless {
+            return None;
+        }
+        let path = input.path.split(['?', '#']).next().unwrap_or("");
+        return Some((format!("{} {path}", input.method), "{}".to_owned()));
+    };
+    if !body.trim_start().starts_with('{') {
+        return None;
     }
-    let path = input.path.split(['?', '#']).next().unwrap_or("");
-    Some((format!("{} {path}", input.method), "{}".to_owned()))
+    let call: Call<'_> = serde_json::from_str(body).ok()?;
+    if call.method != "tools/call" {
+        return Some((format!("mcp:{}", call.method), "{}".to_owned()));
+    }
+    let params: Params<'_> = serde_json::from_str(call.params?.get()).ok()?;
+    let args = params.arguments.map_or("{}", RawValue::get);
+    if !args.trim_start().starts_with('{') {
+        return None;
+    }
+    Some((params.name, args.to_owned()))
 }
 
 fn rctx(input: &CheckInput) -> Map<String, Value> {
