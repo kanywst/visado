@@ -5,6 +5,7 @@
 //! that rounds numbers to doubles cannot tell an admissible number from an
 //! inadmissible one.
 
+use std::collections::HashSet;
 use std::fmt::Write as _;
 
 /// The deepest nesting accepted. Deeper input is rejected before recursion
@@ -403,6 +404,7 @@ impl Parser<'_> {
             b'{' => {
                 self.pos += 1;
                 let mut members: Vec<(String, Value)> = Vec::new();
+                let mut seen: HashSet<String> = HashSet::new();
                 self.skip_ws();
                 if self.peek() == Some(b'}') {
                     self.pos += 1;
@@ -411,7 +413,7 @@ impl Parser<'_> {
                 loop {
                     self.skip_ws();
                     let key = self.string()?;
-                    if members.iter().any(|(k, _)| *k == key) {
+                    if !seen.insert(key.clone()) {
                         return Err(ParseError::DuplicateMember);
                     }
                     self.skip_ws();
@@ -627,6 +629,16 @@ mod tests {
         assert_eq!(parse(deep.as_bytes()), Err(ParseError::TooDeep));
         assert_eq!(parse(b"[1,]"), Err(ParseError::Syntax));
         assert_eq!(parse(b"01"), Err(ParseError::Syntax));
+    }
+
+    #[test]
+    fn large_object_duplicates() {
+        let members: Vec<String> = (0..20_000).map(|i| format!("\"k{i}\":{i}")).collect();
+        let unique = format!("{{{}}}", members.join(","));
+        let value = parse(unique.as_bytes()).unwrap();
+        assert_eq!(value.as_object().map(<[_]>::len), Some(20_000));
+        let last_dup = format!("{{{},\"k0\":0}}", members.join(","));
+        assert_eq!(parse(last_dup.as_bytes()), Err(ParseError::DuplicateMember));
     }
 
     #[test]

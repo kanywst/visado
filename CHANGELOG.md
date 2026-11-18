@@ -15,6 +15,10 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `visado-chain-aat`: Attenuating Agent Token verification per draft-niyikiza-oauth-attenuating-agent-tokens-02, §8 steps 1 to 7, with errors that name the failing step. Not yet used by the server.
 - The 229 published AAT JWS vectors in `conformance/aat/`, from tenuo-ai/tenuo (Apache-2.0), all passing. A root `NOTICE` file records the attribution.
 
+### Fixed
+
+- `visado-chain-aat`: duplicate JSON member detection is linear, so a header with thousands of members no longer costs time before the signature check.
+
 ## [0.1.0] - 2026-11-19
 
 First release. Pre-alpha: delegation-chain verification is not implemented yet.
