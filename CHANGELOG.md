@@ -21,6 +21,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ### Fixed
 
+- `visado-chain-aat`: the PoP JWT signature (steps 7a and 7b) is checked before the arguments are matched against the constraints (6b), as §8 recommends. Constraint value sets are built once when the token is parsed, each argument's JCS form is computed once, and a token may carry at most `Limits::max_constraint_nodes` (default 1024) constraint nodes. A request with a wide `any` and large arguments no longer costs tens of milliseconds before the sender is authenticated.
 - `visado-chain-aat`: duplicate JSON member detection is linear, so a header with thousands of members no longer costs time before the signature check.
 - `visado-chain-aat`: JCS number serialization breaks ties between equally short digit strings to even, as RFC 8785 requires (`905750064395076.25` is `905750064395076.2`). Digits come from the `ryu` crate. Before, some numbers were judged admissible or not the wrong way round.
 - `visado-chain-aat`: with two trust anchors that share a key under different issuers, the root is matched to the anchor whose issuer equals `iss`, not to the first anchor whose key verifies.

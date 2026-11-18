@@ -53,7 +53,9 @@ impl TrustAnchor {
 
 /// The implementation-defined limits of §4.3, §4.4, §3.4 and §9.9.
 ///
-/// The defaults are the draft's recommended values.
+/// The defaults are the draft's recommended values, and 1024 for
+/// [`max_constraint_nodes`](Self::max_constraint_nodes), which the draft
+/// does not have.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
     /// `MAX_IAT_SKEW`, in seconds.
@@ -64,6 +66,9 @@ pub struct Limits {
     pub max_delegation_depth: u32,
     /// `MAX_CONSTRAINT_DEPTH`.
     pub max_constraint_depth: usize,
+    /// The most constraint nodes one token may carry, across all its tools.
+    /// Not in the draft; bounds the work of steps 4p and 6b.
+    pub max_constraint_nodes: usize,
     /// `MAX_TOKEN_SIZE`, in bytes. Also bounds the PoP JWT and the arguments.
     pub max_token_size: usize,
     /// `MAX_CHAIN_SIZE`, in bytes.
@@ -79,6 +84,7 @@ impl Default for Limits {
             max_token_lifetime: 90 * 24 * 60 * 60,
             max_delegation_depth: 8,
             max_constraint_depth: 32,
+            max_constraint_nodes: 1024,
             max_token_size: 64 * 1024,
             max_chain_size: 256 * 1024,
             pop_window: 30,
@@ -189,9 +195,14 @@ impl Verifier {
     /// Pass `replay` for tools whose PoP `jti` values are tracked (§7.3); it
     /// is consulted only after every other check passes.
     ///
+    /// The PoP JWT's size, header and signature (steps 7a and 7b) are
+    /// checked before the invocation (6b) and chain audience (6c), as §8
+    /// recommends, so arguments are only matched against constraints for a
+    /// holder that signed the request. The rest of step 7 follows 6c.
+    ///
     /// # Errors
     ///
-    /// The first failing step, in the draft's order.
+    /// The first failing step, in that order.
     pub fn verify(
         &self,
         presentation: &Presentation<'_>,
@@ -204,9 +215,10 @@ impl Verifier {
             .tokens
             .last()
             .ok_or(AatError::new(Step::S1, "empty chain"))?;
+        let pop = self.pop_signature(leaf, presentation.pop)?;
         let args = self.invocation(leaf, invocation)?;
         self.chain_audience(&chain.tokens)?;
-        let pop_jti = self.pop(leaf, presentation.pop, invocation.tool, &args, now, replay)?;
+        let pop_jti = self.pop_claims(leaf, &pop, invocation.tool, &args, now, replay)?;
         Ok(Authorized {
             chain: normalize(&chain, true),
             pop_jti,
@@ -481,10 +493,15 @@ impl Verifier {
     }
 
     fn tool_maps(&self, tools: &[(String, Value)]) -> Option<BTreeMap<String, ToolMap>> {
+        let mut nodes = self.limits.max_constraint_nodes;
         tools
             .iter()
             .map(|(name, map)| {
-                let map = ToolMap::parse(map.as_object()?, self.limits.max_constraint_depth)?;
+                let map = ToolMap::parse(
+                    map.as_object()?,
+                    self.limits.max_constraint_depth,
+                    &mut nodes,
+                )?;
                 Some((name.clone(), map))
             })
             .collect()
@@ -540,16 +557,8 @@ impl Verifier {
         Ok(())
     }
 
-    /// §8 step 7. Returns the PoP `jti`.
-    fn pop(
-        &self,
-        leaf: &Token<'_>,
-        pop: &str,
-        tool: &str,
-        args: &Value,
-        now: i64,
-        replay: Option<&dyn ReplayCache>,
-    ) -> Result<String, AatError> {
+    /// §8 steps 7a and 7b. Returns the PoP claims.
+    fn pop_signature(&self, leaf: &Token<'_>, pop: &str) -> Result<Value, AatError> {
         let deny = AatError::new;
         if pop.len() > self.limits.max_token_size {
             return Err(deny(Step::S7a, "PoP JWT too large"));
@@ -565,12 +574,26 @@ impl Verifier {
                 "PoP signature does not verify under the leaf cnf key",
             ));
         }
-        let claims = parse_claims(jws).ok_or(deny(Step::S7b, "PoP claims do not parse"))?;
-        let jti = non_empty(&claims, "jti");
-        let aat_id = non_empty(&claims, "aat_id");
-        let aat_hash = non_empty(&claims, "aat_hash");
-        let aat_tool = non_empty(&claims, "aat_tool");
-        let iat = int(&claims, "iat");
+        parse_claims(jws).ok_or(deny(Step::S7b, "PoP claims do not parse"))
+    }
+
+    /// §8 steps 7c to 7i, on claims whose signature verified. Returns the
+    /// PoP `jti`.
+    fn pop_claims(
+        &self,
+        leaf: &Token<'_>,
+        claims: &Value,
+        tool: &str,
+        args: &Value,
+        now: i64,
+        replay: Option<&dyn ReplayCache>,
+    ) -> Result<String, AatError> {
+        let deny = AatError::new;
+        let jti = non_empty(claims, "jti");
+        let aat_id = non_empty(claims, "aat_id");
+        let aat_hash = non_empty(claims, "aat_hash");
+        let aat_tool = non_empty(claims, "aat_tool");
+        let iat = int(claims, "iat");
         let hta = claims.get("hta").filter(|h| h.as_object().is_some());
         let (Some(jti), Some(aat_id), Some(aat_hash), Some(aat_tool), Some(iat), Some(hta)) =
             (jti, aat_id, aat_hash, aat_tool, iat, hta)

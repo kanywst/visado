@@ -36,7 +36,8 @@ No divergences: all 229 vectors in [conformance/aat](conformance/aat/) give the 
 | Algorithms | Ed25519 required, others MAY (§9.11) | `Ed25519` and `ES256`. `EdDSA` is rejected |
 | `crit` | Reject parameters not understood (§3.5) | No extension parameter is understood, so any `crit` is rejected |
 | `kid` | MAY select among trust anchors | If an anchor has that `kid`, only those anchors are tried; otherwise every anchor whose key fits `alg`. Of the anchors whose key verifies the signature, the one whose issuer equals `iss` is used |
-| Step order | Steps 6 and 7 may be reordered; PoP signature SHOULD come before 6b | Steps run in the draft's order, so the reported step matches the vectors |
+| Step order | Steps 6 and 7 may be reordered; PoP signature SHOULD come before 6b | PoP size, header and signature (7a, 7b) run before 6b and 6c, so an unsigned request costs no constraint matching. 7c to 7i run after 6c. No vector changes its reported step |
+| Constraint nodes per token | Not limited beyond MAX_CONSTRAINT_DEPTH | At most `max_constraint_nodes` (default 1024) across all tools of one token; more fails 3n or 4o |
 | Argument and PoP size | Not limited | Each at most `max_token_size` |
 | PoP `jti` tracking | Required for tools with side effects (§7.3) | The caller passes a `ReplayCache` for those tools. The in-memory cache refuses new proofs when full |
 | Root `iss` is a URI | Required (step 3k) | A scheme, a colon, and no whitespace or control characters |

@@ -54,6 +54,7 @@ fn limits(vector: &Value, suite: &Value) -> Limits {
         max_token_lifetime: p("max_token_lifetime"),
         max_delegation_depth: u32::try_from(p("max_delegation_depth")).expect("depth"),
         max_constraint_depth: size("max_constraint_depth"),
+        max_constraint_nodes: Limits::default().max_constraint_nodes,
         max_token_size: size("max_token_size"),
         max_chain_size: size("max_chain_size"),
         pop_window: p("pop_window"),
