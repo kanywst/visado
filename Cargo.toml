@@ -3,6 +3,8 @@ resolver = "3"
 members = [
     "crates/txn-token",
     "crates/authzen",
+    "crates/credentials",
+    "crates/testkit",
 ]
 
 [workspace.package]

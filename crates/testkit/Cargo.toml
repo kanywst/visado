@@ -1,0 +1,21 @@
+[package]
+name = "visado-testkit"
+description = "Test fixtures for visado: WITs, WPTs and access tokens with fixed keys."
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+wimsey-jose = { workspace = true }
+wimsey-wit = { workspace = true }
+wimsey-wpt = { workspace = true }
+wimsey-identifier = { workspace = true }
+base64 = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true
