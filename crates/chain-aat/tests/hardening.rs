@@ -36,8 +36,8 @@ fn signing_input_hash(token: &str) -> String {
 
 /// Root claims granting `tools`; edit them before signing with [`root`].
 fn root_claims(tools: &Value) -> Value {
-    let mut jwk = serde_json::to_value(Jwk::from_verifying_key(&holder_key().verifying_key()))
-        .unwrap();
+    let mut jwk =
+        serde_json::to_value(Jwk::from_verifying_key(&holder_key().verifying_key())).unwrap();
     jwk.as_object_mut().unwrap().remove("alg");
     json!({
         "jti": "root-1", "iss": ISSUER, "iat": NOW, "exp": NOW + 600,
@@ -96,7 +96,10 @@ fn anchors_sharing_a_key_are_picked_by_iss() {
         assert_eq!(decoded.root.issuer, ISSUER);
     }
     let verifier = Verifier::new(
-        vec![anchor("https://other.example"), anchor("https://third.example")],
+        vec![
+            anchor("https://other.example"),
+            anchor("https://third.example"),
+        ],
         vec![AUDIENCE.to_owned()],
     );
     let err = verify(&verifier, &chain, &proof, ARGS).unwrap_err();
