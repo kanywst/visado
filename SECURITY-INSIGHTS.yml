@@ -1,0 +1,64 @@
+header:
+  schema-version: 2.0.0
+  last-updated: "2026-11-19"
+  last-reviewed: "2026-11-19"
+  url: https://raw.githubusercontent.com/kanywst/visado/main/SECURITY-INSIGHTS.yml
+project:
+  name: visado
+  homepage: https://github.com/kanywst/visado
+  roadmap: https://github.com/kanywst/visado/blob/main/ROADMAP.md
+  administrators:
+    - name: kanywst
+      primary: true
+  repositories:
+    - name: visado
+      url: https://github.com/kanywst/visado
+      comment: Source, conformance vectors and documentation.
+  vulnerability-reporting:
+    reports-accepted: true
+    bug-bounty-available: false
+    policy: https://github.com/kanywst/visado/blob/main/SECURITY.md
+repository:
+  url: https://github.com/kanywst/visado
+  status: active
+  accepts-change-request: true
+  accepts-automated-change-request: true
+  no-third-party-packages: false
+  core-team:
+    - name: kanywst
+      primary: true
+  license:
+    url: https://github.com/kanywst/visado/blob/main/LICENSE
+    expression: Apache-2.0
+  security:
+    assessments:
+      self:
+        comment: No self-assessment yet. The threat model is in docs/research/05-threats.md.
+    tools:
+      - name: OpenSSF Scorecard
+        type: SCA
+        rulesets: [default]
+        integration:
+          adhoc: false
+          ci: true
+          release: false
+      - name: CodeQL
+        type: SAST
+        rulesets: [default]
+        integration:
+          adhoc: false
+          ci: true
+          release: false
+      - name: cargo-deny
+        type: SCA
+        rulesets: [default]
+        integration:
+          adhoc: false
+          ci: true
+          release: false
+  release:
+    changelog: https://github.com/kanywst/visado/blob/main/CHANGELOG.md
+    automated-pipeline: true
+    distribution-points:
+      - uri: https://github.com/kanywst/visado/releases
+        comment: Binaries with SBOM, cosign bundles and SLSA provenance.
