@@ -20,6 +20,7 @@ visado-authzen = { workspace = true }
 visado-credentials = { workspace = true }
 visado-extauthz = { workspace = true }
 visado-txn-token = { workspace = true }
+visado-chain-aat = { workspace = true }
 wimsey-jose = { workspace = true }
 envoy-types = { workspace = true }
 tonic = { workspace = true }
