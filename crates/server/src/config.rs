@@ -60,6 +60,10 @@ pub struct AatConfig {
     /// Deny a proof of possession without `aat_aud`. On by default.
     #[serde(default = "yes")]
     pub require_pop_aud: bool,
+    /// Deny requests that carry no chain. Off by default: a chain then only
+    /// narrows callers that present one.
+    #[serde(default)]
+    pub required: bool,
 }
 
 const fn yes() -> bool {
@@ -251,6 +255,7 @@ impl Config {
         }
         authenticator.check()?;
 
+        let require_chain = self.aat.as_ref().is_some_and(|a| a.required);
         let aat = match self.aat {
             None => None,
             Some(config) => {
@@ -297,6 +302,7 @@ impl Config {
                 internal_callers: self.internal_callers,
                 allowed_authorities: self.allowed_authorities,
                 aat,
+                require_chain,
             },
             authenticator,
             pdp_endpoint: self.pdp.endpoint,

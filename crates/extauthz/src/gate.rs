@@ -44,6 +44,8 @@ pub struct GateConfig {
     /// AAT delegation-chain verification. `None` rejects requests that carry
     /// an `AAT-Chain` header.
     pub aat: Option<Verifier>,
+    /// Deny requests that carry no AAT chain.
+    pub require_chain: bool,
 }
 
 /// The parts of the request the gate looks at.
@@ -235,6 +237,9 @@ impl<P: Pdp> Gate<P> {
                 .map(|(_, v)| v.as_str())
         };
         let Some(chain_header) = header(AAT_CHAIN_HEADER) else {
+            if self.config.require_chain {
+                return Err(Denied::new(403, "chain.required", trail));
+            }
             return Ok(None);
         };
         let Some(verifier) = &self.config.aat else {
@@ -474,15 +479,17 @@ fn chain_context(chain: &NormalizedChain) -> Value {
 
 /// The tool and its arguments the chain must authorize.
 ///
+/// Two forms are accepted:
+///
 /// - A JSON-RPC `tools/call` object: `params.name` and the exact text of
 ///   `params.arguments` (an object, `{}` when absent).
-/// - Any other JSON-RPC object: the tool `mcp:<method>`, no arguments.
-/// - No body on a method without one (GET, HEAD, DELETE, OPTIONS): the tool
-///   `<METHOD> <path>`, no arguments.
+/// - GET, HEAD, DELETE or OPTIONS with no body and no query string: the tool
+///   `<METHOD> <path>` with no arguments.
 ///
-/// Anything else is refused rather than guessed: a batch array, a body that is
-/// not JSON, a malformed `tools/call`, or a missing body on a method that
-/// carries one (the proxy may not be sending bodies).
+/// Everything else is refused rather than guessed, because the chain would
+/// otherwise be checked against less than the request carries: batches,
+/// other JSON-RPC methods, bodies that are not JSON, malformed `tools/call`,
+/// query strings, and a missing body on a method that carries one.
 fn invocation(input: &CheckInput) -> Option<(String, String)> {
     use serde_json::value::RawValue;
 
@@ -501,18 +508,17 @@ fn invocation(input: &CheckInput) -> Option<(String, String)> {
 
     let Some(body) = input.body.as_deref().filter(|b| !b.trim().is_empty()) else {
         let bodiless = matches!(input.method.as_str(), "GET" | "HEAD" | "DELETE" | "OPTIONS");
-        if !bodiless {
+        if !bodiless || input.path.contains(['?', '#']) {
             return None;
         }
-        let path = input.path.split(['?', '#']).next().unwrap_or("");
-        return Some((format!("{} {path}", input.method), "{}".to_owned()));
+        return Some((format!("{} {}", input.method, input.path), "{}".to_owned()));
     };
     if !body.trim_start().starts_with('{') {
         return None;
     }
     let call: Call<'_> = serde_json::from_str(body).ok()?;
     if call.method != "tools/call" {
-        return Some((format!("mcp:{}", call.method), "{}".to_owned()));
+        return None;
     }
     let params: Params<'_> = serde_json::from_str(call.params?.get()).ok()?;
     let args = params.arguments.map_or("{}", RawValue::get);
