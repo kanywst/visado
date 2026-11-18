@@ -289,13 +289,18 @@ impl Verifier {
         if candidates.is_empty() {
             return Err(err(Step::S3a, "no trust anchor for this alg"));
         }
-        let anchor = candidates
+        // Anchors may share a key under different issuers, so keep every
+        // anchor whose key verifies and pick by `iss` at step 3k.
+        let verified: Vec<&TrustAnchor> = candidates
             .into_iter()
-            .find(|a| jws::signature_ok(&a.key, jws))
-            .ok_or(err(
+            .filter(|a| jws::signature_ok(&a.key, jws))
+            .collect();
+        if verified.is_empty() {
+            return Err(err(
                 Step::S3b,
                 "signature does not verify under a trust anchor",
-            ))?;
+            ));
+        }
         let claims = parse_claims(jws).ok_or(err(Step::S3b, "claims do not parse"))?;
         let (Some(iat), Some(exp)) = (int(&claims, "iat"), int(&claims, "exp")) else {
             return Err(err(Step::S3b, "iat or exp missing or not a NumericDate"));
@@ -322,10 +327,12 @@ impl Verifier {
             .filter(|d| *d <= self.limits.max_delegation_depth)
             .ok_or(err(Step::S3i, "bad del_max_depth"))?;
         let jti = non_empty(&claims, "jti").ok_or(err(Step::S3j, "bad jti"))?;
-        let iss = claims.get("iss").and_then(Value::as_str);
-        if !iss.is_some_and(|iss| is_uri(iss) && iss == anchor.issuer) {
-            return Err(err(Step::S3k, "iss does not match the trust anchor"));
-        }
+        let anchor = claims
+            .get("iss")
+            .and_then(Value::as_str)
+            .filter(|iss| is_uri(iss))
+            .and_then(|iss| verified.into_iter().find(|a| a.issuer == iss))
+            .ok_or(err(Step::S3k, "iss does not match the trust anchor"))?;
         let holder = jws::holder_key(claims.get("cnf")).ok_or(err(Step::S3l, "bad cnf.jwk"))?;
         let ad = claims.get("authorization_details");
         if ad.and_then(Value::as_array).is_none_or(<[Value]>::is_empty) {
