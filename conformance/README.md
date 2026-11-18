@@ -11,7 +11,9 @@ Language-neutral test vectors. Each suite is one JSON file:
 | `valid` | Tokens that must verify |
 | `negative` | Tokens that must be rejected, with the expected error code in `expect` |
 
-An implementation passes when every `valid` token verifies and every `negative` token is rejected for the reason in `expect`. Rejecting for a different reason is a failure.
+An implementation passes when every `valid` token verifies and every `negative` token is rejected for the reason in `expect`.
+
+Some negative tokens have more than one defect (an `exp` before `iat` is also in the past; an `alg` that does not match the key also fails its signature). For those, `expect` follows this check order, which is part of the contract: size, structure, `typ`, `alg`, `crit`, key selection, algorithm match, signature, claim set (required claims, then `exp` after `iat`), `aud`, `exp`, `iat`, lifetime cap.
 
 ## Suites
 

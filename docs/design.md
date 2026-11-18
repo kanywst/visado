@@ -1,6 +1,6 @@
 # Design (draft)
 
-Status: proposal, 2026-11-18. Nothing here is implemented yet. Sections marked **Open** need a decision before the code that depends on them.
+Status: 2026-11-19. Steps 1, 2, 4, 5 and 6 (audit events only) are implemented; delegation chains (step 3), DPoP, HTTP signatures, mTLS, JWT-SVID, OpenTelemetry and the chain view are not. Sections marked **Open** need a decision before the code that depends on them.
 
 ## Request pipeline
 
@@ -18,7 +18,8 @@ inbound request (via Envoy / Istio / agentgateway ext_authz)
 
 ### 1. Sanitize
 
-- Remove any inbound `Txn-Token` header unless it comes from an allow-listed internal hop authenticated over mTLS, in which case it is verified instead of minted (verify mode).
+- Deny requests for authorities outside `allowed_authorities`, and paths with dot segments, encoded dots or slashes, or empty segments.
+- An inbound `Txn-Token` is accepted only from a workload listed in `internal_callers` that authenticated with a WIT and WPT. It is verified and forwarded unchanged. From anyone else it is denied (`txn.untrusted_hop`).
 - Never forward the inbound access token downstream (MCP security best practices, Txn-Token draft §13).
 
 ### 2. Authenticate

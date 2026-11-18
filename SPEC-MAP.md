@@ -32,7 +32,7 @@ WIMSE credentials (WIT, WPT, HTTP signatures, mTLS) come from [wimsey](https://g
 | Topic | Spec | visado |
 | --- | --- | --- |
 | Agent acting for a user | Not defined | `subject` is the agent (`type: agent`); the user is `context.principal` |
-| `X-Request-ID` echo | PDP MUST echo (§11) | A different echo is an error; a missing echo is tolerated |
+| `X-Request-ID` echo | PDP MUST echo it | A different echo is an error; a missing echo is tolerated |
 | Non-boolean `decision` | Must be boolean | Treated as an error, so the request is denied |
 | Batch and search APIs | Defined | Not used |
 
@@ -43,3 +43,14 @@ WIMSE credentials (WIT, WPT, HTTP signatures, mTLS) come from [wimsey](https://g
 | User token next to a WPT | Bound through `oth` | Read from `x-user-token` (configurable) and used only when `oth` binds it |
 | WPT replay | `jti` | In-memory cache per process; when full, new proofs are rejected |
 | Key selection | Not specified | The unverified `sub` trust domain and `kid` select a configured key; the signature is then checked |
+| Proof `jti` length | Not limited | At most 256 bytes |
+
+## OAuth access tokens: choices
+
+| Topic | Spec | visado |
+| --- | --- | --- |
+| Sender-constrained tokens (`cnf`) | RFC 9449, RFC 8705 | Rejected until DPoP and mTLS binding are implemented |
+| `scope` vs `scp` | RFC 9068 uses `scope` | `scp` (string or array) is read when `scope` is absent |
+| No scope in a user token | Txn-Tokens §13.14 | Denied (`token.no_scope`); the default scope applies only to a workload without a user token |
+| Several issuers | | Each needs a `subject_prefix`, so `sub` and `client_id` cannot collide |
+| `typ` | RFC 9068 `at+jwt` | Not checked |

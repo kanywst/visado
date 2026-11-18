@@ -11,6 +11,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `visado-authzen`: AuthZEN 1.0 access evaluation client that fails closed, with an agent-for-principal request profile and metadata discovery.
 - `visado-credentials`: caller authentication with a WIT and a WPT (optionally binding a user access token through `oth`), or an OAuth access token alone. WPT `jti` replay is checked in memory.
 - `visado-extauthz`: the decision pipeline and an Envoy ext_authz v3 gRPC service. It mints a Transaction Token, forwards one only from configured internal callers, and removes inbound credentials before the request goes upstream.
-- `visado` binary: TOML configuration, ext_authz over gRPC, `/healthz` and `/.well-known/jwks.json` over HTTP, JSON audit events.
+- `visado` binary: TOML configuration, ext_authz over gRPC, `/healthz` and `/.well-known/jwks.json` over HTTP, JSON audit events. Both listeners bind to loopback by default, and the server exits if either fails.
+- Requests for authorities outside `allowed_authorities` and paths an upstream could resolve differently (dot segments, encoded dots or slashes, empty segments) are denied before authentication.
+- OAuth issuers can carry a `subject_prefix`; with more than one issuer, every issuer needs one.
+- Sender-constrained access tokens (`cnf`) are rejected until DPoP and mTLS binding exist. `scp` is read when `scope` is absent, and `nbf` is checked.
 
 [Unreleased]: https://github.com/kanywst/visado/commits/main
