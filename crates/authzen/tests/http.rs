@@ -97,6 +97,29 @@ async fn every_failure_is_an_error() {
 }
 
 #[tokio::test]
+async fn discovers_a_tenant_endpoint() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let pdp = format!("{origin}/tenant1");
+    let doc = json!({
+        "policy_decision_point": pdp,
+        "access_evaluation_endpoint": format!("{pdp}/access/v1/evaluation"),
+    });
+    let router = Router::new().route(
+        "/.well-known/authzen-configuration/tenant1",
+        get(move || {
+            let doc = doc.clone();
+            async move { axum::Json(doc) }
+        }),
+    );
+    tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+    let endpoint = discover(&pdp, Duration::from_secs(2)).await.unwrap();
+    assert_eq!(endpoint, format!("{pdp}/access/v1/evaluation"));
+    let mismatch = discover(&format!("{pdp}/"), Duration::from_secs(2)).await;
+    assert!(mismatch.is_err(), "the identifier must match exactly");
+}
+
+#[tokio::test]
 async fn discovers_the_endpoint() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());

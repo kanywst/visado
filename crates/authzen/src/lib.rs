@@ -170,11 +170,20 @@ pub trait Pdp: Send + Sync {
 }
 
 /// A PDP reached over HTTP.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct HttpPdp {
     client: reqwest::Client,
     endpoint: String,
     bearer: Option<String>,
+}
+
+impl std::fmt::Debug for HttpPdp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HttpPdp")
+            .field("endpoint", &self.endpoint)
+            .field("bearer", &self.bearer.as_ref().map(|_| "<redacted>"))
+            .finish_non_exhaustive()
+    }
 }
 
 impl HttpPdp {
@@ -250,10 +259,18 @@ impl Pdp for HttpPdp {
         {
             return Err(PdpError::InvalidResponse);
         }
-        let body = response
-            .bytes()
+        let mut response = response;
+        let mut body = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
             .await
-            .map_err(|e| PdpError::Unavailable(e.to_string()))?;
+            .map_err(|e| PdpError::Unavailable(e.to_string()))?
+        {
+            if body.len() + chunk.len() > MAX_RESPONSE_LEN {
+                return Err(PdpError::InvalidResponse);
+            }
+            body.extend_from_slice(&chunk);
+        }
         parse_response(&body)
     }
 }
@@ -278,23 +295,27 @@ pub fn parse_response(body: &[u8]) -> Result<Decision, PdpError> {
     })
 }
 
-/// Reads `access_evaluation_endpoint` from a PDP's
-/// `/.well-known/authzen-configuration` (§9).
+/// Reads `access_evaluation_endpoint` from a PDP's metadata document (§9).
+///
+/// As in RFC 8414, the well-known suffix goes between the host and the path of
+/// the PDP identifier: `https://pdp.example/tenant` is described at
+/// `https://pdp.example/.well-known/authzen-configuration/tenant`. The
+/// document's `policy_decision_point` must equal `pdp` exactly.
 ///
 /// # Errors
 ///
 /// [`PdpError::Unavailable`] or [`PdpError::Status`] if the document cannot be
-/// fetched, [`PdpError::InvalidResponse`] if it lacks the endpoint or names a
-/// different `policy_decision_point`.
-pub async fn discover(pdp_base: &str, timeout: Duration) -> Result<String, PdpError> {
-    let base = pdp_base.trim_end_matches('/');
+/// fetched, [`PdpError::InvalidResponse`] if `pdp` is not a URL, the document
+/// lacks the endpoint, or it names a different `policy_decision_point`.
+pub async fn discover(pdp: &str, timeout: Duration) -> Result<String, PdpError> {
+    let metadata_url = metadata_url(pdp).ok_or(PdpError::InvalidResponse)?;
     let client = client_builder()
         .timeout(timeout)
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|e| PdpError::Unavailable(e.to_string()))?;
     let response = client
-        .get(format!("{base}/.well-known/authzen-configuration"))
+        .get(metadata_url)
         .send()
         .await
         .map_err(|e| PdpError::Unavailable(e.to_string()))?;
@@ -305,13 +326,31 @@ pub async fn discover(pdp_base: &str, timeout: Duration) -> Result<String, PdpEr
         .json()
         .await
         .map_err(|_| PdpError::InvalidResponse)?;
-    if metadata["policy_decision_point"].as_str() != Some(base) {
+    if metadata["policy_decision_point"].as_str() != Some(pdp) {
         return Err(PdpError::InvalidResponse);
     }
     metadata["access_evaluation_endpoint"]
         .as_str()
         .map(ToOwned::to_owned)
         .ok_or(PdpError::InvalidResponse)
+}
+
+/// The metadata URL for a PDP identifier, or `None` if it is not an http(s)
+/// URL without query or fragment.
+#[must_use]
+pub fn metadata_url(pdp: &str) -> Option<String> {
+    let url = reqwest::Url::parse(pdp).ok()?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return None;
+    }
+    let path = url.path().trim_end_matches('/');
+    let mut origin = url.origin().ascii_serialization();
+    origin.push_str("/.well-known/authzen-configuration");
+    origin.push_str(path);
+    Some(origin)
 }
 
 fn client_builder() -> reqwest::ClientBuilder {
@@ -341,6 +380,20 @@ mod tests {
                 Err(PdpError::InvalidResponse)
             ));
         }
+    }
+
+    #[test]
+    fn metadata_url_inserts_the_suffix_before_the_path() {
+        assert_eq!(
+            metadata_url("https://pdp.example").as_deref(),
+            Some("https://pdp.example/.well-known/authzen-configuration")
+        );
+        assert_eq!(
+            metadata_url("https://pdp.example/tenant1").as_deref(),
+            Some("https://pdp.example/.well-known/authzen-configuration/tenant1")
+        );
+        assert_eq!(metadata_url("https://pdp.example/?a=b"), None);
+        assert_eq!(metadata_url("ftp://pdp.example"), None);
     }
 
     #[test]
