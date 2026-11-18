@@ -19,6 +19,10 @@ docker compose up -d --build
 | A workload not in `internal_callers` forwards the transaction | 403 |
 | A user token without `roles.write` on the admin API | 403 |
 | carol with `roles.write` through agent-a | 200 |
+| AAT: agent-b reads `/data/report.pdf`, which agent-a delegated to it | 200 |
+| AAT: agent-b reads `/etc/passwd` | 403, outside the delegated constraint |
+| AAT: agent-b calls `delete_file`, which agent-a kept | 403 |
+| AAT: agent-z presents agent-b's chain | 403, the proof is not signed by the holder |
 
 Envoy also normalizes `%2e%2e` and `//` before visado sees the path; visado rejects any that still arrive.
 

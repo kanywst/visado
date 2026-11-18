@@ -29,4 +29,11 @@ fn main() {
         .expect("jwk"),
     );
     write("oauth-jwks.json", visado_testkit::oauth_jwks());
+    write(
+        "aat-anchor.jwk.json",
+        serde_json::to_value(Jwk::from_verifying_key(
+            &visado_testkit::aat_anchor_key().verifying_key(),
+        ))
+        .expect("jwk"),
+    );
 }
