@@ -296,3 +296,48 @@ async fn bindings_and_configuration() {
         (403, "chain.required")
     );
 }
+
+#[tokio::test]
+async fn a_forwarded_transaction_must_be_about_the_chain_principal() {
+    use visado_txn_token::{TxnTokenClaims, mint};
+    let mut config = gate_config();
+    config.internal_callers = BTreeSet::from(["spiffe://td.example/agent-b".to_owned()]);
+    let gate = gate_with(config);
+    let forward = |sub: &str, n: u32| {
+        let txn = mint(
+            &TxnTokenClaims {
+                iss: None,
+                iat: NOW - 1,
+                aud: TRUST_DOMAIN.into(),
+                exp: NOW + 30,
+                txn: "txn-upstream".into(),
+                sub: sub.into(),
+                scope: Scope::parse("tools.call"),
+                req_wl: "spiffe://td.example/agent-a".into(),
+                tctx: None,
+                rctx: None,
+            },
+            Some("txn-1"),
+            &txn_key(),
+        )
+        .unwrap();
+        let mut input = call(&narrow(), 2, Some(2), "crm.read", &json!({ "rows": 1 }), n);
+        let key = pop_key(2);
+        let w = wit("agent-b", &key);
+        let p = wpt(&w, &key, URI, &format!("f{n}"), Some(&txn), None);
+        input
+            .headers
+            .retain(|(h, _)| h != "authorization" && h != "workload-identity-token");
+        input
+            .headers
+            .push(("authorization".into(), format!("WPT {p}")));
+        input.headers.push(("workload-identity-token".into(), w));
+        input.headers.push(("txn-token".into(), txn));
+        input
+    };
+    // The chain's principal (sub) is user:alice.
+    let outcome = gate.check(&forward("user:alice", 1), NOW, "t").await;
+    assert_eq!(denial(&outcome).1, "allow");
+    let outcome = gate.check(&forward("user:bob", 2), NOW, "t").await;
+    assert_eq!(denial(&outcome), (403, "chain.principal_mismatch"));
+}

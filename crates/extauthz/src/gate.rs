@@ -220,6 +220,23 @@ impl<P: Pdp> Gate<P> {
             Some(token) => Some(self.accept_forwarded(&caller, token, now, &trail)?),
             None => None,
         };
+        // A chain that names its principal must be about the forwarded
+        // transaction's subject; otherwise the replaced token would record
+        // one user's delegation inside another user's transaction.
+        if let (Some(claims), Some(chain)) = (&forwarded, &chain)
+            && let Principal::Subject { subject, .. } = &chain.principal
+            && subject != &claims.sub
+        {
+            let mut denied = Denied::new(403, "chain.principal_mismatch", &trail);
+            denied.detail = Some(
+                format!(
+                    "chain principal {subject:?} is not the transaction subject {:?}",
+                    claims.sub
+                )
+                .into_boxed_str(),
+            );
+            return Err(denied);
+        }
         let (principal, scope) = match &forwarded {
             Some(claims) => (claims.sub.clone(), claims.scope.clone()),
             None => self.principal_and_scope(&caller, &trail)?,

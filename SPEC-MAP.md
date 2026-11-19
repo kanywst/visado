@@ -78,6 +78,7 @@ No divergences on the vectors: all 36 in [conformance/asor](conformance/asor/) g
 | `check()` and `decode()` | Steps 1 to 5 without a request (§6.1) | `decode()` runs the parse rules and steps 1 to 5; `check()` adds the leaf audience, which is what the vectors test. Both return `holder_proof: false` |
 | HTTP binding | Not defined | `Agent-Delegation-Chain` and `DPoP` headers; the format is chosen by the header, not by `typ`. The MCP tool name is the action's scope and its arguments the parameters (see `docs/bindings.md`) |
 | Who may present a chain | The DPoP key holder | Only a WIT caller, and the leaf `cnf.jkt` must be the WIT key; bearer-only callers are denied (`chain.unbound_caller`) |
+| Principal and a forwarded Txn-Token | Not defined | The chain's `sub` must be the forwarded Transaction Token's `sub` (`chain.principal_mismatch`) |
 | -01 vectors | Do not conform to -03 | Not run: every one lacks `cnf` and `client_id` |
 
 ## RFC 8693 act: choices
@@ -97,6 +98,7 @@ RFC 8693 publishes no test vectors. [conformance/act](conformance/act/) has visa
 | Authority per actor | Not defined | None is invented: the token's `scope` is what the call may use, and the chain narrows nothing |
 | Token without `[act]` | | A token with an `act` claim is denied (`chain.unsupported`), not read as the subject's own token |
 | `act` next to another chain | | `chain.ambiguous` with `AAT-Chain` or `Agent-Delegation-Chain` |
+| Principal and a forwarded Txn-Token | | The token's `sub` must be the forwarded Transaction Token's `sub` (`chain.principal_mismatch`) |
 | `may_act` (§4.4) | Who may become the actor | Not read |
 | Token exchange endpoint (§2) | Defined | Not implemented |
 

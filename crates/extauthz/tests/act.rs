@@ -16,7 +16,7 @@ use visado_testkit::{
     NOW, OAUTH_ISSUER, TRUST_DOMAIN, oauth_jwks, pop_key, signed_access_token, wit,
     wit_issuer_verifying_key, wpt,
 };
-use visado_txn_token::{KeySet, Scope, Validation, verify};
+use visado_txn_token::{KeySet, Scope, TxnTokenClaims, Validation, mint, verify};
 use wimsey_jose::SigningKey;
 
 const HOST: &str = "tools.td.example";
@@ -296,4 +296,80 @@ async fn configuration() {
         .check(&bearer(&token("client-1", None)), NOW, "t")
         .await;
     assert_eq!(denial(&outcome).1, "allow");
+}
+
+/// A Transaction Token from an earlier hop, issued by this gate for `sub`.
+fn inbound_txn(sub: &str) -> String {
+    let claims = TxnTokenClaims {
+        iss: None,
+        iat: NOW - 1,
+        aud: TRUST_DOMAIN.into(),
+        exp: NOW + 30,
+        txn: "txn-upstream".into(),
+        sub: sub.into(),
+        scope: Scope::parse("tools.call"),
+        req_wl: "spiffe://td.example/agent-a".into(),
+        tctx: None,
+        rctx: None,
+    };
+    mint(&claims, Some("txn-1"), &txn_key()).unwrap()
+}
+
+/// agent-b forwards `txn` with `token` as the user token, both bound
+/// through its WPT.
+fn forwarding(token: &str, txn: &str, n: u32) -> CheckInput {
+    let key = pop_key(2);
+    let w = wit("agent-b", &key);
+    let p = wpt(
+        &w,
+        &key,
+        URI,
+        &format!("f{n}"),
+        Some(txn),
+        Some(("x-user-token", token)),
+    );
+    request(vec![
+        ("authorization".into(), format!("WPT {p}")),
+        ("workload-identity-token".into(), w),
+        ("x-user-token".into(), token.to_owned()),
+        ("txn-token".into(), txn.to_owned()),
+    ])
+}
+
+#[tokio::test]
+async fn a_forwarded_transaction_records_the_act_chain() {
+    let mut config = gate_config();
+    config.internal_callers = BTreeSet::from([AGENT.to_owned()]);
+    let gate = gate_with(config);
+    let act = json!({ "sub": AGENT, "act": { "sub": "user-agent-0" } });
+
+    let outcome = gate
+        .check(
+            &forwarding(&token("c", Some(act.clone())), &inbound_txn("alice"), 1),
+            NOW,
+            "t",
+        )
+        .await;
+    let Outcome::Allow { set, txn, .. } = &outcome else {
+        panic!("{outcome:?}")
+    };
+    assert_eq!(txn, "txn-upstream");
+    let keys = KeySet::new().with_key("txn-1", txn_key().verifying_key());
+    let claims = verify(&set[0].1, &keys, &Validation::new(TRUST_DOMAIN, NOW))
+        .unwrap()
+        .claims;
+    assert_eq!(claims.sub, "alice");
+    let chain = &claims.tctx.unwrap()[&format!("chain:{AGENT}")];
+    assert_eq!(chain["profile"], "rfc8693-act");
+    assert_eq!(chain["prior_actors"][0]["sub"], "user-agent-0");
+
+    // The user token is about alice, the transaction about bob.
+    let outcome = gate
+        .check(
+            &forwarding(&token("c", Some(act)), &inbound_txn("bob"), 2),
+            NOW,
+            "t",
+        )
+        .await;
+    assert_eq!(denial(&outcome), (403, "chain.principal_mismatch"));
 }

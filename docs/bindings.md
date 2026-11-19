@@ -13,7 +13,7 @@ Which method a request uses is decided by the headers it carries, in this order:
 
 A credential header longer than 16 KiB is denied (`credential.too_large`) before it is decoded.
 
-An inbound `Txn-Token` is accepted only from a workload in `internal_callers` that proved possession of a key for the request: WIT with WPT (`tth`), WIT with a signature that covers it, or mTLS. A bearer caller cannot forward one (`txn.untrusted_hop`).
+An inbound `Txn-Token` is accepted only from a workload in `internal_callers` that proved possession of a key for the request: WIT with WPT (`tth`), WIT with a signature that covers it, or mTLS. A bearer caller cannot forward one (`txn.untrusted_hop`). When the request also carries a delegation chain that names its principal (asor `sub`, the `sub` of a token with an RFC 8693 `act` claim), that principal must be the forwarded token's `sub`, or the request is denied (`chain.principal_mismatch`); an AAT chain names no principal and is not compared.
 
 ## WIMSE
 
