@@ -128,6 +128,21 @@ fn the_body_must_match_a_covered_digest() {
     let empty = content_digest(b"");
     let headers = signed(1, &[("content-digest", &empty)], &spec("d5"));
     run(&auth, &headers, None, NOW).unwrap();
+
+    // A body the signature does not cover through Content-Digest is refused,
+    // whether the proxy sent it or only Content-Length announces it.
+    let headers = signed(1, &[], &spec("d6"));
+    assert_eq!(
+        run(&auth, &headers, Some(body), NOW).unwrap_err(),
+        "httpsig.invalid",
+        "uncovered body"
+    );
+    let headers = with(signed(1, &[], &spec("d7")), "content-length", "42");
+    assert_eq!(
+        run(&auth, &headers, None, NOW).unwrap_err(),
+        "httpsig.invalid",
+        "announced body"
+    );
 }
 
 #[test]

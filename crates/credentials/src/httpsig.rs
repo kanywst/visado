@@ -83,13 +83,26 @@ pub(crate) fn verify(
         return Err(AuthError::HttpSig("lifetime too long".into()));
     }
 
+    // A request with a body must cover Content-Digest, or the body could be
+    // swapped under a valid signature. The body counts as present when Envoy
+    // sent one or Content-Length says there is one.
+    let covers_digest = verified
+        .components
+        .contains(&Component::header("content-digest"));
+    let has_body = request.body.is_some_and(|b| !b.is_empty())
+        || request.headers.iter().any(|(n, v)| {
+            n == "content-length" && v.trim().parse::<u64>().map_or(true, |len| len > 0)
+        });
+    if has_body && !covers_digest {
+        return Err(AuthError::HttpSig(
+            "a request with a body must cover content-digest".into(),
+        ));
+    }
+
     // Covering Content-Digest protects only the header string. The body it
     // names must be the body received; a body Envoy did not send counts as
     // empty, so a non-empty signed body fails closed.
-    if verified
-        .components
-        .contains(&Component::header("content-digest"))
-    {
+    if covers_digest {
         if request
             .headers
             .iter()
