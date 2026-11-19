@@ -14,6 +14,7 @@ use envoy_types::pb::google::protobuf::value::Kind;
 use envoy_types::pb::google::protobuf::{Struct, Value as ProtoValue};
 use tonic::{Request, Response, Status};
 use visado_authzen::Pdp;
+use visado_credentials::{AuthError, PROBLEM_SIGNATURE_INVALID};
 
 use crate::gate::{CheckInput, Gate, Outcome};
 
@@ -92,10 +93,20 @@ fn input_from(request: &CheckRequest) -> Option<CheckInput> {
 
 fn denied_response(status: u16, code: &str, challenge: Option<&str>) -> CheckResponse {
     let mut denied = DeniedHttpResponseBuilder::new();
-    denied
-        .set_http_status(status_code(status))
-        .add_header("content-type", "application/json", None, false)
-        .set_body(format!(r#"{{"error":"{code}"}}"#));
+    denied.set_http_status(status_code(status));
+    if code == AuthError::HttpSig(String::new()).code() {
+        // draft-ietf-wimse-http-signature: one RFC 9457 problem type for every
+        // failed check on a signed request.
+        denied
+            .add_header("content-type", "application/problem+json", None, false)
+            .set_body(format!(
+                r#"{{"type":"{PROBLEM_SIGNATURE_INVALID}","status":{status},"error":"{code}"}}"#
+            ));
+    } else {
+        denied
+            .add_header("content-type", "application/json", None, false)
+            .set_body(format!(r#"{{"error":"{code}"}}"#));
+    }
     if let Some(challenge) = challenge {
         denied.add_header("www-authenticate", challenge, None, false);
     }
@@ -180,10 +191,11 @@ impl<P: Pdp + 'static> Authorization for ExtAuthz<P> {
 
 #[cfg(test)]
 mod tests {
-    use super::input_from;
+    use super::{denied_response, input_from};
     use envoy_types::ext_authz::v3::pb::CheckRequest;
     use envoy_types::pb::envoy::service::auth::v3::AttributeContext;
     use envoy_types::pb::envoy::service::auth::v3::attribute_context::{HttpRequest, Request};
+    use envoy_types::pb::envoy::service::auth::v3::check_response::HttpResponse as Http;
 
     #[test]
     fn a_body_that_is_not_utf8_is_kept_as_bytes() {
@@ -207,5 +219,26 @@ mod tests {
         };
         let input = input_from(&request).unwrap();
         assert_eq!(input.body.as_deref(), Some(raw.as_slice()));
+    }
+
+    #[test]
+    fn a_failed_signed_request_is_a_problem_document() {
+        let response = denied_response(400, "httpsig.invalid", None);
+        let Some(Http::DeniedResponse(denied)) = response.http_response else {
+            panic!("denied")
+        };
+        assert_eq!(denied.status.map(|s| s.code), Some(400));
+        assert!(
+            denied
+                .body
+                .contains(visado_credentials::PROBLEM_SIGNATURE_INVALID)
+        );
+        let content_type = denied
+            .headers
+            .iter()
+            .filter_map(|h| h.header.as_ref())
+            .find(|h| h.key == "content-type")
+            .map(|h| h.value.as_str());
+        assert_eq!(content_type, Some("application/problem+json"));
     }
 }

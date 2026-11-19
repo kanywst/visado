@@ -2284,6 +2284,7 @@ dependencies = [
  "sha2",
  "thiserror",
  "visado-testkit",
+ "wimsey-httpsig",
  "wimsey-identifier",
  "wimsey-jose",
  "wimsey-wit",
@@ -2318,6 +2319,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "visado-chain-aat",
+ "wimsey-httpsig",
  "wimsey-identifier",
  "wimsey-jose",
  "wimsey-wit",
@@ -2452,6 +2454,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "293198dcebfb821155b5092ab94b5a82ff180eddd7241df3bd6e66a4ffd1a585"
 dependencies = [
  "rustls-pki-types",
+]
+
+[[package]]
+name = "wimsey-httpsig"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfa23828087018abdda48be99be394ed3149f179d2cac4afd37866f2d34d87e0"
+dependencies = [
+ "base64 0.23.1",
+ "ed25519-dalek",
+ "sha2",
+ "thiserror",
+ "wimsey-jose",
 ]
 
 [[package]]

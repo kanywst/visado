@@ -22,7 +22,12 @@ pub const AAT_POP_HEADER: &str = "aat-pop";
 /// authenticator's user token header. The upstream gets the Transaction Token
 /// instead (MCP and the Txn-Token draft both forbid forwarding the inbound
 /// access token).
-pub const STRIPPED_HEADERS: [&str; 2] = ["authorization", "workload-identity-token"];
+pub const STRIPPED_HEADERS: [&str; 4] = [
+    "authorization",
+    "workload-identity-token",
+    "signature-input",
+    "signature",
+];
 
 /// Settings for one trust domain.
 #[derive(Debug)]
@@ -151,7 +156,7 @@ impl<P: Pdp> Gate<P> {
         span.record("visado.reason", reason);
         match result {
             Ok(allowed) => {
-                audit(input, &allowed.trail, "allow", "ok");
+                audit(input, &allowed.trail, "allow", "ok", "");
                 Outcome::Allow {
                     txn: allowed.trail.txn,
                     set: vec![("txn-token".into(), allowed.token)],
@@ -159,11 +164,17 @@ impl<P: Pdp> Gate<P> {
                 }
             }
             Err(denied) => {
-                audit(input, &denied.trail, "deny", denied.code);
+                audit(
+                    input,
+                    &denied.trail,
+                    "deny",
+                    denied.code,
+                    denied.detail.as_deref().unwrap_or(""),
+                );
                 Outcome::Deny {
                     status: denied.status,
                     code: denied.code.to_owned(),
-                    challenge: denied.challenge.map(ToOwned::to_owned),
+                    challenge: denied.challenge.map(|c| c.as_str().to_owned()),
                 }
             }
         }
@@ -357,19 +368,25 @@ impl<P: Pdp> Gate<P> {
                 .headers
                 .iter()
                 .any(|(n, _)| n == "workload-identity-token");
-            let status = if matches!(e, AuthError::ReplayCacheFull) {
-                503
-            } else {
-                401
+            let (status, challenge) = match e {
+                AuthError::ReplayCacheFull => (503, None),
+                // draft-ietf-wimse-http-signature: a failed signed request is
+                // a 400 that does not say which check failed.
+                AuthError::HttpSig(_) => (400, None),
+                _ if wimse => (401, Some(Challenge::Wpt)),
+                _ => (401, Some(Challenge::Bearer)),
             };
             let mut denied = Denied::new(status, e.code(), &Trail::default());
-            denied.challenge = Some(if wimse { "WPT" } else { "Bearer" });
+            denied.challenge = challenge;
+            denied.detail = Some(e.to_string().into_boxed_str());
             denied
         })
     }
 
     /// An inbound Transaction Token is accepted only from a configured internal
-    /// workload, and only if it verifies against this gate's key and domain.
+    /// workload that proved possession of a key for this request, and only if
+    /// it verifies against this gate's key and domain. With a WPT the token is
+    /// bound through `tth`; with an HTTP signature it is a covered component.
     fn accept_forwarded(
         &self,
         caller: &Authenticated,
@@ -377,7 +394,8 @@ impl<P: Pdp> Gate<P> {
         now: u64,
         trail: &Trail,
     ) -> Result<TxnTokenClaims, Denied> {
-        if caller.method != Method::WitWpt || !self.config.internal_callers.contains(&caller.caller)
+        if !matches!(caller.method, Method::WitWpt | Method::WitHttpSig)
+            || !self.config.internal_callers.contains(&caller.caller)
         {
             return Err(Denied::new(403, "txn.untrusted_hop", trail));
         }
@@ -421,8 +439,26 @@ struct Allowed {
 struct Denied {
     status: u16,
     code: &'static str,
-    challenge: Option<&'static str>,
+    challenge: Option<Challenge>,
+    /// Why, for the audit record only. Never contains a token.
+    detail: Option<Box<str>>,
     trail: Trail,
+}
+
+/// The `WWW-Authenticate` scheme for a 401.
+#[derive(Debug, Clone, Copy)]
+enum Challenge {
+    Wpt,
+    Bearer,
+}
+
+impl Challenge {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Wpt => "WPT",
+            Self::Bearer => "Bearer",
+        }
+    }
 }
 
 impl Denied {
@@ -431,6 +467,7 @@ impl Denied {
             status,
             code,
             challenge: None,
+            detail: None,
             trail: trail.clone(),
         }
     }
@@ -457,8 +494,8 @@ fn is_normalized(path: &str) -> bool {
 /// so they are marked to keep them apart from workload identifiers.
 fn requesting_workload(caller: &Authenticated) -> String {
     match caller.method {
-        Method::WitWpt => caller.caller.clone(),
         Method::Bearer => format!("oauth-client:{}", caller.caller),
+        _ => caller.caller.clone(),
     }
 }
 
@@ -493,6 +530,7 @@ fn evaluation_request(
 const fn method_name(method: Method) -> &'static str {
     match method {
         Method::WitWpt => "wit-wpt",
+        Method::WitHttpSig => "wit-httpsig",
         Method::Bearer => "bearer",
     }
 }
@@ -589,7 +627,7 @@ fn rctx(input: &CheckInput) -> Map<String, Value> {
     map
 }
 
-fn audit(input: &CheckInput, trail: &Trail, decision: &str, reason: &str) {
+fn audit(input: &CheckInput, trail: &Trail, decision: &str, reason: &str, detail: &str) {
     tracing::info!(
         target: "visado::audit",
         txn = %trail.txn,
@@ -599,5 +637,6 @@ fn audit(input: &CheckInput, trail: &Trail, decision: &str, reason: &str) {
         action = %input.method,
         decision,
         reason,
+        detail,
     );
 }

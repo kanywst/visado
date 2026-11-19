@@ -33,6 +33,10 @@ pub struct Config {
     pub replay_capacity: usize,
     #[serde(default = "default_max_wpt_lifetime")]
     pub max_wpt_lifetime: u64,
+    /// The longest HTTP message signature window (`expires` minus
+    /// `created`), and the oldest `created` accepted, in seconds.
+    #[serde(default = "default_max_wpt_lifetime")]
+    pub max_signature_lifetime: u64,
     pub signing_key: KeyFile,
     pub pdp: PdpConfig,
     #[serde(default)]
@@ -151,6 +155,10 @@ const fn default_max_wpt_lifetime() -> u64 {
 /// The longest Transaction Token lifetime accepted in configuration, in seconds.
 pub const MAX_TXN_LIFETIME: u64 = 300;
 
+/// The longest HTTP signature window accepted in configuration, in seconds.
+/// The draft asks for minutes, not hours.
+pub const MAX_SIGNATURE_LIFETIME: u64 = 300;
+
 const fn default_lifetime() -> u64 {
     60
 }
@@ -197,6 +205,11 @@ impl Config {
         if self.replay_capacity == 0 || self.max_wpt_lifetime == 0 {
             return Err("replay_capacity and max_wpt_lifetime must be positive".into());
         }
+        if !(1..=MAX_SIGNATURE_LIFETIME).contains(&self.max_signature_lifetime) {
+            return Err(format!(
+                "max_signature_lifetime must be 1..={MAX_SIGNATURE_LIFETIME} seconds"
+            ));
+        }
         if self.pdp.bearer_env.is_some() && !is_https_or_loopback(&self.pdp.endpoint) {
             return Err("pdp.bearer_env needs an https endpoint (or loopback)".into());
         }
@@ -225,8 +238,9 @@ impl Config {
             .map_err(|e| format!("signing key: {e}"))?;
         let public_jwk = private.to_public();
 
-        let mut authenticator =
-            Authenticator::new().with_replay_limits(self.replay_capacity, self.max_wpt_lifetime);
+        let mut authenticator = Authenticator::new()
+            .with_replay_limits(self.replay_capacity, self.max_wpt_lifetime)
+            .with_signature_lifetime(self.max_signature_lifetime);
         if let Some(header) = &self.user_token_header {
             authenticator = authenticator.with_user_token_header(header);
         }
@@ -361,6 +375,9 @@ endpoint = "http://127.0.0.1:8181/access/v1/evaluation"
         assert!(parse("txn_lifetime = 0").is_err());
         assert!(parse("txn_lifetime = 3600").is_err());
         assert!(parse("replay_capacity = 0").is_err());
+        assert!(parse("max_signature_lifetime = 0").is_err());
+        assert!(parse("max_signature_lifetime = 3600").is_err());
+        assert!(parse("max_signature_lifetime = 120").is_ok());
         assert!(parse("unknown_key = 1").is_err());
         let blank: Config = toml::from_str(&BASE.replace("td.example", " ")).unwrap();
         assert!(blank.validate().is_err());

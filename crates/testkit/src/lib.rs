@@ -265,3 +265,80 @@ pub fn aat_pop(
     });
     sign_aat("aat-pop+jwt", &payload, holder)
 }
+
+/// The `nonce`, `created` and audience of a test HTTP message signature.
+#[derive(Debug, Clone)]
+pub struct SignatureSpec<'a> {
+    /// `nonce`.
+    pub nonce: &'a str,
+    /// `created`; `expires` is 60 seconds later.
+    pub created: u64,
+    /// `wimse-aud`.
+    pub audience: &'a str,
+    /// Header fields to cover besides the ones the profile requires, such as
+    /// the user token header.
+    pub cover: &'a [&'a str],
+}
+
+/// A WIMSE HTTP message signature by `pop` over a request with `method`,
+/// `authority`, `path_and_query` and `headers`, covering what
+/// draft-ietf-wimse-http-signature requires. Returns the `Signature-Input` and
+/// `Signature` header values.
+#[must_use]
+pub fn http_signature(
+    method: &str,
+    authority: &str,
+    path_and_query: &str,
+    headers: &[(&str, &str)],
+    pop: &SigningKey,
+    spec: &SignatureSpec<'_>,
+) -> (String, String) {
+    let request = signature_request(method, authority, path_and_query, headers);
+    let mut components = wimsey_httpsig::request_components(&request);
+    components.extend(
+        spec.cover
+            .iter()
+            .map(|h| wimsey_httpsig::Component::header(h)),
+    );
+    let params = wimsey_httpsig::SignatureParams {
+        created: Some(spec.created),
+        expires: Some(spec.created + 60),
+        nonce: Some(spec.nonce.to_owned()),
+        tag: Some(wimsey_httpsig::WIMSE_TAG.to_owned()),
+        wimse_aud: Some(spec.audience.to_owned()),
+        ..wimsey_httpsig::SignatureParams::default()
+    };
+    let signed = wimsey_httpsig::sign(&request, &components, &params, "wimse", pop)
+        .expect("signature signs");
+    (signed.signature_input, signed.signature)
+}
+
+/// The RFC 9421 view of a request, as a verifier builds it.
+#[must_use]
+pub fn signature_request(
+    method: &str,
+    authority: &str,
+    path_and_query: &str,
+    headers: &[(&str, &str)],
+) -> wimsey_httpsig::HttpRequest {
+    let (path, query) = match path_and_query.split_once('?') {
+        Some((path, query)) => (path, Some(query.to_owned())),
+        None => (path_and_query, None),
+    };
+    wimsey_httpsig::HttpRequest {
+        method: method.to_owned(),
+        authority: authority.to_owned(),
+        path: path.to_owned(),
+        query,
+        headers: headers
+            .iter()
+            .map(|(n, v)| ((*n).to_owned(), (*v).to_owned()))
+            .collect(),
+    }
+}
+
+/// The `Content-Digest` value for `body`.
+#[must_use]
+pub fn content_digest(body: &[u8]) -> String {
+    wimsey_httpsig::content_digest_sha256(body)
+}

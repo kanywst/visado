@@ -2,12 +2,27 @@ use std::collections::{BTreeSet, HashSet};
 
 use sha2::{Digest, Sha256};
 
-/// A fixed-size replay key for `jti` as used by `caller`.
-pub(crate) fn key(caller: &str, jti: &str) -> [u8; 32] {
+/// What a replay key identifies, so a WPT `jti` and a signature `nonce` with
+/// the same value do not collide.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Kind {
+    /// A WPT `jti`.
+    Wpt,
+    /// An HTTP message signature `nonce`.
+    Signature,
+}
+
+/// A fixed-size replay key for the proof identifier `id` of `kind` as used by
+/// `caller`.
+pub(crate) fn key(kind: Kind, caller: &str, id: &str) -> [u8; 32] {
     let mut hash = Sha256::new();
+    hash.update(match kind {
+        Kind::Wpt => b"wpt\0".as_slice(),
+        Kind::Signature => b"sig\0".as_slice(),
+    });
     hash.update(caller.as_bytes());
     hash.update([0]);
-    hash.update(jti.as_bytes());
+    hash.update(id.as_bytes());
     hash.finalize().into()
 }
 
@@ -63,7 +78,11 @@ pub(crate) enum Insert {
 
 #[cfg(test)]
 mod tests {
-    use super::{Insert, ReplayCache, key};
+    use super::{Insert, Kind, ReplayCache};
+
+    fn key(caller: &str, id: &str) -> [u8; 32] {
+        super::key(Kind::Wpt, caller, id)
+    }
 
     #[test]
     fn rejects_reuse_until_expiry() {
@@ -73,5 +92,13 @@ mod tests {
         assert_eq!(cache.insert(key("other", "a"), 10, 5), Insert::Fresh);
         assert_eq!(cache.insert(key("w", "c"), 10, 5), Insert::Full);
         assert_eq!(cache.insert(key("w", "a"), 20, 10), Insert::Fresh);
+    }
+
+    #[test]
+    fn kinds_do_not_collide() {
+        assert_ne!(
+            super::key(Kind::Wpt, "w", "a"),
+            super::key(Kind::Signature, "w", "a")
+        );
     }
 }
