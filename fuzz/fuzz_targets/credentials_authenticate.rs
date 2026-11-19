@@ -38,10 +38,13 @@ fuzz_target!(|data: &str| {
         .map(|(name, value)| ((*name).to_owned(), value.to_owned()))
         .collect();
     let view = RequestView {
+        method: "POST",
         scheme: "https",
         authority: "tools.td.example",
         path: "/mcp?session=1",
         headers: &headers,
+        body: None,
+        peer_certificate: None,
     };
     let _ = auth.authenticate(&view, NOW);
 });
