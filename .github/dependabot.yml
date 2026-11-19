@@ -34,3 +34,10 @@ updates:
       website-all:
         patterns:
           - "*"
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "deps(docker)"
