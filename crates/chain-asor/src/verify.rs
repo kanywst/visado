@@ -202,12 +202,21 @@ impl Default for Limits {
 }
 
 /// What a holder sends with one request.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Presentation<'a> {
     /// The chain, root first, each token in compact serialization.
     pub chain: &'a [String],
     /// The DPoP proof for this request.
     pub dpop: &'a str,
+}
+
+// Tokens are bearer-equivalent: Debug shows only how many there are.
+impl std::fmt::Debug for Presentation<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Presentation")
+            .field("chain_tokens", &self.chain.len())
+            .finish_non_exhaustive()
+    }
 }
 
 /// The action being authorized (step 8).
@@ -446,7 +455,7 @@ impl Verifier {
 
     /// Step 1. Returns the anchor of `DT_0`.
     fn signatures<'a>(&'a self, tokens: &[Token<'_>]) -> Result<&'a TrustAnchor, AsorError> {
-        let mut root = None;
+        let mut root: Option<&TrustAnchor> = None;
         for (i, token) in tokens.iter().enumerate() {
             let err = |reason| AsorError::at(Outcome::SignatureInvalid, i, reason);
             let alg = Alg::from_name(&token.alg)
@@ -456,13 +465,21 @@ impl Verifier {
                 .kid
                 .as_deref()
                 .filter(|kid| self.anchors.iter().any(|a| a.kid.as_deref() == Some(*kid)));
-            let anchor = self
-                .anchors
-                .iter()
-                .filter(|a| by_kid.is_none() || a.kid.as_deref() == by_kid)
-                .filter(|a| a.alg == alg && a.issuer == token.iss)
-                .find(|a| a.verifies(token.jws))
-                .ok_or(err("signature does not verify under a trusted key"))?;
+            // Every token must verify under the root's anchor: the draft has
+            // one signer per chain, and the normalized chain records that
+            // anchor as the signer of every hop.
+            let anchor = match root {
+                Some(root) => Some(root)
+                    .filter(|a| a.alg == alg && a.issuer == token.iss && a.verifies(token.jws))
+                    .ok_or(err("signature does not verify under the root's anchor"))?,
+                None => self
+                    .anchors
+                    .iter()
+                    .filter(|a| by_kid.is_none() || a.kid.as_deref() == by_kid)
+                    .filter(|a| a.alg == alg && a.issuer == token.iss)
+                    .find(|a| a.verifies(token.jws))
+                    .ok_or(err("signature does not verify under a trusted key"))?,
+            };
             if i == 0 {
                 root = Some(anchor);
             }
