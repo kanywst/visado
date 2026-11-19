@@ -36,7 +36,9 @@ updates:
           - "*"
 
   - package-ecosystem: docker
-    directory: "/"
+    directories:
+      - "/"
+      - "/deploy/lab/spire"
     schedule:
       interval: weekly
     commit-message:
