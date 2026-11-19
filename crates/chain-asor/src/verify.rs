@@ -225,7 +225,7 @@ pub struct Action<'a> {
     /// The operation, as a scope value.
     pub scope: &'a str,
     /// The action's parameters as JSON object text. A per-action constraint
-    /// reads the member named by its key; an absent member is not bounded.
+    /// reads the member named by its key; an absent member fails the constraint.
     pub params_json: &'a str,
     /// Where cumulative constraints read their running totals. `None`
     /// denies any leaf with a cumulative constraint.
