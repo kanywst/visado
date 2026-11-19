@@ -130,7 +130,7 @@ fn the_body_must_match_a_covered_digest() {
     run(&auth, &headers, None, NOW).unwrap();
 
     // A body the signature does not cover through Content-Digest is refused,
-    // whether the proxy sent it or only Content-Length announces it.
+    // whether the proxy sent it or only Content-Length or chunking announces it.
     let headers = signed(1, &[], &spec("d6"));
     assert_eq!(
         run(&auth, &headers, Some(body), NOW).unwrap_err(),
@@ -142,6 +142,12 @@ fn the_body_must_match_a_covered_digest() {
         run(&auth, &headers, None, NOW).unwrap_err(),
         "httpsig.invalid",
         "announced body"
+    );
+    let headers = with(signed(1, &[], &spec("d8")), "transfer-encoding", "chunked");
+    assert_eq!(
+        run(&auth, &headers, None, NOW).unwrap_err(),
+        "httpsig.invalid",
+        "chunked body"
     );
 }
 

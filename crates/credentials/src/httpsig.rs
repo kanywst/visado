@@ -85,13 +85,14 @@ pub(crate) fn verify(
 
     // A request with a body must cover Content-Digest, or the body could be
     // swapped under a valid signature. The body counts as present when Envoy
-    // sent one or Content-Length says there is one.
+    // sent one, Content-Length says there is one, or the request is chunked.
     let covers_digest = verified
         .components
         .contains(&Component::header("content-digest"));
     let has_body = request.body.is_some_and(|b| !b.is_empty())
         || request.headers.iter().any(|(n, v)| {
-            n == "content-length" && v.trim().parse::<u64>().map_or(true, |len| len > 0)
+            n == "transfer-encoding"
+                || (n == "content-length" && v.trim().parse::<u64>().map_or(true, |len| len > 0))
         });
     if has_body && !covers_digest {
         return Err(AuthError::HttpSig(
