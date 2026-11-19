@@ -1,3 +1,6 @@
 target
 .git
 docs
+fuzz/target
+fuzz/corpus
+fuzz/artifacts
