@@ -89,8 +89,18 @@ struct Claims {
     iat: Option<u64>,
     #[serde(default)]
     jti: Option<String>,
-    #[serde(default)]
+    /// `null` is kept as a present claim, so a chain adapter rejects it
+    /// rather than reading the token as having no actor.
+    #[serde(default, deserialize_with = "present")]
     act: Option<serde_json::Value>,
+}
+
+/// Any value, `null` included, as `Some`. Absence is `None` through
+/// `#[serde(default)]`.
+fn present<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<serde_json::Value>, D::Error> {
+    serde_json::Value::deserialize(deserializer).map(Some)
 }
 
 #[derive(Deserialize)]

@@ -234,6 +234,7 @@ async fn a_malformed_act_claim_is_denied() {
     let gate = gate_with(config);
     let cases = [
         (json!(AGENT), "act.not_object"),
+        (Value::Null, "act.not_object"),
         (json!({ "sub": AGENT, "act": [] }), "act.not_object"),
         (json!({ "iss": OAUTH_ISSUER }), "act.missing_sub"),
         (

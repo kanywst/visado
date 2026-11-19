@@ -229,6 +229,16 @@ fn an_access_token_exposes_its_actor_claim_and_key() {
         .user
         .unwrap();
     assert!(user.act.is_none());
+
+    // A null act is present, not absent.
+    let mut null = claims.clone();
+    null["act"] = serde_json::Value::Null;
+    let token = format!("Bearer {}", signed_access_token(&null));
+    let user = run(&auth, &[("authorization", &token)])
+        .unwrap()
+        .user
+        .unwrap();
+    assert_eq!(user.act, Some(serde_json::Value::Null));
 }
 
 #[test]
