@@ -21,6 +21,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ### Fixed
 
+- A chain verified on a forwarded Transaction Token is recorded in a replacement token (`tctx.chain:<caller>`) instead of being dropped.
 - The gate accepts only two request forms with an AAT chain (one `tools/call`, or a body-less GET/HEAD/DELETE/OPTIONS without a query string) and denies the rest. `[aat] required = true` denies requests that carry no chain.
 - The gate no longer treats a request that is not one MCP tool call as the path tool: batches, non-JSON bodies, malformed `tools/call` and missing bodies are denied.
 - A bearer-only caller can no longer present an AAT chain; only a WIT caller whose key is the chain's holder can.
