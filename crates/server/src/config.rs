@@ -388,7 +388,8 @@ jwks_file = "j"
     fn aat_must_say_whether_a_chain_is_required() {
         let without = format!("{BASE}[aat]\naudiences = [\"a\"]\ntrust_anchors = []\n");
         assert!(toml::from_str::<Config>(&without).is_err());
-        let with = format!("{BASE}[aat]\naudiences = [\"a\"]\ntrust_anchors = []\nrequired = true\n");
+        let with =
+            format!("{BASE}[aat]\naudiences = [\"a\"]\ntrust_anchors = []\nrequired = true\n");
         assert!(toml::from_str::<Config>(&with).is_ok());
     }
 
