@@ -40,7 +40,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 - Chain view UI, OpenTelemetry spans, and the audit record.
 - Four attack demos: three that visado stops and one that it does not.
 - **Gate:** `docker compose up` reproduces every demo from a clean checkout.
-- **Status:** started. `deploy/lab` (Envoy, visado, OPA with the AuthZEN plugin, an echo upstream) runs eight scenarios in CI. Not yet: Dex, Keycloak, SPIRE, agentgateway, the chain view and OpenTelemetry.
+- **Status:** started. `deploy/lab` (Envoy, visado, OPA with the AuthZEN plugin, an echo upstream, SPIRE issuing WIT-SVIDs, Jaeger for the OpenTelemetry spans) runs thirteen checks in CI. Not yet: Dex, Keycloak, agentgateway and the chain view.
 
 ## Phase 6: Interop and launch
 

@@ -5,8 +5,31 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 cargo build -q -p visado-testkit --example lab_headers --example lab_aat
-headers() { ./target/debug/examples/lab_headers "$@"; }
-aat() { ./target/debug/examples/lab_aat "$@"; }
+
+tmp=$(mktemp)
+svids=$(mktemp -d)
+trap 'rm -rf "$tmp" "$svids"' EXIT
+
+# Each workload fetches its WIT-SVID and private key from the SPIRE agent's
+# Workload API, as the Unix user the agent attests it by.
+for workload in agent-a agent-b agent-z; do
+  for i in $(seq 60); do
+    if docker compose -f deploy/lab/compose.yaml exec -T -u "$workload" spire-agent \
+      spire-agent api fetch wit -socketPath /run/spire/agent/api.sock -output json \
+      > "$svids/$workload.json" 2>/dev/null; then
+      break
+    fi
+    if [ "$i" = 60 ]; then
+      echo "no WIT-SVID for $workload from the SPIRE agent" >&2
+      exit 1
+    fi
+    sleep 1
+  done
+  echo "      SPIRE issued a WIT-SVID for spiffe://td.example/$workload"
+done
+
+headers() { ./target/debug/examples/lab_headers "$svids" "$@"; }
+aat() { ./target/debug/examples/lab_aat "$svids" "$@"; }
 
 URL=http://127.0.0.1:10000
 failures=0
@@ -38,9 +61,6 @@ for _ in $(seq 60); do
   [ "$code" = "401" ] && break
   sleep 1
 done
-
-tmp=$(mktemp)
-trap 'rm -f "$tmp"' EXIT
 
 # Wait for the PDP: the first evaluations after startup can be slow.
 for _ in $(seq 60); do

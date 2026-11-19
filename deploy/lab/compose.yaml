@@ -1,6 +1,6 @@
 # A local lab: Envoy calls visado over ext_authz, visado asks an AuthZEN PDP
 # (OPA with the AuthZEN plugin), and allowed requests reach an echo server
-# that shows the headers it received.
+# that shows the headers it received. SPIRE issues the workloads' WITs.
 services:
   envoy:
     image: envoyproxy/envoy:v1.34.1
@@ -15,9 +15,69 @@ services:
     build:
       context: ../..
     volumes:
-      - ./visado.toml:/etc/visado/visado.toml:ro
-      - ../local/keys:/etc/visado/keys:ro
-    depends_on: [pdp, jaeger]
+      - visado-config:/etc/visado:ro
+    depends_on:
+      pdp: { condition: service_started }
+      jaeger: { condition: service_started }
+      wit-config: { condition: service_completed_successfully }
+
+  # SPIRE v1.16.0 with experimental WIT-SVIDs. The agent attests with a join
+  # token; agent-a, agent-b and agent-z are Unix users in the agent container,
+  # told apart by the unix workload attestor.
+  spire-server:
+    build: ./spire
+    command: ["spire-server", "run", "-config", "/etc/spire/server.conf"]
+    volumes:
+      - ./spire/server.conf:/etc/spire/server.conf:ro
+      - spire-server-socket:/run/spire/server
+    healthcheck:
+      test: ["CMD", "spire-server", "healthcheck", "-socketPath", "/run/spire/server/api.sock"]
+      interval: 1s
+      retries: 60
+
+  spire-setup:
+    build: ./spire
+    command: ["/lab/setup.sh"]
+    volumes:
+      - ./spire/setup.sh:/lab/setup.sh:ro
+      - spire-server-socket:/run/spire/server
+      - spire-shared:/run/spire/shared
+    depends_on:
+      spire-server: { condition: service_healthy }
+
+  spire-agent:
+    build: ./spire
+    command:
+      - spire-agent
+      - run
+      - -config
+      - /etc/spire/agent.conf
+      - -joinTokenFile
+      - /run/spire/shared/join-token
+    volumes:
+      - ./spire/agent.conf:/etc/spire/agent.conf:ro
+      - spire-shared:/run/spire/shared:ro
+      - spire-agent-socket:/run/spire/agent
+    healthcheck:
+      test: ["CMD", "spire-agent", "healthcheck", "-socketPath", "/run/spire/agent/api.sock"]
+      interval: 1s
+      retries: 60
+    depends_on:
+      spire-setup: { condition: service_completed_successfully }
+
+  # Writes visado's configuration, trusting the SPIRE WIT bundle.
+  wit-config:
+    build: ./spire
+    command: ["/lab/wit-config.sh"]
+    pid: "service:spire-agent"
+    volumes:
+      - ./spire/wit-config.sh:/lab/wit-config.sh:ro
+      - ./visado.toml:/lab/visado.toml:ro
+      - ../local/keys:/lab/keys:ro
+      - spire-agent-socket:/run/spire/agent
+      - visado-config:/etc/visado
+    depends_on:
+      spire-agent: { condition: service_healthy }
 
   pdp:
     image: ghcr.io/kanywst/opa-authzen-plugin:0.12.1
@@ -40,3 +100,9 @@ services:
     image: mendhak/http-https-echo:37
     environment:
       HTTP_PORT: "8080"
+
+volumes:
+  spire-server-socket:
+  spire-shared:
+  spire-agent-socket:
+  visado-config:

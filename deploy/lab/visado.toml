@@ -1,4 +1,7 @@
-# The keys under ../local/keys are fixed demo keys; anyone can sign with them.
+# The template for visado's configuration in the lab. spire/wit-config.sh
+# copies it, adds a [[wit_issuers]] entry for the SPIRE WIT bundle, and
+# copies ../local/keys next to it. The keys under ../local/keys are fixed demo
+# keys; anyone can sign with them.
 trust_domain = "td.example"
 grpc_listen = "0.0.0.0:9191"
 http_listen = "0.0.0.0:8080"
@@ -14,10 +17,6 @@ jwk_file = "keys/txn-signing.private.jwk.json"
 [pdp]
 endpoint = "http://pdp:8181/access/v1/evaluation"
 timeout_ms = 500
-
-[[wit_issuers]]
-trust_domain = "td.example"
-keys = [{ kid = "wit-1", jwk_file = "keys/wit-issuer.jwk.json" }]
 
 [[oauth_issuers]]
 issuer = "https://idp.example"
