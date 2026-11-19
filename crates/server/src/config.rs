@@ -77,6 +77,12 @@ pub struct JwtBundleConfig {
 #[serde(deny_unknown_fields)]
 pub struct MtlsConfig {
     pub trust_bundles: Vec<X509BundleConfig>,
+    /// A certificate is public, so anyone who can call the gRPC port can claim
+    /// any workload's. Unless this is set, `[mtls]` needs a loopback
+    /// `grpc_listen`; set it only when the network lets nothing but the proxy
+    /// reach that port.
+    #[serde(default)]
+    pub grpc_reachable_only_by_proxy: bool,
 }
 
 /// The CA for one trust domain. Leaf certificates must be issued directly by
@@ -263,6 +269,9 @@ impl Config {
             }
         }
         if let Some(mtls) = &self.mtls {
+            if !self.grpc_listen.ip().is_loopback() && !mtls.grpc_reachable_only_by_proxy {
+                return Err("[mtls] needs a loopback grpc_listen, or grpc_reachable_only_by_proxy = true when only the proxy can reach the port".into());
+            }
             check_trust_domains(
                 "mtls.trust_bundles",
                 mtls.trust_bundles.iter().map(|b| &b.trust_domain),
@@ -539,6 +548,15 @@ jwks_file = "j"
         );
         assert!(parse_tables(&bundle("spiffe://td.example")).is_err());
         assert!(parse_tables(&bundle("")).is_err());
+        let open = |extra: &str| {
+            let config: Config = toml::from_str(&format!(
+                "grpc_listen = \"0.0.0.0:9191\"\n{BASE}[mtls]\n{extra}[[mtls.trust_bundles]]\ntrust_domain = \"td.example\"\nca_file = \"ca.pem\"\n"
+            ))
+            .unwrap();
+            config.validate()
+        };
+        assert!(open("").is_err());
+        assert!(open("grpc_reachable_only_by_proxy = true\n").is_ok());
         assert!(parse_tables("[[mtls.trust_bundles]]\ntrust_domain = \"td.example\"\nca_file = \"ca.pem\"\nchain = true\n").is_err());
     }
 

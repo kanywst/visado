@@ -9,7 +9,7 @@ Adds the remaining workload authentication methods. Breaking for library users: 
 ### Added
 
 - `visado-credentials`: a WIT caller can sign the request with an HTTP message signature (draft-ietf-wimse-http-signature-08) instead of sending a WPT. The draft's profile and required components, `wimse-aud`, the `created`/`expires` window (`max_signature_lifetime`, default 60 s), nonce replay and a covered `Content-Digest` against the received body are checked. Failures are `httpsig.invalid` with status 400 and an RFC 9457 problem document.
-- `visado-credentials`: mTLS with an X.509-SVID that Envoy terminated and passes in `source.certificate`, verified against one CA per trust domain (`[mtls]`). The certificate key is the AAT holder key.
+- `visado-credentials`: mTLS with an X.509-SVID that Envoy terminated and passes in `source.certificate`, verified against one CA per trust domain (`[mtls]`). The certificate key is the AAT holder key. `[mtls]` needs a loopback `grpc_listen` unless `grpc_reachable_only_by_proxy = true`.
 - `visado-credentials`: SPIFFE JWT-SVIDs as bearer tokens (`RS256`, `ES256`), verified against a JWT bundle per trust domain (`[jwt_svid]`).
 - The PDP context and the Transaction Token `tctx` name the new methods `wit-httpsig`, `mtls` and `jwt-svid`.
 - Credential headers longer than 16 KiB are denied (`credential.too_large`) before decoding.
