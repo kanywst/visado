@@ -64,7 +64,9 @@ fn input_from(request: &CheckRequest) -> Option<CheckInput> {
             .map(|(k, v)| (k.to_ascii_lowercase(), v.clone()))
             .collect(),
     };
-    headers.sort();
+    // Group by name, keeping repeated fields in the order received: an HTTP
+    // signature covers their values joined in that order.
+    headers.sort_by(|a, b| a.0.cmp(&b.0));
     let body = if http.raw_body.is_empty() {
         http.body.as_bytes().to_vec()
     } else {
@@ -240,5 +242,40 @@ mod tests {
             .find(|h| h.key == "content-type")
             .map(|h| h.value.as_str());
         assert_eq!(content_type, Some("application/problem+json"));
+    }
+
+    #[test]
+    fn repeated_headers_keep_their_order() {
+        use envoy_types::pb::envoy::config::core::v3::{HeaderMap, HeaderValue};
+        let header = |k: &str, v: &str| HeaderValue {
+            key: k.into(),
+            value: v.into(),
+            ..HeaderValue::default()
+        };
+        let request = CheckRequest {
+            attributes: Some(AttributeContext {
+                request: Some(Request {
+                    http: Some(HttpRequest {
+                        header_map: Some(HeaderMap {
+                            headers: vec![
+                                header("x-b", "2"),
+                                header("x-a", "z"),
+                                header("x-a", "y"),
+                            ],
+                        }),
+                        ..HttpRequest::default()
+                    }),
+                    ..Request::default()
+                }),
+                ..AttributeContext::default()
+            }),
+        };
+        let input = input_from(&request).unwrap();
+        let pairs: Vec<(&str, &str)> = input
+            .headers
+            .iter()
+            .map(|(n, v)| (n.as_str(), v.as_str()))
+            .collect();
+        assert_eq!(pairs, [("x-a", "z"), ("x-a", "y"), ("x-b", "2")]);
     }
 }
