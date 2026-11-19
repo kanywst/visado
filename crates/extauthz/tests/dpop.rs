@@ -14,6 +14,7 @@ use visado_extauthz::{CheckInput, Gate, GateConfig, Outcome};
 use visado_testkit::{
     AAT_ISSUER, NOW, OAUTH_ISSUER, TRUST_DOMAIN, aat_anchor_key, aat_pop, aat_root,
     dpop_access_token, dpop_claims, dpop_jwk, dpop_proof, oauth_jwks, pop_key, sign_dpop_proof,
+    signed_access_token,
 };
 use visado_txn_token::{KeySet, Scope, TxnTokenClaims, Validation, verify};
 use wimsey_jose::SigningKey;
@@ -61,6 +62,7 @@ fn gate() -> (Gate<RecordingPdp>, Seen) {
             vec![AUDIENCE.to_owned()],
         )),
         asor: None,
+        act: Some(visado_chain_act::Verifier::new()),
         require_chain: false,
     };
     let authenticator = Authenticator::new().with_oauth_issuer(OAuthIssuer::new(
@@ -360,4 +362,47 @@ async fn a_dpop_client_holds_an_aat_chain_with_its_proof_key_but_cannot_forward(
         denied(&gate.check(&forwarded, NOW, "t").await).1,
         "txn.untrusted_hop"
     );
+}
+
+#[tokio::test]
+async fn a_dpop_client_presents_an_act_chain_naming_itself() {
+    let (gate, seen) = gate();
+    let jkt = visado_chain_aat::jwk_thumbprint(&holder().verifying_key());
+    let token_with = |actor: &str| {
+        signed_access_token(&json!({
+            "iss": OAUTH_ISSUER, "sub": "alice", "aud": AUDIENCE, "client_id": "mcp-client",
+            "scope": "files.read", "iat": NOW - 5, "exp": NOW + 300, "jti": format!("at-{actor}"),
+            "cnf": { "jkt": jkt },
+            "act": { "sub": actor, "act": { "sub": "planner" } },
+        }))
+    };
+
+    let at = token_with("mcp-client");
+    let outcome = gate
+        .check(
+            &dpop_call(&at, dpop_proof(&holder(), "POST", URI, &at, "a-1", NOW)),
+            NOW,
+            "t1",
+        )
+        .await;
+    let claims = minted(&outcome);
+    assert_eq!(claims.sub, "alice");
+    let chain = &seen.lock().unwrap().clone().unwrap().context.unwrap()["chain"];
+    assert_eq!(chain["actor"]["sub"], json!("mcp-client"));
+    assert_eq!(chain["caller_kind"], json!("client"));
+    assert!(
+        chain.get("prior_actors").is_none(),
+        "prior actors stay out of the PDP"
+    );
+
+    // The current actor must be the client that proved the key.
+    let at = token_with("someone-else");
+    let outcome = gate
+        .check(
+            &dpop_call(&at, dpop_proof(&holder(), "POST", URI, &at, "a-2", NOW)),
+            NOW,
+            "t2",
+        )
+        .await;
+    assert_eq!(denied(&outcome).1, "act.actor_mismatch");
 }

@@ -2431,6 +2431,7 @@ dependencies = [
  "tracing-subscriber",
  "visado-authzen",
  "visado-chain-aat",
+ "visado-chain-act",
  "visado-chain-asor",
  "visado-credentials",
  "visado-extauthz",
@@ -2471,6 +2472,14 @@ dependencies = [
  "sha2",
  "visado-chain",
  "wimsey-jose",
+]
+
+[[package]]
+name = "visado-chain-act"
+version = "0.2.0"
+dependencies = [
+ "serde_json",
+ "visado-chain",
 ]
 
 [[package]]
@@ -2516,10 +2525,12 @@ dependencies = [
  "tokio",
  "tonic",
  "tracing",
+ "tracing-subscriber",
  "uuid",
  "visado-authzen",
  "visado-chain",
  "visado-chain-aat",
+ "visado-chain-act",
  "visado-chain-asor",
  "visado-credentials",
  "visado-testkit",

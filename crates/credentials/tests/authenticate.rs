@@ -198,6 +198,50 @@ fn bearer_only_caller_is_the_client() {
 }
 
 #[test]
+fn an_access_token_exposes_its_actor_claim_and_key() {
+    use serde_json::json;
+    use visado_testkit::signed_access_token;
+    let auth = authenticator();
+    let claims = json!({
+        "iss": OAUTH_ISSUER, "sub": "alice", "aud": AUDIENCE, "client_id": "c1",
+        "iat": NOW - 5, "exp": NOW + 300, "jti": "at-1",
+        "act": { "sub": "c1", "act": { "sub": "agent-0" } },
+    });
+    let token = format!("Bearer {}", signed_access_token(&claims));
+    let user = run(&auth, &[("authorization", &token)])
+        .unwrap()
+        .user
+        .unwrap();
+    assert_eq!(user.act, Some(claims["act"].clone()));
+    assert_eq!(user.id.as_deref(), Some("at-1"));
+    assert_eq!(user.issued_at, Some(NOW - 5));
+    let jwks: jsonwebtoken::jwk::JwkSet = serde_json::from_value(oauth_jwks()).unwrap();
+    assert_eq!(
+        user.key_thumbprint,
+        jwks.keys[0]
+            .thumbprint(jsonwebtoken::jwk::ThumbprintHash::SHA256)
+            .unwrap()
+    );
+
+    let plain = access_token("alice", "c1", "s", AUDIENCE, NOW + 300);
+    let user = run(&auth, &[("authorization", &format!("Bearer {plain}"))])
+        .unwrap()
+        .user
+        .unwrap();
+    assert!(user.act.is_none());
+
+    // A null act is present, not absent.
+    let mut null = claims.clone();
+    null["act"] = serde_json::Value::Null;
+    let token = format!("Bearer {}", signed_access_token(&null));
+    let user = run(&auth, &[("authorization", &token)])
+        .unwrap()
+        .user
+        .unwrap();
+    assert_eq!(user.act, Some(serde_json::Value::Null));
+}
+
+#[test]
 fn access_token_edge_cases() {
     use serde_json::json;
     use visado_testkit::signed_access_token;

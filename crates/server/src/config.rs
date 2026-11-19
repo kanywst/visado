@@ -1,6 +1,6 @@
 //! The TOML configuration file.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -56,6 +56,28 @@ pub struct Config {
     pub jwt_svid: Option<JwtSvidConfig>,
     #[serde(default)]
     pub asor: Option<AsorConfig>,
+    #[serde(default)]
+    pub act: Option<ActConfig>,
+}
+
+/// RFC 8693 `act` (actor) chains in the caller's access token.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ActConfig {
+    /// Deny requests that carry no chain. Has no default, as for `[aat]`.
+    pub required: bool,
+    /// The most actors one `act` claim may name, the current one included.
+    #[serde(default = "default_max_actors")]
+    pub max_actors: usize,
+    /// Maps an actor's `act.sub` to the caller identifier it must
+    /// authenticate as, for issuers that name actors differently. Without an
+    /// entry, `act.sub` must equal the caller identifier.
+    #[serde(default)]
+    pub actors: BTreeMap<String, String>,
+}
+
+const fn default_max_actors() -> usize {
+    visado_chain_act::DEFAULT_MAX_ACTORS
 }
 
 /// SPIFFE JWT-SVIDs as bearer tokens.
@@ -336,6 +358,7 @@ impl Config {
                 return Err("jwt_svid.audiences needs at least one non-empty audience".into());
             }
         }
+        self.validate_chains()?;
         let mut issuers = BTreeSet::new();
         for issuer in &self.oauth_issuers {
             if !issuers.insert(&issuer.issuer) {
@@ -345,6 +368,44 @@ impl Config {
         Ok(())
     }
 
+    /// The chain sections: `[act]` itself and `required` across formats.
+    fn validate_chains(&self) -> Result<(), String> {
+        if let Some(act) = &self.act {
+            if !(1..=visado_chain_act::MAX_ACTORS_LIMIT).contains(&act.max_actors) {
+                return Err(format!(
+                    "act.max_actors must be 1..={}",
+                    visado_chain_act::MAX_ACTORS_LIMIT
+                ));
+            }
+            if act
+                .actors
+                .iter()
+                .any(|(actor, caller)| actor.is_empty() || caller.trim().is_empty())
+            {
+                return Err("act.actors needs non-empty actors and callers".into());
+            }
+            if self.oauth_issuers.is_empty() {
+                return Err("[act] needs at least one oauth_issuers entry".into());
+            }
+        }
+        // One request carries one chain, so a format with required = false
+        // would let a request without any chain through even when another
+        // format says a chain is required.
+        let required: BTreeSet<bool> = [
+            self.aat.as_ref().map(|c| c.required),
+            self.asor.as_ref().map(|c| c.required),
+            self.act.as_ref().map(|c| c.required),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        if required.len() > 1 {
+            return Err(
+                "[aat], [asor] and [act] must all set the same required value: whether a request without a chain is denied applies to every format".into(),
+            );
+        }
+        Ok(())
+    }
     fn build(self, base: &Path) -> Result<Loaded, String> {
         let private: PrivateJwk = read_json(&base.join(&self.signing_key.jwk_file))?;
         let signing_key = private
@@ -392,7 +453,9 @@ impl Config {
         authenticator.check()?;
 
         let require_chain = self.aat.as_ref().is_some_and(|a| a.required)
-            || self.asor.as_ref().is_some_and(|a| a.required);
+            || self.asor.as_ref().is_some_and(|a| a.required)
+            || self.act.as_ref().is_some_and(|a| a.required);
+        let act = self.act.map(ActConfig::verifier);
         let aat = self.aat.map(|c| c.verifier(base)).transpose()?;
         let asor = self.asor.map(|c| c.verifier(base)).transpose()?;
 
@@ -415,6 +478,7 @@ impl Config {
                 allowed_authorities: self.allowed_authorities,
                 aat,
                 asor,
+                act,
                 require_chain,
             },
             authenticator,
@@ -501,6 +565,16 @@ impl AatConfig {
             require_pop_aud: self.require_pop_aud,
             nonces: None,
         }))
+    }
+}
+
+impl ActConfig {
+    fn verifier(self) -> visado_chain_act::Verifier {
+        let mut verifier = visado_chain_act::Verifier::new().with_max_actors(self.max_actors);
+        for (actor, caller) in self.actors {
+            verifier = verifier.with_actor(actor, caller);
+        }
+        verifier
     }
 }
 
@@ -817,6 +891,60 @@ jwks_file = "j"
         let with =
             format!("{BASE}[asor]\naudiences = [\"a\"]\ntrust_anchors = []\nrequired = false\n");
         assert!(toml::from_str::<Config>(&with).is_ok());
+    }
+
+    #[test]
+    fn act_must_say_whether_a_chain_is_required() {
+        let issuer =
+            "[[oauth_issuers]]\nissuer = \"https://idp\"\naudience = \"a\"\njwks_file = \"j\"\n";
+        assert!(toml::from_str::<Config>(&format!("{BASE}{issuer}[act]\n")).is_err());
+        assert!(parse_tables(&format!("{issuer}[act]\nrequired = false\n")).is_ok());
+        let config: Config =
+            toml::from_str(&format!("{BASE}{issuer}[act]\nrequired = true\n")).unwrap();
+        let act = config.act.unwrap();
+        assert_eq!(act.max_actors, visado_chain_act::DEFAULT_MAX_ACTORS);
+        assert!(act.actors.is_empty());
+    }
+
+    #[test]
+    fn act_settings_are_checked() {
+        let issuer =
+            "[[oauth_issuers]]\nissuer = \"https://idp\"\naudience = \"a\"\njwks_file = \"j\"\n";
+        let act = |extra: &str| parse_tables(&format!("{issuer}[act]\nrequired = true\n{extra}"));
+        assert!(act("max_actors = 1\n").is_ok());
+        assert!(act("max_actors = 32\n").is_ok());
+        assert!(act("max_actors = 0\n").is_err());
+        assert!(act("max_actors = 33\n").is_err());
+        assert!(act("unknown = 1\n").is_err());
+        assert!(
+            act("[act.actors]\n\"agent-b-client\" = \"spiffe://td.example/agent-b\"\n").is_ok()
+        );
+        assert!(act("[act.actors]\n\"agent-b-client\" = \" \"\n").is_err());
+        assert!(act("[act.actors]\n\"\" = \"spiffe://td.example/agent-b\"\n").is_err());
+        // An act chain is read from an access token, so an issuer is needed.
+        assert!(parse_tables("[act]\nrequired = true\n").is_err());
+    }
+
+    #[test]
+    fn chain_formats_must_agree_on_required() {
+        let issuer =
+            "[[oauth_issuers]]\nissuer = \"https://idp\"\naudience = \"a\"\njwks_file = \"j\"\n";
+        let tables = |aat: bool, asor: Option<bool>, act: Option<bool>| {
+            let asor = asor.map_or(String::new(), |r| {
+                format!("[asor]\naudiences = [\"a\"]\ntrust_anchors = []\nrequired = {r}\n")
+            });
+            let act = act.map_or(String::new(), |r| format!("[act]\nrequired = {r}\n"));
+            let t = format!(
+                "{issuer}[aat]\naudiences = [\"a\"]\ntrust_anchors = []\nrequired = {aat}\n{asor}{act}"
+            );
+            parse_tables(&t)
+        };
+        assert!(tables(true, None, Some(true)).is_ok());
+        assert!(tables(false, Some(false), Some(false)).is_ok());
+        let err = tables(true, None, Some(false)).unwrap_err();
+        assert!(err.contains("same required value"), "{err}");
+        assert!(tables(false, Some(true), None).is_err());
+        assert!(tables(true, Some(true), Some(false)).is_err());
     }
 
     #[test]

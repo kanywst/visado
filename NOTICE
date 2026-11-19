@@ -19,3 +19,9 @@ Apache License, Version 2.0. Its NOTICE reads:
 
   This product includes software developed for Attenu (https://attenu.io).
   Licensed under the Apache License, Version 2.0.
+
+conformance/act/vectors.json reproduces the JWT claim sets of Figures 5 and 6
+of RFC 8693 (https://www.rfc-editor.org/rfc/rfc8693):
+
+  Copyright (c) 2020 IETF Trust and the persons identified as the document
+  authors. All rights reserved.
