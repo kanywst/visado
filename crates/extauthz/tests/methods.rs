@@ -127,6 +127,10 @@ fn signed_call(
         .collect();
     headers.push(("signature-input".into(), signature_input));
     headers.push(("signature".into(), signature));
+    headers.push((
+        "content-length".into(),
+        body.map_or(0, <[u8]>::len).to_string(),
+    ));
     input("/mcp", headers, body.map(<[u8]>::to_vec))
 }
 

@@ -85,15 +85,27 @@ pub(crate) fn verify(
 
     // A request with a body must cover Content-Digest, or the body could be
     // swapped under a valid signature. The body counts as present when Envoy
-    // sent one, Content-Length says there is one, or the request is chunked.
+    // sent one, Content-Length says there is one, the request is chunked, or
+    // the method may carry a body and no Content-Length says it is empty
+    // (HTTP/2 needs neither header).
     let covers_digest = verified
         .components
         .contains(&Component::header("content-digest"));
+    let content_length = request
+        .headers
+        .iter()
+        .find(|(n, _)| n == "content-length")
+        .map(|(_, v)| v.trim().parse::<u64>().unwrap_or(u64::MAX));
+    let bodyless_method = matches!(
+        request.method.to_ascii_uppercase().as_str(),
+        "GET" | "HEAD" | "DELETE" | "OPTIONS" | "TRACE"
+    );
     let has_body = request.body.is_some_and(|b| !b.is_empty())
-        || request.headers.iter().any(|(n, v)| {
-            n == "transfer-encoding"
-                || (n == "content-length" && v.trim().parse::<u64>().map_or(true, |len| len > 0))
-        });
+        || request
+            .headers
+            .iter()
+            .any(|(n, _)| n == "transfer-encoding")
+        || content_length.map_or(!bodyless_method, |len| len > 0);
     if has_body && !covers_digest {
         return Err(AuthError::HttpSig(
             "a request with a body must cover content-digest".into(),

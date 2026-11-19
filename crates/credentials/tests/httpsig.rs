@@ -22,7 +22,29 @@ fn authenticator() -> Authenticator {
         .with_oauth_issuer(OAuthIssuer::new(OAUTH_ISSUER, AUDIENCE, jwks))
 }
 
+/// Runs a POST. Without a body or a length header it says `content-length: 0`,
+/// since a POST is otherwise assumed to carry a body.
 fn run(
+    auth: &Authenticator,
+    headers: &[(String, String)],
+    body: Option<&[u8]>,
+    now: u64,
+) -> Result<Authenticated, String> {
+    let announced = headers
+        .iter()
+        .any(|(n, _)| n == "content-length" || n == "transfer-encoding");
+    if body.is_none() && !announced {
+        return run_raw(
+            auth,
+            &with(headers.to_vec(), "content-length", "0"),
+            body,
+            now,
+        );
+    }
+    run_raw(auth, headers, body, now)
+}
+
+fn run_raw(
     auth: &Authenticator,
     headers: &[(String, String)],
     body: Option<&[u8]>,
@@ -149,6 +171,13 @@ fn the_body_must_match_a_covered_digest() {
         "httpsig.invalid",
         "chunked body"
     );
+    // A POST with no length header at all (HTTP/2) is assumed to carry one.
+    let headers = signed(1, &[], &spec("d9"));
+    assert_eq!(
+        run_raw(&auth, &headers, None, NOW).unwrap_err(),
+        "httpsig.invalid",
+        "unannounced body"
+    );
 }
 
 #[test]
@@ -183,6 +212,7 @@ type Case<'a> = (&'a str, Vec<(String, String)>, &'a str, u64, &'a str);
 
 /// The code and the detail of a rejection.
 fn failure(auth: &Authenticator, headers: &[(String, String)], path: &str, now: u64) -> String {
+    let headers = &with(headers.to_vec(), "content-length", "0");
     let view = RequestView {
         method: "POST",
         scheme: "https",
