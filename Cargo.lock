@@ -2431,6 +2431,7 @@ dependencies = [
  "tracing-subscriber",
  "visado-authzen",
  "visado-chain-aat",
+ "visado-chain-act",
  "visado-chain-asor",
  "visado-credentials",
  "visado-extauthz",

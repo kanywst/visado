@@ -52,9 +52,11 @@ async fn main() -> ExitCode {
 async fn run(path: &std::path::Path) -> Result<(), String> {
     let loaded = config::Config::load(path)?;
     let tracer = init_tracing(loaded.telemetry.as_ref())?;
-    if (loaded.gate.aat.is_some() || loaded.gate.asor.is_some()) && !loaded.gate.require_chain {
+    let chains =
+        loaded.gate.aat.is_some() || loaded.gate.asor.is_some() || loaded.gate.act.is_some();
+    if chains && !loaded.gate.require_chain {
         tracing::warn!(
-            "a delegation chain format is configured without required = true: requests without a chain header skip the chain checks"
+            "a delegation chain format is configured without required = true: requests without a chain skip the chain checks"
         );
     }
     let result = serve(loaded).await;
