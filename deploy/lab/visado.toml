@@ -26,6 +26,8 @@ jwks_file = "keys/oauth-jwks.json"
 
 [aat]
 # The lab also serves callers without a chain, so the chain is optional here.
+# Do not copy this into a deployment: set required = true wherever every
+# caller is an agent that must present a chain.
 required = false
 audiences = ["http://tools.td.example"]
 trust_anchors = [{ issuer = "https://aat.td.example", jwk_file = "keys/aat-anchor.jwk.json" }]
