@@ -1,6 +1,6 @@
 # Design (draft)
 
-Status: 2026-11-19. Steps 1, 2, 4, 5 and 6 (audit events only) are implemented; delegation chains (step 3), DPoP, HTTP signatures, mTLS, JWT-SVID, OpenTelemetry and the chain view are not. Items marked Open need a decision before the code that depends on them.
+Status: v0.2.0. Steps 1 to 6 are implemented, with AAT as the only chain format, audit events and OpenTelemetry spans. asor and RFC 8693 act chains, DPoP, HTTP signatures, mTLS, JWT-SVID and the chain view are not. Items marked Open need a decision before the code that depends on them.
 
 ## Request pipeline
 
