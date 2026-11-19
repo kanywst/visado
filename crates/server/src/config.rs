@@ -358,6 +358,18 @@ impl Config {
                 return Err("jwt_svid.audiences needs at least one non-empty audience".into());
             }
         }
+        self.validate_chains()?;
+        let mut issuers = BTreeSet::new();
+        for issuer in &self.oauth_issuers {
+            if !issuers.insert(&issuer.issuer) {
+                return Err(format!("duplicate oauth_issuers issuer {}", issuer.issuer));
+            }
+        }
+        Ok(())
+    }
+
+    /// The chain sections: `[act]` itself and `required` across formats.
+    fn validate_chains(&self) -> Result<(), String> {
         if let Some(act) = &self.act {
             if !(1..=visado_chain_act::MAX_ACTORS_LIMIT).contains(&act.max_actors) {
                 return Err(format!(
@@ -392,15 +404,8 @@ impl Config {
                 "[aat], [asor] and [act] must all set the same required value: whether a request without a chain is denied applies to every format".into(),
             );
         }
-        let mut issuers = BTreeSet::new();
-        for issuer in &self.oauth_issuers {
-            if !issuers.insert(&issuer.issuer) {
-                return Err(format!("duplicate oauth_issuers issuer {}", issuer.issuer));
-            }
-        }
         Ok(())
     }
-
     fn build(self, base: &Path) -> Result<Loaded, String> {
         let private: PrivateJwk = read_json(&base.join(&self.signing_key.jwk_file))?;
         let signing_key = private
