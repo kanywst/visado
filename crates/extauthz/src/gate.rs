@@ -248,7 +248,7 @@ impl<P: Pdp> Gate<P> {
 
         let mut request = evaluation_request(input, &caller, &principal, &scope, &trail.txn);
         if let Some(chain) = &chain {
-            request = request.with_context("chain", chain_context(chain, Reader::Pdp));
+            request = request.with_context("chain", chain_context(chain, &caller, Reader::Pdp));
         }
         match self.pdp.evaluate(&request, &trail.txn).await {
             Ok(decision) if decision.allowed => {}
@@ -479,7 +479,7 @@ impl<P: Pdp> Gate<P> {
         let mut additions = Map::new();
         additions.insert(
             format!("chain:{}", caller.caller),
-            chain_context(chain, Reader::TxnToken),
+            chain_context(chain, caller, Reader::TxnToken),
         );
         let next = replace(
             &previous,
@@ -724,7 +724,10 @@ fn tctx(caller: &Authenticated, chain: Option<&NormalizedChain>) -> Map<String, 
     map.insert("agent".into(), json!(caller.caller));
     map.insert("auth_method".into(), json!(method_name(caller.method)));
     if let Some(chain) = chain {
-        map.insert("chain".into(), chain_context(chain, Reader::TxnToken));
+        map.insert(
+            "chain".into(),
+            chain_context(chain, caller, Reader::TxnToken),
+        );
     }
     map
 }
@@ -741,9 +744,9 @@ enum Reader {
 /// The chain as the PDP and the Transaction Token see it: format, depth, the
 /// holders from root to leaf, and the leaf's authority. An RFC 8693 `act`
 /// chain has its own shape (see [`act_context`]).
-fn chain_context(chain: &NormalizedChain, reader: Reader) -> Value {
+fn chain_context(chain: &NormalizedChain, caller: &Authenticated, reader: Reader) -> Value {
     if chain.profile == Profile::Rfc8693Act {
-        return act_context(chain, reader);
+        return act_context(chain, caller, reader);
     }
     let holders: Vec<String> = chain
         .hops
@@ -763,11 +766,11 @@ fn chain_context(chain: &NormalizedChain, reader: Reader) -> Value {
     context
 }
 
-/// An RFC 8693 `act` chain: the issuer, the principal and the current
-/// actor. RFC 8693 §4.1 says prior actors "are not to be considered in
+/// An RFC 8693 `act` chain: the issuer, the principal, the current actor
+/// and the kind of caller it was bound to (`workload` or `client`). RFC 8693 §4.1 says prior actors "are not to be considered in
 /// access control decisions", so the PDP does not get them; the Transaction
 /// Token records them, least recent first, with the depth.
-fn act_context(chain: &NormalizedChain, reader: Reader) -> Value {
+fn act_context(chain: &NormalizedChain, caller: &Authenticated, reader: Reader) -> Value {
     let (current, prior) = chain
         .hops
         .split_last()
@@ -776,6 +779,7 @@ fn act_context(chain: &NormalizedChain, reader: Reader) -> Value {
         "profile": chain.profile.as_str(),
         "issuer": chain.root.issuer,
         "actor": current.map(actor_json),
+        "caller_kind": caller_kind(caller.method),
     });
     if let Principal::Subject { subject, .. } = &chain.principal {
         context["principal"] = json!(subject);
@@ -785,6 +789,15 @@ fn act_context(chain: &NormalizedChain, reader: Reader) -> Value {
         context["prior_actors"] = prior.iter().map(actor_json).collect();
     }
     context
+}
+
+/// What the caller the current actor was bound to is, so a policy can tell a
+/// workload from an OAuth client with the same name.
+const fn caller_kind(method: Method) -> &'static str {
+    match method {
+        Method::Bearer => "client",
+        Method::WitWpt | Method::WitHttpSig | Method::Mtls | Method::JwtSvid => "workload",
+    }
 }
 
 fn actor_json(hop: &Hop) -> Value {

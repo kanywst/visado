@@ -169,6 +169,8 @@ async fn a_workload_acting_for_the_user_is_allowed() {
     let seen = Value::Object(pdp.0.lock().unwrap().last().unwrap().clone());
     let pdp_chain = &seen["chain"];
     assert_eq!(pdp_chain["actor"]["sub"], AGENT);
+    assert_eq!(pdp_chain["caller_kind"], "workload");
+    assert_eq!(chain["caller_kind"], "workload");
     assert_eq!(pdp_chain["principal"], "alice");
     assert!(pdp_chain.get("prior_actors").is_none());
     assert!(pdp_chain.get("depth").is_none());
