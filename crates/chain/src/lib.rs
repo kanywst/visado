@@ -8,6 +8,14 @@
 //! from a chain whose [`holder_proof`](NormalizedChain::holder_proof) is
 //! `true`. [`Assurance::Declared`] hops are for the audit record and the
 //! Transaction Token context.
+//!
+//! The [`json`], [`jose`] and [`replay`] modules hold what the JWS-based
+//! decoders share: a strict JSON parser with JCS (RFC 8785), compact JWS
+//! parts and JWK thumbprints, and a proof `jti` cache.
+
+pub mod jose;
+pub mod json;
+pub mod replay;
 
 use std::fmt;
 

@@ -8,11 +8,13 @@ use visado_chain::{
 };
 use wimsey_jose::VerifyingKey;
 
+use visado_chain::jose::{self as jose, Compact, HolderKey, THUMBPRINT_URI_PREFIX};
+use visado_chain::json::{self, Value};
+use visado_chain::replay::ReplayCache;
+
 use crate::constraint::ToolMap;
 use crate::error::{AatError, Step};
-use crate::json::{self, Value};
-use crate::jws::{self, Compact, HolderKey, THUMBPRINT_URI_PREFIX};
-use crate::replay::ReplayCache;
+use crate::jws;
 
 /// The JOSE `typ` of an AAT (§3.5).
 pub const TYP: &str = "aat+jwt";
@@ -34,7 +36,7 @@ impl TrustAnchor {
     /// An anchor for root tokens whose `iss` is `issuer`, signed by `key`.
     #[must_use]
     pub fn new(issuer: impl Into<String>, key: VerifyingKey) -> Self {
-        let thumbprint = jws::key_thumbprint(&key);
+        let thumbprint = jose::key_thumbprint(&key);
         Self {
             issuer: issuer.into(),
             key,
@@ -280,9 +282,9 @@ impl Verifier {
         let mut seen = HashSet::new();
         let mut parts = Vec::with_capacity(chain.len());
         for (i, token) in chain.iter().enumerate() {
-            let jti = jws::split(token).and_then(|jws| {
+            let jti = jose::split(token).and_then(|jws| {
                 parts.push(jws);
-                json::top_level_string(&jws::b64(jws.payload)?, "jti")
+                json::top_level_string(&jose::b64(jws.payload)?, "jti")
             });
             let Some(jti) = jti else {
                 return Err(AatError::at(Step::S2c, i, "no string jti"));
@@ -319,7 +321,7 @@ impl Verifier {
         // anchor whose key verifies and pick by `iss` at step 3k.
         let verified: Vec<&TrustAnchor> = candidates
             .into_iter()
-            .filter(|a| jws::signature_ok(&a.key, jws))
+            .filter(|a| jose::signature_ok(&a.key, jws))
             .collect();
         if verified.is_empty() {
             return Err(err(
@@ -359,7 +361,7 @@ impl Verifier {
             .filter(|iss| is_uri(iss))
             .and_then(|iss| verified.into_iter().find(|a| a.issuer == iss))
             .ok_or(err(Step::S3k, "iss does not match the trust anchor"))?;
-        let holder = jws::holder_key(claims.get("cnf")).ok_or(err(Step::S3l, "bad cnf.jwk"))?;
+        let holder = jose::holder_key(claims.get("cnf")).ok_or(err(Step::S3l, "bad cnf.jwk"))?;
         let ad = claims.get("authorization_details");
         if ad.and_then(Value::as_array).is_none_or(<[Value]>::is_empty) {
             return Err(err(Step::S3m, "authorization_details missing or empty"));
@@ -398,7 +400,7 @@ impl Verifier {
         if !header.alg.fits(&parent.holder.key) {
             return Err(err(Step::S4a, "alg does not fit the parent cnf key"));
         }
-        if !jws::signature_ok(&parent.holder.key, jws) {
+        if !jose::signature_ok(&parent.holder.key, jws) {
             return Err(err(
                 Step::S4b,
                 "signature does not verify under the parent cnf key",
@@ -406,7 +408,7 @@ impl Verifier {
         }
         let claims = parse_claims(jws).ok_or(err(Step::S4b, "claims do not parse"))?;
         let jti = non_empty(&claims, "jti").ok_or(err(Step::S4b1, "bad jti"))?;
-        let holder = jws::holder_key(claims.get("cnf")).ok_or(err(Step::S4b2, "bad cnf.jwk"))?;
+        let holder = jose::holder_key(claims.get("cnf")).ok_or(err(Step::S4b2, "bad cnf.jwk"))?;
         let ad = claims.get("authorization_details");
         if ad.and_then(Value::as_array).is_none() {
             return Err(err(Step::S4b3, "authorization_details is not an array"));
@@ -473,7 +475,7 @@ impl Verifier {
             .ok_or(err(Step::S4o, "constraint not well-formed"))?;
         attenuation(&tools, &parent.tools)
             .map_err(|step| err(step, "capabilities do not attenuate the parent's"))?;
-        if par_hash != jws::hash(parent.jws.signing_input) {
+        if par_hash != jose::hash(parent.jws.signing_input) {
             return Err(err(Step::S4q, "par_hash does not match the parent"));
         }
         let tools_jcs = Value::Object(tools_value.to_vec()).jcs();
@@ -563,12 +565,12 @@ impl Verifier {
         if pop.len() > self.limits.max_token_size {
             return Err(deny(Step::S7a, "PoP JWT too large"));
         }
-        let jws = jws::split(pop).ok_or(deny(Step::S7a, "PoP JWT is not a compact JWS"))?;
+        let jws = jose::split(pop).ok_or(deny(Step::S7a, "PoP JWT is not a compact JWS"))?;
         let header = jws::header(jws.header, POP_TYP).ok_or(deny(Step::S7a, "bad PoP header"))?;
         if !header.alg.fits(&leaf.holder.key) {
             return Err(deny(Step::S7a, "PoP alg does not fit the leaf cnf key"));
         }
-        if !jws::signature_ok(&leaf.holder.key, jws) {
+        if !jose::signature_ok(&leaf.holder.key, jws) {
             return Err(deny(
                 Step::S7b,
                 "PoP signature does not verify under the leaf cnf key",
@@ -600,7 +602,7 @@ impl Verifier {
         else {
             return Err(deny(Step::S7c, "PoP claim missing or malformed"));
         };
-        if aat_id != leaf.jti || aat_hash != jws::hash(leaf.jws.signing_input) {
+        if aat_id != leaf.jti || aat_hash != jose::hash(leaf.jws.signing_input) {
             return Err(deny(Step::S7c, "PoP is not bound to the leaf"));
         }
         match claims.get("aat_aud") {
@@ -745,7 +747,7 @@ fn normalize(chain: &Verified<'_>, holder_proof: bool) -> NormalizedChain {
 /// Parses a payload after its signature verified, rejecting duplicate
 /// member names. The claims must be a JSON object.
 fn parse_claims(jws: Compact<'_>) -> Option<Value> {
-    let claims = json::parse(&jws::b64(jws.payload)?).ok()?;
+    let claims = json::parse(&jose::b64(jws.payload)?).ok()?;
     claims.as_object()?;
     Some(claims)
 }

@@ -2260,13 +2260,18 @@ dependencies = [
 [[package]]
 name = "visado-chain"
 version = "0.2.0"
+dependencies = [
+ "base64 0.23.1",
+ "ryu",
+ "sha2",
+ "wimsey-jose",
+]
 
 [[package]]
 name = "visado-chain-aat"
 version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
- "ryu",
  "serde_json",
  "sha2",
  "visado-chain",
