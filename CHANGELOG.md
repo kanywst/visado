@@ -8,6 +8,7 @@ Adds the remaining workload authentication methods. Breaking: the server refuses
 
 ### Added
 
+- `[[wit_issuers]]` takes `jwks_file`, a JWK set such as a SPIRE WIT bundle, instead of single key files. A key without `alg` gets the one algorithm its type allows; a key without `kid`, a repeated `kid` or an unsupported key fails startup. The lab uses it for SPIRE's bundle.
 - `visado-credentials`: a WIT caller can sign the request with an HTTP message signature (draft-ietf-wimse-http-signature-08) instead of sending a WPT. The draft's profile and required components, `wimse-aud`, the `created`/`expires` window (`max_signature_lifetime`, default 60 s), nonce replay and a covered `Content-Digest` against the received body are checked. Failures are `httpsig.invalid` with status 400 and an RFC 9457 problem document.
 - `visado-credentials`: mTLS with an X.509-SVID that Envoy terminated and passes in `source.certificate`, verified against one CA per trust domain (`[mtls]`). The certificate key is the AAT holder key. `[mtls]` needs a loopback `grpc_listen` unless `grpc_reachable_only_by_proxy = true`.
 - `visado-credentials`: SPIFFE JWT-SVIDs as bearer tokens (`RS256`, `ES256`), verified against a JWT bundle per trust domain (`[jwt_svid]`).

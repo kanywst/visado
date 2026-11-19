@@ -13,10 +13,10 @@ SPIRE v1.16.0 issues WIT-SVIDs as an experimental feature, turned on with `exper
 
 - `spire-setup` registers `spiffe://td.example/agent-a`, `agent-b` and `agent-z`, and writes a join token for the agent.
 - The agent attests with the join token. Each lab workload is a Unix user in the agent container (uid 1001, 1002, 1003), and the `unix` workload attestor tells them apart by uid.
-- `wit-config` runs before visado. It fetches the `td.example` WIT bundle (a JWKS) from the Workload API and writes visado's configuration: `visado.toml` plus one `[[wit_issuers]]` key per bundle key, with the `iss` it expects. visado reads that configuration from a shared volume.
+- `wit-config` runs before visado. It fetches the `td.example` WIT bundle (a JWKS) from the Workload API and writes it to a shared volume. `visado.toml` trusts it with `jwks_file` and expects the SPIRE `iss`. visado reads the bundle at startup, so restart it after SPIRE rotates the WIT key.
 - `demo.sh` runs `spire-agent api fetch wit` as each user and gets the WIT-SVID and its private key. The agent generates the key; the WIT binds it in `cnf.jwk` (ES256). The demo signs each WPT, and the AAT holder proofs, with that key.
 
-SPIRE's private key JWK and its bundle keys carry no `alg`. The demo takes it from the WIT's `cnf.jwk`, and `wit-config` writes `ES256` for each P-256 bundle key.
+SPIRE's private key JWK and its bundle keys carry no `alg`. The demo takes it from the WIT's `cnf.jwk`; visado gives a P-256 bundle key `ES256`, the only algorithm that key type allows.
 
 User tokens and the AAT root are still signed with the fixed demo keys in `../local/keys`.
 
