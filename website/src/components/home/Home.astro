@@ -34,7 +34,7 @@ const steps = [
     name: 'Authenticate',
     body: 'Verify a WIMSE Workload Identity Token with its proof of possession (WPT), or an OAuth access token. Keys come from configuration, never from URLs inside a token.',
     state: 'done',
-    status: 'Since v0.1.0. HTTP signatures, mTLS, JWT-SVID and DPoP are planned.',
+    status: 'WIT with WPT since v0.1.0; HTTP signatures, mTLS and JWT-SVID unreleased. DPoP for access tokens is planned.',
   },
   {
     name: 'Verify the delegation chain',
@@ -65,7 +65,7 @@ const steps = [
 const specs = [
   { name: 'OAuth Transaction Tokens', href: 'https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/11/', rev: 'draft-ietf-oauth-transaction-tokens-11', state: 'done', status: 'Mint, verify, replace, request parsing. 5 valid and 22 negative conformance vectors.' },
   { name: 'OpenID AuthZEN Authorization API', href: 'https://openid.net/specs/authorization-api-1_0.html', rev: '1.0 Final', state: 'done', status: 'Single evaluation and metadata discovery. Batch and search are not used.' },
-  { name: 'WIMSE workload credentials (WIT, WPT)', href: 'https://github.com/kanywst/wimsey', rev: 'pinned in wimsey', state: 'done', status: 'WIT with WPT. HTTP signatures and mTLS are planned.' },
+  { name: 'WIMSE workload credentials (WIT, WPT)', href: 'https://github.com/kanywst/wimsey', rev: 'pinned in wimsey', state: 'done', status: 'WIT with WPT; HTTP signatures and mTLS unreleased.' },
   { name: 'JWT access tokens', href: 'https://www.rfc-editor.org/rfc/rfc9068', rev: 'RFC 9068', state: 'done', status: 'Accepted alone or bound to a WPT. Sender-constrained (cnf) tokens are rejected until DPoP lands.' },
   { name: 'Envoy external authorization', href: 'https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/auth/v3/external_auth.proto', rev: 'ext_authz v3', state: 'done', status: 'gRPC service. Runs behind Envoy in the lab.' },
   { name: 'Attenuating Agent Tokens (AAT)', href: 'https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/', rev: 'draft-niyikiza-oauth-attenuating-agent-tokens-02', state: 'done', status: '§8 verification, 229/229 published vectors, enforced by the gate. Since v0.2.0.' },
@@ -245,7 +245,7 @@ const help = [
             <Logo name="spiffe" href={site.spiffe} />
             <Logo name="spire" href={site.spire} />
           </dd>
-          <dd class="fine">WIT verification since v0.1.0. SPIRE in the lab and X.509-SVID and JWT-SVID verification are planned.</dd>
+          <dd class="fine">WIT verification since v0.1.0; X.509-SVID and JWT-SVID verification unreleased. SPIRE in the lab is planned.</dd>
         </div>
         <div>
           <dt>Decides, behind an AuthZEN 1.0 API</dt>

@@ -35,6 +35,9 @@ visado-testkit = { path = "crates/testkit" }
 wimsey-wit = "0.10.1"
 wimsey-wpt = "0.10.1"
 wimsey-identifier = "0.10.1"
+wimsey-httpsig = "0.10.1"
+wimsey-mtls = "0.10.1"
+x509-parser = "0.18"
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 jsonwebtoken = { version = "12", default-features = false, features = ["rust_crypto"] }

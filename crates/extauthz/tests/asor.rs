@@ -138,8 +138,10 @@ fn call(
         body: Some(
             json!({ "jsonrpc": "2.0", "id": n, "method": "tools/call",
                     "params": { "name": tool, "arguments": args } })
-            .to_string(),
+            .to_string()
+            .into_bytes(),
         ),
+        peer_certificate: None,
     }
 }
 

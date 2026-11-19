@@ -3,6 +3,8 @@ use crate::error::AuthError;
 /// The parts of an HTTP request authentication looks at.
 #[derive(Debug, Clone)]
 pub struct RequestView<'a> {
+    /// HTTP method.
+    pub method: &'a str,
     /// `http` or `https`.
     pub scheme: &'a str,
     /// Host and optional port.
@@ -11,6 +13,13 @@ pub struct RequestView<'a> {
     pub path: &'a str,
     /// Header fields. Names must be lowercase.
     pub headers: &'a [(String, String)],
+    /// The request body exactly as received, when the proxy sends it. `None`
+    /// when it was not sent, which is treated as an empty body.
+    pub body: Option<&'a [u8]>,
+    /// The peer's certificate as Envoy reports it in
+    /// `CheckRequest.attributes.source.certificate`: URL-encoded PEM. Set only
+    /// from the proxy's own TLS termination, never from a request header.
+    pub peer_certificate: Option<&'a str>,
 }
 
 impl RequestView<'_> {

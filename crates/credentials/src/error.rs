@@ -41,6 +41,32 @@ pub enum AuthError {
     /// The access token is sender-constrained (`cnf`), which is not supported.
     #[error("sender-constrained access tokens are not supported")]
     SenderConstrained,
+    /// A WIT with an HTTP message signature did not verify: the WIT, the
+    /// signature, its profile, its time window, the body digest or a replayed
+    /// nonce. One code for all of them, because draft-ietf-wimse-http-signature
+    /// forbids telling the peer which check failed; the detail is for the
+    /// audit record.
+    #[error("invalid signed request: {0}")]
+    HttpSig(String),
+    /// The peer certificate did not verify.
+    #[error("invalid peer certificate: {0}")]
+    Certificate(String),
+    /// The peer certificate names a trust domain with no configured CA.
+    #[error("untrusted certificate trust domain")]
+    CertificateUntrustedDomain,
+    /// The JWT-SVID did not verify.
+    #[error("invalid JWT-SVID: {0}")]
+    JwtSvid(String),
+    /// The JWT-SVID names a trust domain with no configured bundle.
+    #[error("untrusted JWT-SVID trust domain")]
+    JwtSvidUntrustedDomain,
+    /// The request carries credentials for more than one method, or a header
+    /// the chosen method does not use.
+    #[error("ambiguous credentials")]
+    Ambiguous,
+    /// A credential is longer than [`crate::MAX_CREDENTIAL_LEN`].
+    #[error("credential too large")]
+    TooLarge,
     /// A bearer-only caller's token names no client.
     #[error("access token names no client")]
     NoClient,
@@ -68,6 +94,13 @@ impl AuthError {
             Self::Expired => "token.expired",
             Self::SenderConstrained => "token.sender_constrained",
             Self::NoClient => "token.no_client",
+            Self::HttpSig(_) => "httpsig.invalid",
+            Self::Ambiguous => "credential.ambiguous",
+            Self::Certificate(_) => "mtls.invalid",
+            Self::CertificateUntrustedDomain => "mtls.untrusted_domain",
+            Self::JwtSvid(_) => "jwt_svid.invalid",
+            Self::JwtSvidUntrustedDomain => "jwt_svid.untrusted_domain",
+            Self::TooLarge => "credential.too_large",
             Self::Internal => "internal",
         }
     }

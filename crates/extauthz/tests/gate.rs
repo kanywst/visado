@@ -95,6 +95,7 @@ fn input(path: &str, headers: &[(&str, &str)]) -> CheckInput {
             .map(|(n, v)| ((*n).into(), (*v).into()))
             .collect(),
         body: None,
+        peer_certificate: None,
     }
 }
 

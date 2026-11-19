@@ -1,6 +1,6 @@
 # Design (draft)
 
-Status: unreleased, after v0.2.0. Steps 1 to 6 are implemented, with AAT and asor-03 chains (decoders and per-format checks; no separate invariant engine or authority algebra), audit events and OpenTelemetry spans. RFC 8693 act chains, DPoP for access tokens, HTTP signatures, mTLS, JWT-SVID and the chain view are not. Items marked Open need a decision before the code that depends on them.
+Status: unreleased, after v0.2.0. Steps 1 to 6 are implemented: caller authentication by WIT with WPT or HTTP signatures, mTLS, JWT-SVID and OAuth access tokens (no DPoP yet); AAT and asor-03 chains (decoders and per-format checks; no separate invariant engine or authority algebra); audit events and OpenTelemetry spans. RFC 8693 act chains, DPoP for access tokens and the chain view are not. Items marked Open need a decision before the code that depends on them.
 
 ## Request pipeline
 
@@ -19,7 +19,7 @@ inbound request (via Envoy / Istio / agentgateway ext_authz)
 ### 1. Sanitize
 
 - Deny requests for authorities outside `allowed_authorities`, and paths with dot segments, encoded dots or slashes, or empty segments.
-- An inbound `Txn-Token` is accepted only from a workload listed in `internal_callers` that authenticated with a WIT and WPT. It is verified and forwarded unchanged. From anyone else it is denied (`txn.untrusted_hop`).
+- An inbound `Txn-Token` is accepted only from a workload listed in `internal_callers` that proved possession of a key for the request (WIT with WPT or HTTP signature, or mTLS). It is verified and forwarded unchanged. From anyone else it is denied (`txn.untrusted_hop`).
 - Never forward the inbound access token downstream (MCP security best practices, Txn-Token draft §13).
 
 ### 2. Authenticate
@@ -30,8 +30,8 @@ inbound request (via Envoy / Istio / agentgateway ext_authz)
 | --- | --- | --- |
 | `wit-wpt` | `Workload-Identity-Token` + `Authorization: WPT` | `wimsey-wit`, `wimsey-wpt` |
 | `wit-httpsig` | WIT + RFC 9421 signature | `wimsey-httpsig` (needs `with_request_body` for digests) |
-| `mtls` | peer certificate from `CheckRequest.attributes.source` | `wimsey-mtls`, SPIFFE X.509-SVID |
-| `jwt-svid` | bearer JWT-SVID | `spiffe` crate bundles |
+| `mtls` | peer certificate from `CheckRequest.attributes.source` | `wimsey-mtls`, SPIFFE X.509-SVID, one CA per trust domain |
+| `jwt-svid` | bearer JWT-SVID | `jsonwebtoken`, SPIFFE bundle file per trust domain |
 | `oauth-at` | bearer or DPoP-bound access token | `jsonwebtoken` (RS256 needed for Dex and Keycloak), configured JWKS |
 
 Trust rules:
@@ -39,7 +39,9 @@ Trust rules:
 - Trust anchors and JWKS locations are configured per trust domain. Keys are never fetched from URLs found inside a token.
 - Audience is an exact string match.
 - Clock leeway is configurable with a 60 s ceiling.
-- WPT `jti` replay is checked against a bounded cache.
+- WPT `jti` and HTTP signature `nonce` replay are checked against a bounded cache.
+
+Method selection, the Envoy settings each method needs, and their limits are in [bindings.md](bindings.md).
 
 ### 3. Delegation chain
 

@@ -124,8 +124,10 @@ fn call(workload: &str, seed: u8, tool: &str, args: &Value, n: u32) -> CheckInpu
         body: Some(
             json!({ "jsonrpc": "2.0", "id": n, "method": "tools/call",
                     "params": { "name": tool, "arguments": args } })
-            .to_string(),
+            .to_string()
+            .into_bytes(),
         ),
+        peer_certificate: None,
     }
 }
 
@@ -173,7 +175,13 @@ async fn bodies_that_are_not_one_tool_call_are_refused() {
     let gate = gate();
     let read = json!({ "path": "/data/report.pdf" });
     let mut batch = call("agent-b", 2, "read_file", &read, 10);
-    batch.body = Some(format!("[{}]", batch.body.clone().unwrap()));
+    batch.body = Some(
+        format!(
+            "[{}]",
+            String::from_utf8(batch.body.clone().unwrap()).unwrap()
+        )
+        .into_bytes(),
+    );
     assert_eq!(
         code(&gate.check(&batch, NOW, "t").await),
         "chain.bad_invocation"
@@ -206,6 +214,16 @@ async fn bodies_that_are_not_one_tool_call_are_refused() {
     garbage.body = Some("not json".into());
     assert_eq!(
         code(&gate.check(&garbage, NOW, "t").await),
+        "chain.bad_invocation"
+    );
+
+    // A body that is not UTF-8 is not decoded lossily into an allowed call.
+    let mut binary = call("agent-b", 2, "read_file", &read, 15);
+    if let Some(body) = binary.body.as_mut() {
+        body.extend_from_slice(&[0xff, 0xfe]);
+    }
+    assert_eq!(
+        code(&gate.check(&binary, NOW, "t").await),
         "chain.bad_invocation"
     );
 }

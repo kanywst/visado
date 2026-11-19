@@ -4,8 +4,17 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+Adds the remaining workload authentication methods. Breaking: the server refuses to start with an empty `allowed_authorities`. For library users, `RequestView` and `CheckInput` have new fields, `CheckInput::body` is bytes, and `Method` has new variants.
+
 ### Added
 
+- `visado-credentials`: a WIT caller can sign the request with an HTTP message signature (draft-ietf-wimse-http-signature-08) instead of sending a WPT. The draft's profile and required components, `wimse-aud`, the `created`/`expires` window (`max_signature_lifetime`, default 60 s), nonce replay and a covered `Content-Digest` against the received body are checked. Failures are `httpsig.invalid` with status 400 and an RFC 9457 problem document.
+- `visado-credentials`: mTLS with an X.509-SVID that Envoy terminated and passes in `source.certificate`, verified against one CA per trust domain (`[mtls]`). The certificate key is the AAT holder key. `[mtls]` needs a loopback `grpc_listen` unless `grpc_reachable_only_by_proxy = true`.
+- `visado-credentials`: SPIFFE JWT-SVIDs as bearer tokens (`RS256`, `ES256`), verified against a JWT bundle per trust domain (`[jwt_svid]`).
+- The PDP context and the Transaction Token `tctx` name the new methods `wit-httpsig`, `mtls` and `jwt-svid`.
+- Credential headers longer than 16 KiB are denied (`credential.too_large`) before decoding.
+- The audit event has a `detail` field with the reason an authentication failed.
+- Testkit fixtures: an HTTP signature signer, a workload CA and X.509-SVIDs, and a JWT-SVID signer with a SPIFFE bundle.
 - `visado-chain-asor`: Agent Delegation Chain verification per draft-asor-wimse-agent-delegation-chain-03: the parse rules, steps 1 to 5, the DPoP proof of the leaf key (step 6) and the audience and action check (step 8), with denials named as in the draft's Table 2. A token with a `status` claim is denied as `status_unknown`, since status lists are not implemented.
 - The 36 published asor-03 vectors in `conformance/asor/`, from attenu-io/attenu-guard v0.22.0 (Apache-2.0), all passing. `NOTICE` records the attribution.
 - The gate verifies an asor chain sent in `Agent-Delegation-Chain` with a `DPoP` proof (see `docs/bindings.md`), with the same caller binding as AAT. Configured with `[asor]` in the server file, whose `required` has no default.
@@ -13,6 +22,10 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ### Changed
 
+- The server refuses to start when `allowed_authorities` is empty; it used to warn.
+- An internal caller may forward a `Txn-Token` after a WPT, an HTTP signature that covers it, or mTLS; bearer callers still cannot.
+- The gate removes `Signature` and `Signature-Input` before the request goes upstream.
+- The gate refuses a non-UTF-8 body for an AAT invocation itself; the service no longer replaces such a body with a marker.
 - The strict JSON parser, the JWS helpers and the replay cache moved from `visado-chain-aat` to `visado-chain`. `visado-chain-aat` re-exports `ReplayCache` and `MemoryReplayCache`; its behaviour is unchanged.
 - The gate denies a request that carries both `AAT-Chain` and `Agent-Delegation-Chain` (`chain.ambiguous`). The chain context sent to the PDP and the Transaction Token has `principal` when the format names one.
 

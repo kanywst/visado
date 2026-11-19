@@ -7,6 +7,7 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --all-targets --locked -q
 cargo test --workspace --doc --locked -q
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked -q
+cargo check --manifest-path fuzz/Cargo.toml --bins --locked -q
 cargo deny --log-level error check
 npx --yes markdownlint-cli2 "**/*.md" >/dev/null
 if command -v actionlint >/dev/null; then actionlint; fi

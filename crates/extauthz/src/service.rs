@@ -14,6 +14,7 @@ use envoy_types::pb::google::protobuf::value::Kind;
 use envoy_types::pb::google::protobuf::{Struct, Value as ProtoValue};
 use tonic::{Request, Response, Status};
 use visado_authzen::Pdp;
+use visado_credentials::{AuthError, PROBLEM_SIGNATURE_INVALID};
 
 use crate::gate::{CheckInput, Gate, Outcome};
 
@@ -63,38 +64,51 @@ fn input_from(request: &CheckRequest) -> Option<CheckInput> {
             .map(|(k, v)| (k.to_ascii_lowercase(), v.clone()))
             .collect(),
     };
-    headers.sort();
+    // Group by name, keeping repeated fields in the order received: an HTTP
+    // signature covers their values joined in that order.
+    headers.sort_by(|a, b| a.0.cmp(&b.0));
+    let body = if http.raw_body.is_empty() {
+        http.body.as_bytes().to_vec()
+    } else {
+        http.raw_body.clone()
+    };
+    // Set by Envoy from its own TLS termination when the ext_authz filter has
+    // `include_peer_certificate`. It is not a request header, so the client
+    // cannot set it.
+    let peer_certificate = request
+        .attributes
+        .as_ref()
+        .and_then(|a| a.source.as_ref())
+        .map(|source| source.certificate.as_str())
+        .filter(|c| !c.is_empty())
+        .map(ToOwned::to_owned);
     Some(CheckInput {
         method: http.method.clone(),
         scheme: http.scheme.clone(),
         authority: http.host.clone(),
         path: http.path.clone(),
         headers,
-        body: if !http.body.is_empty() {
-            Some(http.body.clone())
-        } else if !http.raw_body.is_empty() {
-            // A body that is not UTF-8 is replaced by a marker that is not
-            // JSON, so a chain check denies it. Lossy decoding would let the
-            // gate check different text from the bytes the upstream gets.
-            Some(
-                String::from_utf8(http.raw_body.clone())
-                    .unwrap_or_else(|_| UNREADABLE_BODY.to_owned()),
-            )
-        } else {
-            None
-        },
+        body: (!body.is_empty()).then_some(body),
+        peer_certificate,
     })
 }
 
-/// Stands in for a body that is not UTF-8.
-const UNREADABLE_BODY: &str = "\u{FFFD}unreadable body";
-
 fn denied_response(status: u16, code: &str, challenge: Option<&str>) -> CheckResponse {
     let mut denied = DeniedHttpResponseBuilder::new();
-    denied
-        .set_http_status(status_code(status))
-        .add_header("content-type", "application/json", None, false)
-        .set_body(format!(r#"{{"error":"{code}"}}"#));
+    denied.set_http_status(status_code(status));
+    if code == AuthError::HttpSig(String::new()).code() {
+        // draft-ietf-wimse-http-signature: one RFC 9457 problem type for every
+        // failed check on a signed request.
+        denied
+            .add_header("content-type", "application/problem+json", None, false)
+            .set_body(format!(
+                r#"{{"type":"{PROBLEM_SIGNATURE_INVALID}","status":{status},"error":"{code}"}}"#
+            ));
+    } else {
+        denied
+            .add_header("content-type", "application/json", None, false)
+            .set_body(format!(r#"{{"error":"{code}"}}"#));
+    }
     if let Some(challenge) = challenge {
         denied.add_header("www-authenticate", challenge, None, false);
     }
@@ -179,13 +193,14 @@ impl<P: Pdp + 'static> Authorization for ExtAuthz<P> {
 
 #[cfg(test)]
 mod tests {
-    use super::{UNREADABLE_BODY, input_from};
+    use super::{denied_response, input_from};
     use envoy_types::ext_authz::v3::pb::CheckRequest;
     use envoy_types::pb::envoy::service::auth::v3::AttributeContext;
     use envoy_types::pb::envoy::service::auth::v3::attribute_context::{HttpRequest, Request};
+    use envoy_types::pb::envoy::service::auth::v3::check_response::HttpResponse as Http;
 
     #[test]
-    fn a_body_that_is_not_utf8_is_not_decoded_lossily() {
+    fn a_body_that_is_not_utf8_is_kept_as_bytes() {
         let mut raw =
             br#"{"method":"tools/call","params":{"name":"read_file","arguments":{"path":"/data/"#
                 .to_vec();
@@ -196,7 +211,7 @@ mod tests {
                 request: Some(Request {
                     http: Some(HttpRequest {
                         method: "POST".into(),
-                        raw_body: raw,
+                        raw_body: raw.clone(),
                         ..HttpRequest::default()
                     }),
                     ..Request::default()
@@ -205,6 +220,62 @@ mod tests {
             }),
         };
         let input = input_from(&request).unwrap();
-        assert_eq!(input.body.as_deref(), Some(UNREADABLE_BODY));
+        assert_eq!(input.body.as_deref(), Some(raw.as_slice()));
+    }
+
+    #[test]
+    fn a_failed_signed_request_is_a_problem_document() {
+        let response = denied_response(400, "httpsig.invalid", None);
+        let Some(Http::DeniedResponse(denied)) = response.http_response else {
+            panic!("denied")
+        };
+        assert_eq!(denied.status.map(|s| s.code), Some(400));
+        assert!(
+            denied
+                .body
+                .contains(visado_credentials::PROBLEM_SIGNATURE_INVALID)
+        );
+        let content_type = denied
+            .headers
+            .iter()
+            .filter_map(|h| h.header.as_ref())
+            .find(|h| h.key == "content-type")
+            .map(|h| h.value.as_str());
+        assert_eq!(content_type, Some("application/problem+json"));
+    }
+
+    #[test]
+    fn repeated_headers_keep_their_order() {
+        use envoy_types::pb::envoy::config::core::v3::{HeaderMap, HeaderValue};
+        let header = |k: &str, v: &str| HeaderValue {
+            key: k.into(),
+            value: v.into(),
+            ..HeaderValue::default()
+        };
+        let request = CheckRequest {
+            attributes: Some(AttributeContext {
+                request: Some(Request {
+                    http: Some(HttpRequest {
+                        header_map: Some(HeaderMap {
+                            headers: vec![
+                                header("x-b", "2"),
+                                header("x-a", "z"),
+                                header("x-a", "y"),
+                            ],
+                        }),
+                        ..HttpRequest::default()
+                    }),
+                    ..Request::default()
+                }),
+                ..AttributeContext::default()
+            }),
+        };
+        let input = input_from(&request).unwrap();
+        let pairs: Vec<(&str, &str)> = input
+            .headers
+            .iter()
+            .map(|(n, v)| (n.as_str(), v.as_str()))
+            .collect();
+        assert_eq!(pairs, [("x-a", "z"), ("x-a", "y"), ("x-b", "2")]);
     }
 }

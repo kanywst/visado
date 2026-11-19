@@ -28,7 +28,12 @@ pub const DPOP_HEADER: &str = "dpop";
 /// authenticator's user token header. The upstream gets the Transaction Token
 /// instead (MCP and the Txn-Token draft both forbid forwarding the inbound
 /// access token).
-pub const STRIPPED_HEADERS: [&str; 2] = ["authorization", "workload-identity-token"];
+pub const STRIPPED_HEADERS: [&str; 4] = [
+    "authorization",
+    "workload-identity-token",
+    "signature-input",
+    "signature",
+];
 
 /// Settings for one trust domain.
 #[derive(Debug)]
@@ -72,8 +77,12 @@ pub struct CheckInput {
     pub path: String,
     /// Headers, names lowercased.
     pub headers: Vec<(String, String)>,
-    /// The request body, when the proxy sends it.
-    pub body: Option<String>,
+    /// The request body exactly as received, when the proxy sends it
+    /// (`with_request_body` in Envoy).
+    pub body: Option<Vec<u8>>,
+    /// The peer certificate from the proxy's own TLS termination, URL-encoded
+    /// PEM as in Envoy's `source.certificate`.
+    pub peer_certificate: Option<String>,
 }
 
 /// What to do with the request.
@@ -166,7 +175,7 @@ impl<P: Pdp> Gate<P> {
         span.record("visado.reason", reason);
         match result {
             Ok(allowed) => {
-                audit(input, &allowed.trail, "allow", "ok");
+                audit(input, &allowed.trail, "allow", "ok", "");
                 Outcome::Allow {
                     txn: allowed.trail.txn,
                     set: vec![("txn-token".into(), allowed.token)],
@@ -174,11 +183,17 @@ impl<P: Pdp> Gate<P> {
                 }
             }
             Err(denied) => {
-                audit(input, &denied.trail, "deny", denied.code);
+                audit(
+                    input,
+                    &denied.trail,
+                    "deny",
+                    denied.code,
+                    denied.detail.as_deref().unwrap_or(""),
+                );
                 Outcome::Deny {
                     status: denied.status,
                     code: denied.code.to_owned(),
-                    challenge: denied.challenge.map(ToOwned::to_owned),
+                    challenge: denied.challenge.map(|c| c.as_str().to_owned()),
                 }
             }
         }
@@ -298,8 +313,9 @@ impl<P: Pdp> Gate<P> {
         let Some(verifier) = &self.config.aat else {
             return Err(Denied::new(403, "chain.unsupported", trail));
         };
-        // Only a WIT caller has proved possession of a key that can be
-        // compared with the chain's holder.
+        // The chain must belong to the caller: the leaf holder must be the key
+        // the caller proved possession of (the WIT key, or the certificate key
+        // over mTLS). A bearer caller has no such key and cannot present one.
         if caller.proof_key.is_none() {
             return Err(Denied::new(403, "chain.unbound_caller", trail));
         }
@@ -418,29 +434,43 @@ impl<P: Pdp> Gate<P> {
 
     fn authenticate(&self, input: &CheckInput, now: u64) -> Result<Authenticated, Denied> {
         let view = RequestView {
+            method: &input.method,
             scheme: &input.scheme,
             authority: &input.authority,
             path: &input.path,
             headers: &input.headers,
+            body: input.body.as_deref(),
+            peer_certificate: input.peer_certificate.as_deref(),
         };
         self.authenticator.authenticate(&view, now).map_err(|e| {
             let wimse = input
                 .headers
                 .iter()
                 .any(|(n, _)| n == "workload-identity-token");
-            let status = if matches!(e, AuthError::ReplayCacheFull) {
-                503
-            } else {
-                401
+            let (status, challenge) = match e {
+                AuthError::ReplayCacheFull => (503, None),
+                // draft-ietf-wimse-http-signature: a failed signed request is
+                // a 400 that does not say which check failed.
+                AuthError::HttpSig(_) => (400, None),
+                // No scheme the client could answer: the certificate came
+                // from the TLS handshake.
+                AuthError::Certificate(_) | AuthError::CertificateUntrustedDomain => (401, None),
+                _ if wimse => (401, Some(Challenge::Wpt)),
+                _ => (401, Some(Challenge::Bearer)),
             };
             let mut denied = Denied::new(status, e.code(), &Trail::default());
-            denied.challenge = Some(if wimse { "WPT" } else { "Bearer" });
+            denied.challenge = challenge;
+            denied.detail = Some(e.to_string().into_boxed_str());
             denied
         })
     }
 
     /// An inbound Transaction Token is accepted only from a configured internal
-    /// workload, and only if it verifies against this gate's key and domain.
+    /// workload that proved possession of a key for this request, and only if
+    /// it verifies against this gate's key and domain. With a WPT the token is
+    /// bound through `tth`; with an HTTP signature it is a covered component;
+    /// with mTLS it arrived on the connection the certificate authenticated.
+    /// Bearer callers (an access token or a JWT-SVID) cannot forward one.
     fn accept_forwarded(
         &self,
         caller: &Authenticated,
@@ -448,7 +478,10 @@ impl<P: Pdp> Gate<P> {
         now: u64,
         trail: &Trail,
     ) -> Result<TxnTokenClaims, Denied> {
-        if caller.method != Method::WitWpt || !self.config.internal_callers.contains(&caller.caller)
+        if !matches!(
+            caller.method,
+            Method::WitWpt | Method::WitHttpSig | Method::Mtls
+        ) || !self.config.internal_callers.contains(&caller.caller)
         {
             return Err(Denied::new(403, "txn.untrusted_hop", trail));
         }
@@ -507,8 +540,26 @@ struct Allowed {
 struct Denied {
     status: u16,
     code: &'static str,
-    challenge: Option<&'static str>,
+    challenge: Option<Challenge>,
+    /// Why, for the audit record only. Never contains a token.
+    detail: Option<Box<str>>,
     trail: Trail,
+}
+
+/// The `WWW-Authenticate` scheme for a 401.
+#[derive(Debug, Clone, Copy)]
+enum Challenge {
+    Wpt,
+    Bearer,
+}
+
+impl Challenge {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Wpt => "WPT",
+            Self::Bearer => "Bearer",
+        }
+    }
 }
 
 impl Denied {
@@ -517,6 +568,7 @@ impl Denied {
             status,
             code,
             challenge: None,
+            detail: None,
             trail: trail.clone(),
         }
     }
@@ -543,8 +595,8 @@ fn is_normalized(path: &str) -> bool {
 /// so they are marked to keep them apart from workload identifiers.
 fn requesting_workload(caller: &Authenticated) -> String {
     match caller.method {
-        Method::WitWpt => caller.caller.clone(),
         Method::Bearer => format!("oauth-client:{}", caller.caller),
+        _ => caller.caller.clone(),
     }
 }
 
@@ -579,6 +631,9 @@ fn evaluation_request(
 const fn method_name(method: Method) -> &'static str {
     match method {
         Method::WitWpt => "wit-wpt",
+        Method::WitHttpSig => "wit-httpsig",
+        Method::Mtls => "mtls",
+        Method::JwtSvid => "jwt-svid",
         Method::Bearer => "bearer",
     }
 }
@@ -625,8 +680,9 @@ fn chain_context(chain: &NormalizedChain) -> Value {
 ///
 /// Everything else is refused rather than guessed, because the chain would
 /// otherwise be checked against less than the request carries: batches,
-/// other JSON-RPC methods, bodies that are not JSON, malformed `tools/call`,
-/// query strings, and a missing body on a method that carries one.
+/// other JSON-RPC methods, bodies that are not UTF-8 JSON, malformed
+/// `tools/call`, query strings, and a missing body on a method that carries
+/// one.
 fn invocation(input: &CheckInput) -> Option<(String, String)> {
     use serde_json::value::RawValue;
 
@@ -643,7 +699,13 @@ fn invocation(input: &CheckInput) -> Option<(String, String)> {
         arguments: Option<&'a RawValue>,
     }
 
-    let Some(body) = input.body.as_deref().filter(|b| !b.trim().is_empty()) else {
+    let body = match input.body.as_deref() {
+        // A body that is not UTF-8 is refused: decoding it lossily would check
+        // different text from the bytes the upstream gets.
+        Some(bytes) => Some(std::str::from_utf8(bytes).ok()?),
+        None => None,
+    };
+    let Some(body) = body.filter(|b| !b.trim().is_empty()) else {
         let bodiless = matches!(input.method.as_str(), "GET" | "HEAD" | "DELETE" | "OPTIONS");
         if !bodiless || input.path.contains(['?', '#']) {
             return None;
@@ -672,7 +734,7 @@ fn rctx(input: &CheckInput) -> Map<String, Value> {
     map
 }
 
-fn audit(input: &CheckInput, trail: &Trail, decision: &str, reason: &str) {
+fn audit(input: &CheckInput, trail: &Trail, decision: &str, reason: &str, detail: &str) {
     tracing::info!(
         target: "visado::audit",
         txn = %trail.txn,
@@ -682,5 +744,6 @@ fn audit(input: &CheckInput, trail: &Trail, decision: &str, reason: &str) {
         action = %input.method,
         decision,
         reason,
+        detail,
     );
 }
