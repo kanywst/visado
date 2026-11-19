@@ -211,11 +211,24 @@ fn access_token_edge_cases() {
         format!("Bearer {}", signed_access_token(&claims))
     };
 
+    // RFC 9449 §7.1: a DPoP-bound token is never accepted as a bearer token.
     let bound = with("cnf", json!({ "jkt": "abc" }));
     assert_eq!(
         run(&auth, &[("authorization", &bound)]).unwrap_err(),
-        "token.sender_constrained"
+        "token.dpop_bound"
     );
+    for cnf in [
+        json!({ "x5t#S256": "abc" }),
+        json!({ "jkt": "abc", "x5t#S256": "abc" }),
+        json!({ "jkt": 1 }),
+        json!("abc"),
+    ] {
+        let other = with("cnf", cnf);
+        assert_eq!(
+            run(&auth, &[("authorization", &other)]).unwrap_err(),
+            "token.sender_constrained"
+        );
+    }
 
     let early = with("nbf", json!(NOW + 3600));
     assert_eq!(

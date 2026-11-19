@@ -2,14 +2,16 @@ use std::collections::{BTreeSet, HashSet};
 
 use sha2::{Digest, Sha256};
 
-/// What a replay key identifies, so a WPT `jti` and a signature `nonce` with
-/// the same value do not collide.
+/// What a replay key identifies, so a WPT `jti`, a signature `nonce` and a
+/// DPoP `jti` with the same value do not collide.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Kind {
     /// A WPT `jti`.
     Wpt,
     /// An HTTP message signature `nonce`.
     Signature,
+    /// A DPoP proof `jti`.
+    Dpop,
 }
 
 /// A fixed-size replay key for the proof identifier `id` of `kind` as used by
@@ -19,6 +21,7 @@ pub(crate) fn key(kind: Kind, caller: &str, id: &str) -> [u8; 32] {
     hash.update(match kind {
         Kind::Wpt => b"wpt\0".as_slice(),
         Kind::Signature => b"sig\0".as_slice(),
+        Kind::Dpop => b"dpop\0".as_slice(),
     });
     hash.update(caller.as_bytes());
     hash.update([0]);
@@ -99,6 +102,10 @@ mod tests {
         assert_ne!(
             super::key(Kind::Wpt, "w", "a"),
             super::key(Kind::Signature, "w", "a")
+        );
+        assert_ne!(
+            super::key(Kind::Wpt, "w", "a"),
+            super::key(Kind::Dpop, "w", "a")
         );
     }
 }

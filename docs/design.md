@@ -1,6 +1,6 @@
 # Design (draft)
 
-Status: unreleased, after v0.2.0. Steps 1 to 6 are implemented: caller authentication by WIT with WPT or HTTP signatures, mTLS, JWT-SVID and OAuth access tokens (no DPoP yet); AAT and asor-03 chains (decoders and per-format checks; no separate invariant engine or authority algebra); audit events and OpenTelemetry spans. RFC 8693 act chains, DPoP for access tokens and the chain view are not. Items marked Open need a decision before the code that depends on them.
+Status: unreleased, after v0.2.0. Steps 1 to 6 are implemented: caller authentication by WIT with WPT or HTTP signatures, mTLS, JWT-SVID and OAuth access tokens, bearer or DPoP-bound; AAT and asor-03 chains (decoders and per-format checks; no separate invariant engine or authority algebra); audit events and OpenTelemetry spans. RFC 8693 act chains and the chain view are not. Items marked Open need a decision before the code that depends on them.
 
 ## Request pipeline
 

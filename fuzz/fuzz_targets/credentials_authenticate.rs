@@ -1,6 +1,7 @@
-//! Caller authentication reads three headers straight off the request:
-//! `workload-identity-token`, `authorization` (`WPT` or `Bearer`) and the
-//! user-token header. All of them are parsed before anything is verified.
+//! Caller authentication reads four headers straight off the request:
+//! `workload-identity-token`, `authorization` (`WPT`, `Bearer` or `DPoP`),
+//! the user-token header and `dpop`. All of them are parsed before anything
+//! is verified.
 //!
 //! Input layout, one header value per line, an empty line meaning the header
 //! is absent:
@@ -9,6 +10,7 @@
 //! <workload-identity-token>
 //! <authorization>
 //! <x-user-token>
+//! <dpop>
 //! ```
 //!
 //! The issuers are the test fixtures from `visado-testkit`.
@@ -18,7 +20,12 @@ use libfuzzer_sys::fuzz_target;
 use visado_credentials::{Authenticator, OAuthIssuer, RequestView, WitIssuer};
 use visado_testkit::{NOW, OAUTH_ISSUER, TRUST_DOMAIN, oauth_jwks, wit_issuer_verifying_key};
 
-const NAMES: [&str; 3] = ["workload-identity-token", "authorization", "x-user-token"];
+const NAMES: [&str; 4] = [
+    "workload-identity-token",
+    "authorization",
+    "x-user-token",
+    "dpop",
+];
 
 fuzz_target!(|data: &str| {
     let jwks = serde_json::from_value(oauth_jwks()).expect("fixture JWKS parses");

@@ -2495,6 +2495,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "thiserror",
+ "visado-chain",
  "visado-testkit",
  "wimsey-httpsig",
  "wimsey-identifier",

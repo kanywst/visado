@@ -13,6 +13,9 @@
 //!   signature covers it.
 //! - A client presenting only an OAuth access token as `Authorization: Bearer`.
 //!   The client is identified by `client_id` (or `azp`).
+//! - A client presenting a DPoP-bound access token (`cnf.jkt`) as
+//!   `Authorization: DPoP` with a `DPoP` proof (RFC 9449) for the request,
+//!   made with the key the token is bound to.
 //! - A workload presenting a SPIFFE JWT-SVID as `Authorization: Bearer`, told
 //!   apart from an access token by a SPIFFE ID in `sub` and an `iss` that is
 //!   not a configured OAuth issuer.
@@ -41,6 +44,8 @@ pub use request::RequestView;
 pub use svid::JwtBundle;
 pub use wimse::WitIssuer;
 
+use visado_chain::dpop::{self as dpop_proof, Expected, HttpRequest, Rejection};
+
 use replay::ReplayCache;
 
 /// The longest WPT `jti` or signature `nonce` accepted, in bytes.
@@ -57,6 +62,13 @@ pub const PROBLEM_SIGNATURE_INVALID: &str = wimsey_httpsig::PROBLEM_SIGNATURE_IN
 /// The `Workload-Identity-Token` header, lowercased.
 pub const WIT_HEADER: &str = "workload-identity-token";
 
+/// The RFC 9449 `DPoP` header, lowercased.
+pub const DPOP_HEADER: &str = "dpop";
+
+/// The `alg` values a DPoP proof may use, for the `algs` parameter of a
+/// `DPoP` challenge (RFC 9449 §7.1). Only asymmetric algorithms.
+pub const DPOP_ALGS: &[&str] = &["ES256", "EdDSA", "Ed25519"];
+
 /// How the caller proved its identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Method {
@@ -70,13 +82,16 @@ pub enum Method {
     JwtSvid,
     /// OAuth access token only.
     Bearer,
+    /// OAuth access token bound to a key proven with a DPoP proof
+    /// (RFC 9449).
+    OAuthDpop,
 }
 
 /// The authenticated caller and, if present, the user it acts for.
 #[derive(Debug, Clone)]
 pub struct Authenticated {
     /// The caller's identifier: a workload identifier, or the OAuth client
-    /// for [`Method::Bearer`].
+    /// for [`Method::Bearer`] and [`Method::OAuthDpop`].
     pub caller: String,
     /// How the caller authenticated.
     pub method: Method,
@@ -84,8 +99,9 @@ pub struct Authenticated {
     pub user: Option<AccessToken>,
     /// The key the caller proved possession of for this request: the WIT
     /// `cnf` key for [`Method::WitWpt`] and [`Method::WitHttpSig`], the
-    /// certificate's key for [`Method::Mtls`] when it is Ed25519 or P-256, and
-    /// `None` for the bearer methods [`Method::Bearer`] and [`Method::JwtSvid`].
+    /// certificate's key for [`Method::Mtls`] when it is Ed25519 or P-256, the
+    /// DPoP proof key for [`Method::OAuthDpop`], and `None` for the bearer
+    /// methods [`Method::Bearer`] and [`Method::JwtSvid`].
     pub proof_key: Option<wimsey_jose::VerifyingKey>,
 }
 
@@ -101,6 +117,7 @@ pub struct Authenticator {
     leeway: u64,
     max_wpt_lifetime: u64,
     max_signature_lifetime: u64,
+    dpop_iat_window: u64,
     replay: Mutex<ReplayCache>,
 }
 
@@ -118,6 +135,7 @@ impl Authenticator {
             leeway: 30,
             max_wpt_lifetime: 60,
             max_signature_lifetime: 60,
+            dpop_iat_window: 60,
             replay: Mutex::new(ReplayCache::new(100_000)),
         }
     }
@@ -193,6 +211,15 @@ impl Authenticator {
         self
     }
 
+    /// How far a DPoP proof's `iat` may be from now, either way, in seconds.
+    /// A proof's `jti` is remembered for that long after its `iat`. Default
+    /// 60.
+    #[must_use]
+    pub const fn with_dpop_iat_window(mut self, seconds: u64) -> Self {
+        self.dpop_iat_window = seconds;
+        self
+    }
+
     /// Checks that identifiers from different OAuth issuers cannot collide
     /// (with more than one issuer, each needs a subject prefix), and that
     /// JWT-SVIDs have an audience to be checked against.
@@ -234,6 +261,7 @@ impl Authenticator {
             "authorization",
             SIGNATURE_INPUT_HEADER,
             SIGNATURE_HEADER,
+            DPOP_HEADER,
             self.user_token_header.as_str(),
         ] {
             if request
@@ -263,6 +291,9 @@ impl Authenticator {
             (Some(_), Some(_)) if signed => Err(AuthError::Ambiguous),
             (Some(wit), None) if signed => self.authenticate_signed(request, wit, now),
             (Some(_), _) => Err(AuthError::MissingProof),
+            (None, Some(authorization)) if is_scheme(authorization, "dpop") => {
+                self.authenticate_dpop(request, authorization, now)
+            }
             (None, Some(authorization)) => self.authenticate_bearer(request, authorization, now),
             (None, None) => match request.peer_certificate {
                 Some(certificate) if !self.x509_bundles.is_empty() => {
@@ -429,6 +460,71 @@ impl Authenticator {
         })
     }
 
+    /// `Authorization: DPoP` with one `DPoP` proof, per RFC 9449 §4.3 and
+    /// §7.1. The token must be bound to the proof key (`cnf.jkt`), and the
+    /// proof's `jti` is recorded for the proof key.
+    fn authenticate_dpop(
+        &self,
+        request: &RequestView<'_>,
+        authorization: &str,
+        now: u64,
+    ) -> Result<Authenticated, AuthError> {
+        let token = authorization
+            .trim()
+            .split_once(' ')
+            .map(|(_, token)| token.trim())
+            .filter(|token| !token.is_empty())
+            .ok_or(AuthError::MissingCredentials)?;
+        // Exactly one proof (RFC 9449 §4.3 item 1). A compact JWS has no
+        // comma, so a comma means a proxy joined two header lines.
+        let mut proofs = request.headers.iter().filter(|(n, _)| n == DPOP_HEADER);
+        let proof = match (proofs.next(), proofs.next()) {
+            (Some((_, proof)), None) if !proof.contains(',') => proof.trim(),
+            (None, _) => return Err(AuthError::DpopProof("no DPoP header".into())),
+            _ => return Err(AuthError::DpopProof("more than one DPoP proof".into())),
+        };
+        let (token_claims, binding) =
+            oauth::verify_bound(&self.oauth_issuers, token, now, self.leeway)?;
+        let oauth::Binding::Dpop(jkt) = binding else {
+            return Err(AuthError::DpopBinding("token has no cnf.jkt".into()));
+        };
+        let now_i = i64::try_from(now).map_err(|_| AuthError::Internal)?;
+        let window = i64::try_from(self.dpop_iat_window).unwrap_or(i64::MAX);
+        let expected = Expected {
+            jkt: &jkt,
+            access_token: token,
+            algs: DPOP_ALGS,
+            max_size: MAX_CREDENTIAL_LEN,
+            iat_window: window,
+        };
+        let uri = request.audience();
+        let target = HttpRequest {
+            method: request.method,
+            uri: &uri,
+        };
+        let proof = dpop_proof::verify(proof, &expected, &target, now_i).map_err(|e| match e {
+            Rejection::KeyMismatch => AuthError::DpopBinding(e.reason().into()),
+            Rejection::Proof(reason) => AuthError::DpopProof(reason.into()),
+        })?;
+        let caller = token_claims.client_id.clone().ok_or(AuthError::NoClient)?;
+        let expires = u64::try_from(proof.iat.saturating_add(window)).unwrap_or(0);
+        self.record(
+            replay::key(replay::Kind::Dpop, &jkt, &proof.jti),
+            expires,
+            now,
+        )
+        .map_err(|e| match e {
+            AuthError::Replay => AuthError::DpopReplay,
+            other => other,
+        })?;
+        Ok(Authenticated {
+            caller,
+            method: Method::OAuthDpop,
+            user: Some(token_claims),
+            proof_key: Some(proof.key.key),
+        })
+    }
+
     fn authenticate_bearer(
         &self,
         request: &RequestView<'_>,
@@ -494,10 +590,15 @@ pub const SIGNATURE_HEADER: &str = "signature";
 
 /// Whether `authorization` uses the `WPT` scheme.
 fn is_wpt(authorization: &str) -> bool {
+    is_scheme(authorization, "wpt")
+}
+
+/// Whether `authorization` uses the auth scheme `scheme` (case-insensitive).
+fn is_scheme(authorization: &str, scheme: &str) -> bool {
     authorization
         .trim_start()
         .split_once(' ')
-        .is_some_and(|(scheme, _)| scheme.eq_ignore_ascii_case("wpt"))
+        .is_some_and(|(s, _)| s.eq_ignore_ascii_case(scheme))
 }
 
 /// The values of a list-valued header joined with `, `, as HTTP combines

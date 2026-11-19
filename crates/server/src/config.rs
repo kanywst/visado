@@ -37,6 +37,9 @@ pub struct Config {
     /// `created`), and the oldest `created` accepted, in seconds.
     #[serde(default = "default_max_wpt_lifetime")]
     pub max_signature_lifetime: u64,
+    /// How far a DPoP proof's `iat` may be from now, either way, in seconds.
+    #[serde(default = "default_dpop_iat_window")]
+    pub dpop_iat_window: u64,
     pub signing_key: KeyFile,
     pub pdp: PdpConfig,
     #[serde(default)]
@@ -220,6 +223,15 @@ const fn default_max_wpt_lifetime() -> u64 {
     60
 }
 
+const fn default_dpop_iat_window() -> u64 {
+    60
+}
+
+/// The widest DPoP `iat` window accepted in configuration, in seconds.
+/// RFC 9449 §11.1 expects seconds or minutes, and every proof is remembered
+/// for this long.
+pub const MAX_DPOP_IAT_WINDOW: u64 = 300;
+
 /// The longest Transaction Token lifetime accepted in configuration, in seconds.
 pub const MAX_TXN_LIFETIME: u64 = 300;
 
@@ -283,6 +295,11 @@ impl Config {
                 "max_signature_lifetime must be 1..={MAX_SIGNATURE_LIFETIME} seconds"
             ));
         }
+        if !(1..=MAX_DPOP_IAT_WINDOW).contains(&self.dpop_iat_window) {
+            return Err(format!(
+                "dpop_iat_window must be 1..={MAX_DPOP_IAT_WINDOW} seconds"
+            ));
+        }
         if self.pdp.bearer_env.is_some() && !is_https_or_loopback(&self.pdp.endpoint) {
             return Err("pdp.bearer_env needs an https endpoint (or loopback)".into());
         }
@@ -337,7 +354,8 @@ impl Config {
 
         let mut authenticator = Authenticator::new()
             .with_replay_limits(self.replay_capacity, self.max_wpt_lifetime)
-            .with_signature_lifetime(self.max_signature_lifetime);
+            .with_signature_lifetime(self.max_signature_lifetime)
+            .with_dpop_iat_window(self.dpop_iat_window);
         if let Some(header) = &self.user_token_header {
             authenticator = authenticator.with_user_token_header(header);
         }
@@ -623,6 +641,9 @@ endpoint = "http://127.0.0.1:8181/access/v1/evaluation"
         assert!(parse("max_signature_lifetime = 0").is_err());
         assert!(parse("max_signature_lifetime = 3600").is_err());
         assert!(parse("max_signature_lifetime = 120").is_ok());
+        assert!(parse("dpop_iat_window = 0").is_err());
+        assert!(parse("dpop_iat_window = 3600").is_err());
+        assert!(parse("dpop_iat_window = 10").is_ok());
         assert!(parse("unknown_key = 1").is_err());
         let blank: Config = toml::from_str(&BASE.replace("td.example", " ")).unwrap();
         assert!(blank.validate().is_err());

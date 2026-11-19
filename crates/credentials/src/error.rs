@@ -38,9 +38,26 @@ pub enum AuthError {
     /// The access token has expired.
     #[error("access token expired")]
     Expired,
-    /// The access token is sender-constrained (`cnf`), which is not supported.
+    /// The access token is sender-constrained by a `cnf` other than a lone
+    /// `jkt` (such as an mTLS `x5t#S256`), which is not supported.
     #[error("sender-constrained access tokens are not supported")]
     SenderConstrained,
+    /// A DPoP-bound access token (`cnf.jkt`) was presented without its
+    /// proof: as `Authorization: Bearer` or as a user token (RFC 9449 §7.1).
+    #[error("DPoP-bound access token presented without a DPoP proof")]
+    DpopBound,
+    /// The `DPoP` proof is missing, repeated or invalid (RFC 9449
+    /// `invalid_dpop_proof`).
+    #[error("invalid DPoP proof: {0}")]
+    DpopProof(String),
+    /// The DPoP proof's `jti` was already accepted for this key.
+    #[error("DPoP proof replayed")]
+    DpopReplay,
+    /// The access token sent with `Authorization: DPoP` is not bound to the
+    /// proof key: it has no `cnf.jkt`, or the proof was made with another
+    /// key (RFC 9449 `invalid_token`).
+    #[error("access token not bound to the DPoP key: {0}")]
+    DpopBinding(String),
     /// A WIT with an HTTP message signature did not verify: the WIT, the
     /// signature, its profile, its time window, the body digest or a replayed
     /// nonce. One code for all of them, because draft-ietf-wimse-http-signature
@@ -93,6 +110,10 @@ impl AuthError {
             Self::AccessToken(_) => "token.invalid",
             Self::Expired => "token.expired",
             Self::SenderConstrained => "token.sender_constrained",
+            Self::DpopBound => "token.dpop_bound",
+            Self::DpopProof(_) => "dpop.invalid",
+            Self::DpopReplay => "dpop.replay",
+            Self::DpopBinding(_) => "dpop.binding",
             Self::NoClient => "token.no_client",
             Self::HttpSig(_) => "httpsig.invalid",
             Self::Ambiguous => "credential.ambiguous",

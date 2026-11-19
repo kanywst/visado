@@ -40,6 +40,7 @@ jq -r '[.valid[].token, .negative[].token] | .[]' "$vectors/txn-token/vectors.js
     # And as the credentials a caller presents.
     printf '%s\nWPT %s\n%s' "$token" "$token" "$token" | write credentials_authenticate "wimse-$h"
     printf '\nBearer %s\n' "$token" | write credentials_authenticate "bearer-$h"
+    printf '\nDPoP %s\n\n%s' "$token" "$token" | write credentials_authenticate "dpop-$h"
   done
 
 # AAT presentations: the chain, the PoP, the tool and the arguments.

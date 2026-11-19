@@ -89,12 +89,40 @@ const ALGORITHMS: [Algorithm; 4] = [
     Algorithm::EdDSA,
 ];
 
+/// How a verified access token is bound to its presenter.
+#[derive(Debug)]
+pub(crate) enum Binding {
+    /// No `cnf`: a bearer token.
+    Bearer,
+    /// `cnf` with only `jkt`: a DPoP-bound token (RFC 9449 §6).
+    Dpop(String),
+}
+
+/// Verifies a token presented without proof of possession: as
+/// `Authorization: Bearer`, or as a user token next to a caller's own proof.
+/// A DPoP-bound token is refused (RFC 9449 §7.1: a bound token must not be
+/// accepted as a bearer token).
 pub(crate) fn verify(
     issuers: &[OAuthIssuer],
     token: &str,
     now: u64,
     leeway: u64,
 ) -> Result<AccessToken, AuthError> {
+    match verify_bound(issuers, token, now, leeway)? {
+        (token, Binding::Bearer) => Ok(token),
+        (_, Binding::Dpop(_)) => Err(AuthError::DpopBound),
+    }
+}
+
+/// Verifies a token and reports its binding. A `cnf` other than a lone
+/// string `jkt` is refused: no other confirmation method is implemented, so
+/// accepting it would drop the binding.
+pub(crate) fn verify_bound(
+    issuers: &[OAuthIssuer],
+    token: &str,
+    now: u64,
+    leeway: u64,
+) -> Result<(AccessToken, Binding), AuthError> {
     let invalid = |e: jsonwebtoken::errors::Error| AuthError::AccessToken(e.to_string());
     let header = decode_header(token).map_err(invalid)?;
     if !ALGORITHMS.contains(&header.alg) {
@@ -135,13 +163,14 @@ pub(crate) fn verify(
     {
         return Err(AuthError::AccessToken("not yet valid".into()));
     }
-    // Proof of possession for DPoP or mTLS-bound tokens is not implemented, so
-    // accepting one as a plain bearer token would drop its binding.
-    if claims.cnf.is_some() {
-        return Err(AuthError::SenderConstrained);
-    }
+    let binding = match &claims.cnf {
+        None => Binding::Bearer,
+        Some(cnf) => dpop_jkt(cnf)
+            .map(Binding::Dpop)
+            .ok_or(AuthError::SenderConstrained)?,
+    };
     let prefix = issuer.prefix.as_deref().unwrap_or("");
-    Ok(AccessToken {
+    let token = AccessToken {
         issuer: claims.iss,
         subject: format!("{prefix}{}", claims.sub),
         client_id: claims
@@ -152,7 +181,21 @@ pub(crate) fn verify(
             .scope
             .or_else(|| claims.scp.as_ref().and_then(scp_to_scope)),
         expires_at: claims.exp,
-    })
+    };
+    Ok((token, binding))
+}
+
+/// `cnf.jkt` when it is the only confirmation member and a non-empty string.
+fn dpop_jkt(cnf: &serde_json::Value) -> Option<String> {
+    let members = cnf.as_object()?;
+    if members.len() != 1 {
+        return None;
+    }
+    members
+        .get("jkt")?
+        .as_str()
+        .filter(|jkt| !jkt.is_empty())
+        .map(ToOwned::to_owned)
 }
 
 /// `scp` as used by some issuers instead of `scope`: a string or an array of
