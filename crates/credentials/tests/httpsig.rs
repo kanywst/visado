@@ -377,3 +377,22 @@ fn credential_shapes_that_are_refused() {
     ];
     assert_eq!(run(&auth, &unsigned, None, NOW).unwrap_err(), "wpt.missing");
 }
+
+#[test]
+fn a_nonce_stays_recorded_through_the_last_accepted_second() {
+    let auth = authenticator();
+    let headers = signed(1, &[], &spec("last"));
+    // `expires` is NOW + 60 and the leeway 30, so NOW + 90 is the last second
+    // the signature is accepted in.
+    run(&auth, &headers, None, NOW + 90).unwrap();
+    for _ in 0..3 {
+        assert_eq!(
+            run(&auth, &headers, None, NOW + 90).unwrap_err(),
+            "httpsig.invalid"
+        );
+    }
+    assert_eq!(
+        run(&auth, &headers, None, NOW + 91).unwrap_err(),
+        "httpsig.invalid"
+    );
+}

@@ -355,11 +355,13 @@ impl Authenticator {
         })
     }
 
-    /// Records a proof in the replay cache until `expires` plus leeway.
+    /// Records a proof in the replay cache for as long as it can be accepted:
+    /// through the second `expires` plus leeway. The cache drops an entry at
+    /// its expiry time, so it is stored until one second later.
     fn record(&self, key: [u8; 32], expires: u64, now: u64) -> Result<(), AuthError> {
         let recorded = self.replay.lock().map_err(|_| AuthError::Internal)?.insert(
             key,
-            expires.saturating_add(self.leeway),
+            expires.saturating_add(self.leeway).saturating_add(1),
             now,
         );
         match recorded {
