@@ -102,7 +102,14 @@ fn a_delegated_action_within_bounds_is_permitted() {
         Ok(())
     );
     assert_eq!(
-        outcome(run(&chain, &p, "crm.read", "{}", None, Some(&cache))),
+        outcome(run(
+            &chain,
+            &p,
+            "crm.read",
+            r#"{"rows":1}"#,
+            None,
+            Some(&cache)
+        )),
         Some(Outcome::HolderBindingFailed),
         "replayed proof"
     );
@@ -141,15 +148,29 @@ fn cumulative_constraints_need_a_held_total() {
     // The root carries no lifetime bound, so the child may add one.
     let p = proof(&chain, 2, "p1");
     assert_eq!(
-        outcome(run(&chain, &p, "crm.read", "{}", None, None)),
+        outcome(run(&chain, &p, "crm.read", r#"{"rows":1}"#, None, None)),
         Some(Outcome::CeilingExceeded)
     );
     assert_eq!(
-        run(&chain, &p, "crm.read", "{}", Some(&Held(3.0)), None),
+        run(
+            &chain,
+            &p,
+            "crm.read",
+            r#"{"rows":1}"#,
+            Some(&Held(3.0)),
+            None
+        ),
         Ok(())
     );
     assert_eq!(
-        outcome(run(&chain, &p, "crm.read", "{}", Some(&Held(4.0)), None)),
+        outcome(run(
+            &chain,
+            &p,
+            "crm.read",
+            r#"{"rows":1}"#,
+            Some(&Held(4.0)),
+            None
+        )),
         Some(Outcome::CeilingExceeded)
     );
 }
@@ -162,7 +183,7 @@ fn an_unknown_constraint_type_denies_every_action() {
     ]));
     let p = proof(&chain, 2, "p1");
     assert_eq!(
-        outcome(run(&chain, &p, "crm.read", "{}", None, None)),
+        outcome(run(&chain, &p, "crm.read", r#"{"rows":1}"#, None, None)),
         Some(Outcome::UnknownConstraint)
     );
 }
@@ -172,7 +193,7 @@ fn step_6_binds_the_proof_to_the_leaf_key_and_the_request() {
     let chain = chain();
     let leaf = chain.last().unwrap();
     let key = pop_key(2);
-    let denied = |p: &str| outcome(run(&chain, p, "crm.read", "{}", None, None));
+    let denied = |p: &str| outcome(run(&chain, p, "crm.read", r#"{"rows":1}"#, None, None));
     let failed = Some(Outcome::HolderBindingFailed);
     assert_eq!(denied(""), failed, "missing proof");
     assert_eq!(denied(&proof(&chain, 1, "p")), failed, "parent's key");
@@ -223,7 +244,7 @@ fn a_status_reference_cannot_be_checked() {
     let chain = vec![asor_sign(&claims)];
     let p = proof(&chain, 1, "p1");
     assert_eq!(
-        outcome(run(&chain, &p, "crm.read", "{}", None, None)),
+        outcome(run(&chain, &p, "crm.read", r#"{"rows":1}"#, None, None)),
         Some(Outcome::StatusUnknown)
     );
 }

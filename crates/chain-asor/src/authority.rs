@@ -166,20 +166,19 @@ impl Authority {
                         "constraint type not implemented",
                     ));
                 }
-                Bound::Max(max) => param.is_none_or(|p| number(p).is_some_and(|n| n <= *max)),
-                Bound::Min(min) => param.is_none_or(|p| number(p).is_some_and(|n| n >= *min)),
+                Bound::Max(max) => param.is_some_and(|p| number(p).is_some_and(|n| n <= *max)),
+                Bound::Min(min) => param.is_some_and(|p| number(p).is_some_and(|n| n >= *min)),
                 Bound::MaxLifetime(max) => total(Cumulative::Lifetime).is_some_and(|t| t <= *max),
                 Bound::MaxSubtree(max) => total(Cumulative::Subtree).is_some_and(|t| t <= *max),
                 Bound::OneOf(members) => {
-                    param.is_none_or(|p| member(p).is_some_and(|m| members.contains(&m)))
+                    param.is_some_and(|p| member(p).is_some_and(|m| members.contains(&m)))
                 }
                 Bound::NotOneOf(members) => {
-                    param.is_none_or(|p| member(p).is_some_and(|m| !members.contains(&m)))
+                    param.is_some_and(|p| member(p).is_some_and(|m| !members.contains(&m)))
                 }
-                Bound::Prefix(prefix) => {
-                    param.is_none_or(|p| p.as_str().is_some_and(|s| s.starts_with(prefix.as_str())))
-                }
-                Bound::Rank { rank, order } => param.is_none_or(|p| {
+                Bound::Prefix(prefix) => param
+                    .is_some_and(|p| p.as_str().is_some_and(|s| s.starts_with(prefix.as_str()))),
+                Bound::Rank { rank, order } => param.is_some_and(|p| {
                     let at = |v: &str| order.iter().position(|o| o == v);
                     p.as_str()
                         .and_then(at)
@@ -390,7 +389,16 @@ mod tests {
         );
         let params = |p: &str| parse(p.as_bytes()).unwrap();
         let check = |scope: &str, p: &str| leaf.permits("j", scope, &params(p), None);
-        assert_eq!(check("crm.read", r#"{"rows":100}"#), Ok(()));
+        assert_eq!(
+            check("crm.read", r#"{"rows":100,"egress":"internal"}"#),
+            Ok(())
+        );
+        // A constrained argument that is left out is denied, so an upstream
+        // default can never slip past the constraint.
+        assert_eq!(
+            check("crm.read", r#"{"rows":100}"#).unwrap_err().0,
+            Outcome::CeilingExceeded
+        );
         assert_eq!(
             check("crm.read", r#"{"rows":"100"}"#).unwrap_err().0,
             Outcome::CeilingExceeded
@@ -403,7 +411,7 @@ mod tests {
             check("crm.read", r#"{"egress":"any"}"#).unwrap_err().0,
             Outcome::CeilingExceeded
         );
-        assert_eq!(check("crm.read", r#"{"egress":"none"}"#), Ok(()));
+        assert_eq!(check("crm.read", r#"{"rows":1,"egress":"none"}"#), Ok(()));
         assert_eq!(
             check("crm.write", "{}").unwrap_err().0,
             Outcome::ScopeNotGranted
