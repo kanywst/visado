@@ -147,21 +147,18 @@ fn minted_chain(outcome: &Outcome) -> Value {
 }
 
 #[tokio::test]
-async fn a_client_acting_for_the_user_is_allowed() {
-    let act = json!({ "sub": "client-1", "act": { "sub": "user-agent-0" } });
+async fn a_workload_acting_for_the_user_is_allowed() {
+    let act = json!({ "sub": AGENT, "act": { "sub": "user-agent-0" } });
     let pdp = RecordingPdp::default();
     let gate = gate_recording(gate_config(), pdp.clone());
     let outcome = gate
-        .check(&bearer(&token("client-1", Some(act))), NOW, "t")
+        .check(&workload(&token("c", Some(act)), 1), NOW, "t")
         .await;
     let chain = minted_chain(&outcome);
     assert_eq!(chain["profile"], "rfc8693-act");
     assert_eq!(chain["principal"], "alice");
     assert_eq!(chain["issuer"], OAUTH_ISSUER);
-    assert_eq!(
-        chain["actor"],
-        json!({ "iss": OAUTH_ISSUER, "sub": "client-1" })
-    );
+    assert_eq!(chain["actor"], json!({ "iss": OAUTH_ISSUER, "sub": AGENT }));
     assert_eq!(chain["depth"], 1);
     assert_eq!(
         chain["prior_actors"],
@@ -171,34 +168,34 @@ async fn a_client_acting_for_the_user_is_allowed() {
     // The PDP sees the current actor only (RFC 8693 §4.1).
     let seen = Value::Object(pdp.0.lock().unwrap().last().unwrap().clone());
     let pdp_chain = &seen["chain"];
-    assert_eq!(pdp_chain["actor"]["sub"], "client-1");
+    assert_eq!(pdp_chain["actor"]["sub"], AGENT);
     assert_eq!(pdp_chain["principal"], "alice");
     assert!(pdp_chain.get("prior_actors").is_none());
     assert!(pdp_chain.get("depth").is_none());
+    assert!(!seen.to_string().contains("user-agent-0"));
 }
 
 #[tokio::test]
-async fn a_workload_named_as_the_current_actor_is_allowed() {
-    let act = json!({ "sub": AGENT });
+async fn a_bearer_caller_cannot_present_an_act_chain() {
+    // The client is the current actor, but it proved no key for the request.
+    let act = json!({ "sub": "client-1" });
     let outcome = gate()
-        .check(&workload(&token("c", Some(act)), 1), NOW, "t")
+        .check(&bearer(&token("client-1", Some(act))), NOW, "t")
         .await;
-    let chain = minted_chain(&outcome);
-    assert_eq!(chain["actor"]["sub"], AGENT);
-    assert_eq!(chain["depth"], 0);
+    assert_eq!(denial(&outcome), (403, "chain.unbound_caller"));
 }
 
 #[tokio::test]
 async fn the_current_actor_must_be_the_caller() {
     let gate = gate();
     // The caller is only a prior actor.
-    let act = json!({ "sub": "client-9", "act": { "sub": "client-1" } });
+    let act = json!({ "sub": "spiffe://td.example/agent-c", "act": { "sub": AGENT } });
     let outcome = gate
-        .check(&bearer(&token("client-1", Some(act))), NOW, "t")
+        .check(&workload(&token("c", Some(act)), 1), NOW, "t")
         .await;
     assert_eq!(denial(&outcome), (403, "act.actor_mismatch"));
 
-    // A workload presenting a token issued for another actor.
+    // A token issued for another actor.
     let act = json!({ "sub": "spiffe://td.example/agent-c" });
     let outcome = gate
         .check(&workload(&token("c", Some(act)), 2), NOW, "t")
@@ -209,7 +206,11 @@ async fn the_current_actor_must_be_the_caller() {
 #[tokio::test]
 async fn a_mapping_binds_an_actor_name_to_a_caller() {
     let mut config = gate_config();
-    config.act = Some(Verifier::new().with_actor("agent-b-client", AGENT));
+    config.act = Some(
+        Verifier::new()
+            .with_actor("agent-b-client", AGENT)
+            .with_actor(AGENT, "spiffe://td.example/agent-c"),
+    );
     let gate = gate_with(config);
     let act = json!({ "sub": "agent-b-client" });
     let outcome = gate
@@ -217,10 +218,11 @@ async fn a_mapping_binds_an_actor_name_to_a_caller() {
         .await;
     assert_eq!(minted_chain(&outcome)["actor"]["sub"], "agent-b-client");
 
-    // The mapped name is bound only to its mapped caller.
-    let act = json!({ "sub": "agent-b-client" });
+    // A mapped name is bound only to its mapped caller, even when it is the
+    // caller's own identifier.
+    let act = json!({ "sub": AGENT });
     let outcome = gate
-        .check(&bearer(&token("agent-b-client", Some(act))), NOW, "t")
+        .check(&workload(&token("c", Some(act)), 2), NOW, "t")
         .await;
     assert_eq!(denial(&outcome), (403, "act.actor_mismatch"));
 }
@@ -231,22 +233,22 @@ async fn a_malformed_act_claim_is_denied() {
     config.act = Some(Verifier::new().with_max_actors(2));
     let gate = gate_with(config);
     let cases = [
-        (json!("client-1"), "act.not_object"),
-        (json!({ "sub": "client-1", "act": [] }), "act.not_object"),
+        (json!(AGENT), "act.not_object"),
+        (json!({ "sub": AGENT, "act": [] }), "act.not_object"),
         (json!({ "iss": OAUTH_ISSUER }), "act.missing_sub"),
         (
-            json!({ "sub": "client-1", "act": { "sub": 1 } }),
+            json!({ "sub": AGENT, "act": { "sub": 1 } }),
             "act.missing_sub",
         ),
-        (json!({ "sub": "client-1", "iss": 2 }), "act.bad_issuer"),
+        (json!({ "sub": AGENT, "iss": 2 }), "act.bad_issuer"),
         (
-            json!({ "sub": "client-1", "act": { "sub": "a", "act": { "sub": "b" } } }),
+            json!({ "sub": AGENT, "act": { "sub": "a", "act": { "sub": "b" } } }),
             "act.too_deep",
         ),
     ];
-    for (act, code) in cases {
+    for (n, (act, code)) in (1..).zip(cases) {
         let outcome = gate
-            .check(&bearer(&token("client-1", Some(act.clone()))), NOW, "t")
+            .check(&workload(&token("c", Some(act.clone())), n), NOW, "t")
             .await;
         assert_eq!(denial(&outcome), (403, code), "{act}");
     }
@@ -272,9 +274,9 @@ async fn configuration() {
     // user's own.
     let mut config = gate_config();
     config.act = None;
-    let act = json!({ "sub": "client-1" });
+    let act = json!({ "sub": AGENT });
     let outcome = gate_with(config)
-        .check(&bearer(&token("client-1", Some(act.clone()))), NOW, "t")
+        .check(&workload(&token("c", Some(act.clone())), 1), NOW, "t")
         .await;
     assert_eq!(denial(&outcome), (403, "chain.unsupported"));
 
@@ -282,16 +284,14 @@ async fn configuration() {
     let mut config = gate_config();
     config.require_chain = true;
     let gate = gate_with(config);
-    let outcome = gate
-        .check(&bearer(&token("client-1", None)), NOW, "t")
-        .await;
+    let outcome = gate.check(&workload(&token("c", None), 1), NOW, "t").await;
     assert_eq!(denial(&outcome), (403, "chain.required"));
     let outcome = gate
-        .check(&bearer(&token("client-1", Some(act))), NOW, "t")
+        .check(&workload(&token("c", Some(act)), 2), NOW, "t")
         .await;
     assert_eq!(denial(&outcome).1, "allow");
 
-    // A token without act is unaffected by [act].
+    // A token without act is unaffected by [act], for a bearer caller too.
     let outcome = gate_with(gate_config())
         .check(&bearer(&token("client-1", None)), NOW, "t")
         .await;

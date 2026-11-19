@@ -395,8 +395,10 @@ impl<P: Pdp> Gate<P> {
     }
 
     /// An RFC 8693 `act` chain from the caller's access token, which
-    /// `visado-credentials` already verified. The current actor must be the
-    /// caller; prior actors are recorded but not checked against anything.
+    /// `visado-credentials` already verified. Only a caller that proved
+    /// possession of a key may present one, and the current actor must be
+    /// that caller; prior actors are recorded but not checked against
+    /// anything.
     fn verify_act(
         &self,
         caller: &Authenticated,
@@ -406,6 +408,12 @@ impl<P: Pdp> Gate<P> {
         let Some(verifier) = &self.config.act else {
             return Err(Denied::new(403, "chain.unsupported", trail));
         };
+        // As for AAT and asor, the chain must belong to a caller that proved
+        // possession of a key for this request; a bearer token alone does
+        // not show who presents it.
+        if caller.proof_key.is_none() {
+            return Err(Denied::new(403, "chain.unbound_caller", trail));
+        }
         let Some(act) = user.act.as_ref() else {
             return Err(Denied::new(500, "internal.act", trail));
         };

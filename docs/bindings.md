@@ -82,12 +82,13 @@ Rules:
 
 | Item | Carried in |
 | --- | --- |
-| Chain | The `act` claim of the caller's access token: the bearer token, or the user token next to a WIT (bound through the WPT `oth` or the HTTP signature) |
+| Chain | The `act` claim of the user token next to a WIT (bound through the WPT `oth` or the HTTP signature) |
 
 Rules:
 
 - The token is verified as any access token first (issuer, key, audience, lifetime). The `act` claim is then read as a chain: the principal is the token's `sub`, the current actor is the outermost `act`, and each nested `act` is a prior actor, the most deeply nested the least recent. Every `act` must be a JSON object with a non-empty string `sub` and, if present, a string `iss`; otherwise `act.not_object`, `act.missing_sub` or `act.bad_issuer`. More than `max_actors` actors (default 8) is `act.too_deep`. Other members of an `act`, such as `exp` or `aud`, are ignored, as RFC 8693 §4.1 says.
-- The current actor must be the caller: its `sub`, as the token writes it, must equal the caller identifier (the WIT `sub`, the certificate's SPIFFE ID, or the bearer token's `client_id`), or, when `[act.actors]` maps that `sub`, the caller it is mapped to. Otherwise `act.actor_mismatch`. A bearer caller's identifier carries the issuer's `subject_prefix` when one is configured, so with a prefix such an actor needs a mapping. The actor's `iss` is recorded but not compared, since the token's issuer vouches for the whole claim. Prior actors are never compared with anything.
+- As for AAT and asor, only a caller that proved possession of a key for the request may present a chain. A bearer token with an `act` claim is denied (`chain.unbound_caller`): nothing shows that the actor it names is the party sending it.
+- The current actor must be the caller: its `sub`, as the token writes it, must equal the caller identifier (the WIT `sub`, the certificate's SPIFFE ID), or, when `[act.actors]` maps that `sub`, the caller it is mapped to. Otherwise `act.actor_mismatch`. The issuer's `subject_prefix` applies to the token's `sub` and `client_id`, not to `act.sub`. The actor's `iss` is recorded but not compared, since the token's issuer vouches for the whole claim. Prior actors are never compared with anything.
 - RFC 8693 §4.1 says prior actors are "informational only and are not to be considered in access control decisions". The PDP therefore gets only the current actor: `context.chain` has `profile` (`rfc8693-act`), `issuer`, `principal` and `actor` (`{iss, sub}`). The Transaction Token's `tctx.chain` (or `tctx.chain:<caller>` on a replacement) adds `prior_actors`, least recent first, and `depth`.
 - RFC 8693 gives no actor an authority of its own, so visado does not narrow anything by the chain: what the token grants is its `scope`, as for any access token.
 - An access token with an `act` claim next to an `AAT-Chain` or `Agent-Delegation-Chain` header is `chain.ambiguous`. Without `[act]`, a token with an `act` claim is denied (`chain.unsupported`) rather than read as the subject's own token.
