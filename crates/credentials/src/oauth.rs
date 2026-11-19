@@ -1,4 +1,4 @@
-use jsonwebtoken::jwk::JwkSet;
+use jsonwebtoken::jwk::{JwkSet, ThumbprintHash};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::Deserialize;
 
@@ -56,6 +56,16 @@ pub struct AccessToken {
     pub scope: Option<String>,
     /// `exp`.
     pub expires_at: u64,
+    /// `iat`, when present.
+    pub issued_at: Option<u64>,
+    /// `jti`, when present.
+    pub id: Option<String>,
+    /// The RFC 8693 `act` (actor) claim as the issuer signed it, unchecked:
+    /// its shape is checked by whoever uses it.
+    pub act: Option<serde_json::Value>,
+    /// The RFC 7638 SHA-256 thumbprint of the issuer key that verified the
+    /// token.
+    pub key_thumbprint: String,
 }
 
 #[derive(Deserialize)]
@@ -75,6 +85,12 @@ struct Claims {
     nbf: Option<u64>,
     #[serde(default)]
     cnf: Option<serde_json::Value>,
+    #[serde(default)]
+    iat: Option<u64>,
+    #[serde(default)]
+    jti: Option<String>,
+    #[serde(default)]
+    act: Option<serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -112,6 +128,7 @@ pub(crate) fn verify(
     }
     .ok_or_else(|| AuthError::AccessToken("no trusted key".into()))?;
     let key = DecodingKey::from_jwk(jwk).map_err(invalid)?;
+    let key_thumbprint = jwk.thumbprint(ThumbprintHash::SHA256).map_err(invalid)?;
 
     let mut validation = Validation::new(header.alg);
     validation.set_issuer(&[&issuer.issuer]);
@@ -152,6 +169,10 @@ pub(crate) fn verify(
             .scope
             .or_else(|| claims.scp.as_ref().and_then(scp_to_scope)),
         expires_at: claims.exp,
+        issued_at: claims.iat,
+        id: claims.jti,
+        act: claims.act,
+        key_thumbprint,
     })
 }
 
