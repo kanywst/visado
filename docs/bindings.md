@@ -78,6 +78,22 @@ Rules:
 
 `Authorization: Bearer <access token>` when the caller has no WIT and the token is not a JWT-SVID.
 
+## RFC 8693 act
+
+| Item | Carried in |
+| --- | --- |
+| Chain | The `act` claim of the caller's access token: the bearer token, or the user token next to a WIT (bound through the WPT `oth` or the HTTP signature) |
+
+Rules:
+
+- The token is verified as any access token first (issuer, key, audience, lifetime). The `act` claim is then read as a chain: the principal is the token's `sub`, the current actor is the outermost `act`, and each nested `act` is a prior actor, the most deeply nested the least recent. Every `act` must be a JSON object with a non-empty string `sub` and, if present, a string `iss`; otherwise `act.not_object`, `act.missing_sub` or `act.bad_issuer`. More than `max_actors` actors (default 8) is `act.too_deep`. Other members of an `act`, such as `exp` or `aud`, are ignored, as RFC 8693 §4.1 says.
+- The current actor must be the caller: its `sub`, as the token writes it, must equal the caller identifier (the WIT `sub`, the certificate's SPIFFE ID, or the bearer token's `client_id`), or, when `[act.actors]` maps that `sub`, the caller it is mapped to. Otherwise `act.actor_mismatch`. A bearer caller's identifier carries the issuer's `subject_prefix` when one is configured, so with a prefix such an actor needs a mapping. The actor's `iss` is recorded but not compared, since the token's issuer vouches for the whole claim. Prior actors are never compared with anything.
+- RFC 8693 §4.1 says prior actors are "informational only and are not to be considered in access control decisions". The PDP therefore gets only the current actor: `context.chain` has `profile` (`rfc8693-act`), `issuer`, `principal` and `actor` (`{iss, sub}`). The Transaction Token's `tctx.chain` (or `tctx.chain:<caller>` on a replacement) adds `prior_actors`, least recent first, and `depth`.
+- RFC 8693 gives no actor an authority of its own, so visado does not narrow anything by the chain: what the token grants is its `scope`, as for any access token.
+- An access token with an `act` claim next to an `AAT-Chain` or `Agent-Delegation-Chain` header is `chain.ambiguous`. Without `[act]`, a token with an `act` claim is denied (`chain.unsupported`) rather than read as the subject's own token.
+- `[act]` takes `required` (no default; a token with an `act` claim satisfies it, as either other chain format does), `max_actors` (1 to 32) and the `[act.actors]` table. The `may_act` claim is not read.
+- The audit detail of an `act.actor_mismatch` names the actor and the caller, never the token.
+
 ## AAT
 
 | Item | Carried in |
@@ -112,5 +128,5 @@ Rules:
 - The DPoP `htu` is compared with `scheme://authority/path` of the request, both without query or fragment. `ath` is required, since a Delegation Token is an access token (RFC 9449 §4.2). `iat` must be within 60 seconds of now, and a proof `jti` is accepted once per process.
 - The tool name is the action's scope and is matched with the draft's covering relation (§4.1), so a tool name is usually an opaque scope matched exactly, or a dotted literal such as `crm.read` that a wildcard can cover. A per-action constraint reads the argument named by its `key`; an absent argument fails the constraint (`asor.ceiling_exceeded`). A body-less GET, HEAD, DELETE or OPTIONS request has the tool `<METHOD> <path>`, which is never a valid scope, so it is denied (`asor.scope_not_granted`).
 - The gate holds no running totals, so a leaf with a `max_lifetime` or `max_subtree` constraint denies every call (`asor.ceiling_exceeded`), and a leaf with a constraint type visado does not implement denies every call (`asor.unknown_constraint`). Status lists are not implemented: a token with a `status` claim is denied (`asor.status_unknown`).
-- `[asor]` takes `audiences`, `trust_anchors` (as for `[aat]`) and `required`, which has no default. A request without a chain is denied when `[aat]` or `[asor]` sets `required = true`; a chain of either configured format satisfies it.
+- `[asor]` takes `audiences`, `trust_anchors` (as for `[aat]`) and `required`, which has no default. A request without a chain is denied when `[aat]`, `[asor]` or `[act]` sets `required = true`; a chain of any configured format satisfies it.
 - A verified chain goes to the PDP and the Transaction Token as for AAT, with the Principal (`sub`) added as `principal`.

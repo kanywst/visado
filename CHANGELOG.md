@@ -4,7 +4,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
-Adds the remaining workload authentication methods. Breaking: the server refuses to start with an empty `allowed_authorities`. For library users, `RequestView` and `CheckInput` have new fields, `CheckInput::body` is bytes, and `Method` has new variants.
+Adds the remaining workload authentication methods and RFC 8693 `act` chains. Breaking: the server refuses to start with an empty `allowed_authorities`, and denies access tokens with an `act` claim unless `[act]` is configured. For library users, `RequestView`, `CheckInput`, `GateConfig` and `AccessToken` have new fields, `CheckInput::body` is bytes, and `Method` has new variants.
 
 ### Added
 
@@ -21,9 +21,16 @@ Adds the remaining workload authentication methods. Breaking: the server refuses
 - `visado-chain`: `Profile::Asor03`, and the shared `json` (strict parser and JCS), `jose` (compact JWS parts and JWK thumbprints) and `replay` modules.
 - `deploy/lab`: SPIRE v1.16.0 issues the workloads' WIT-SVIDs (experimental `enable_wit_svids`). A one-shot `wit-config` service writes visado's `[[wit_issuers]]` from the SPIRE WIT bundle before visado starts, and `demo.sh` signs WPTs and AAT holder proofs with the keys SPIRE issued.
 
+- `visado-chain-act`: reads the RFC 8693 `act` claim of a verified access token as a delegation chain (principal `sub`, actors from the least recent to the current one) and requires the current actor to be the authenticated caller, directly or through a mapping. Errors are `act.not_object`, `act.missing_sub`, `act.bad_issuer`, `act.too_deep` and `act.actor_mismatch`.
+- The gate enforces `act` chains in the bearer token or in a user token bound to a WIT caller (see `docs/bindings.md`). The PDP gets only the current actor, as RFC 8693 §4.1 keeps prior actors out of access control; the Transaction Token `tctx` also records the prior actors and the depth. Configured with `[act]` in the server file: `required` (no default), `max_actors` (default 8) and an `[act.actors]` mapping.
+- 20 `act` vectors in `conformance/act/`, visado's own except for the claim sets of RFC 8693 Figures 5 and 6.
+- `visado-chain`: `Profile::Rfc8693Act`, `ActorId::Subject` and `Link::Nested`.
+- `visado-credentials`: `AccessToken` has `act`, `id` (`jti`), `issued_at` and `key_thumbprint` (the issuer key that verified it).
+
 ### Changed
 
 - The server refuses to start when `allowed_authorities` is empty; it used to warn.
+- The gate denies an access token that carries an `act` claim unless `[act]` is configured (`chain.unsupported`); it used to ignore the claim. A token with an `act` claim next to an `AAT-Chain` or `Agent-Delegation-Chain` header is `chain.ambiguous`.
 - An internal caller may forward a `Txn-Token` after a WPT, an HTTP signature that covers it, or mTLS; bearer callers still cannot.
 - The gate removes `Signature` and `Signature-Input` before the request goes upstream.
 - The gate refuses a non-UTF-8 body for an AAT invocation itself; the service no longer replaces such a body with a marker.
