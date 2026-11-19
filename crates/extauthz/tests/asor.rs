@@ -208,7 +208,7 @@ async fn the_chain_must_be_held_by_the_caller() {
     // A workload with key 3 presents agent B's chain with a proof by key 2.
     let outcome = gate()
         .check(
-            &call(&narrow(), 3, Some(2), "crm.read", &json!({}), 1),
+            &call(&narrow(), 3, Some(2), "crm.read", &json!({ "rows": 1 }), 1),
             NOW,
             "t",
         )
@@ -217,7 +217,7 @@ async fn the_chain_must_be_held_by_the_caller() {
     // Or with a proof by its own key, which is not the leaf key.
     let outcome = gate()
         .check(
-            &call(&narrow(), 3, Some(3), "crm.read", &json!({}), 2),
+            &call(&narrow(), 3, Some(3), "crm.read", &json!({ "rows": 1 }), 2),
             NOW,
             "t",
         )
@@ -230,15 +230,15 @@ async fn a_missing_or_replayed_proof_is_denied() {
     let gate = gate();
     let outcome = gate
         .check(
-            &call(&narrow(), 2, None, "crm.read", &json!({}), 1),
+            &call(&narrow(), 2, None, "crm.read", &json!({ "rows": 1 }), 1),
             NOW,
             "t",
         )
         .await;
     assert_eq!(denial(&outcome), (401, "chain.missing_pop"));
-    let first = call(&narrow(), 2, Some(2), "crm.read", &json!({}), 2);
+    let first = call(&narrow(), 2, Some(2), "crm.read", &json!({ "rows": 1 }), 2);
     assert_eq!(denial(&gate.check(&first, NOW, "t").await).1, "allow");
-    let mut again = call(&narrow(), 2, Some(2), "crm.read", &json!({}), 3);
+    let mut again = call(&narrow(), 2, Some(2), "crm.read", &json!({ "rows": 1 }), 3);
     let proof = first.headers.iter().find(|(n, _)| n == "dpop").unwrap();
     again.headers.retain(|(n, _)| n != "dpop");
     again.headers.push(proof.clone());
@@ -253,7 +253,7 @@ async fn bindings_and_configuration() {
     let gate = gate();
     // A bearer-only caller cannot present a chain.
     let token = access_token("alice", "client-1", "tools.call", AUDIENCE, NOW + 60);
-    let mut bearer = call(&narrow(), 2, Some(2), "crm.read", &json!({}), 1);
+    let mut bearer = call(&narrow(), 2, Some(2), "crm.read", &json!({ "rows": 1 }), 1);
     bearer
         .headers
         .retain(|(n, _)| n == "agent-delegation-chain" || n == "dpop");
@@ -266,7 +266,7 @@ async fn bindings_and_configuration() {
     );
 
     // Both chain formats at once.
-    let mut both = call(&narrow(), 2, Some(2), "crm.read", &json!({}), 2);
+    let mut both = call(&narrow(), 2, Some(2), "crm.read", &json!({ "rows": 1 }), 2);
     both.headers.push(("aat-chain".into(), "x.y.z".into()));
     assert_eq!(
         denial(&gate.check(&both, NOW, "t").await),
@@ -276,7 +276,7 @@ async fn bindings_and_configuration() {
     // asor not configured.
     let mut config = gate_config();
     config.asor = None;
-    let input = call(&narrow(), 2, Some(2), "crm.read", &json!({}), 3);
+    let input = call(&narrow(), 2, Some(2), "crm.read", &json!({ "rows": 1 }), 3);
     assert_eq!(
         denial(&gate_with(config).check(&input, NOW, "t").await),
         (403, "chain.unsupported")
@@ -285,7 +285,7 @@ async fn bindings_and_configuration() {
     // A chain is required and the request has none.
     let mut config = gate_config();
     config.require_chain = true;
-    let mut none = call(&narrow(), 2, Some(2), "crm.read", &json!({}), 4);
+    let mut none = call(&narrow(), 2, Some(2), "crm.read", &json!({ "rows": 1 }), 4);
     none.headers
         .retain(|(n, _)| n != "agent-delegation-chain" && n != "dpop");
     assert_eq!(

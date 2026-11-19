@@ -59,7 +59,7 @@ No divergences on the vectors: all 36 in [conformance/asor](conformance/asor/) g
 
 | Topic | Draft | visado |
 | --- | --- | --- |
-| Signer of `DT_i`, i > 0 | Unspecified; single-signer model (§6.4) | Every token must verify under a configured trust anchor whose issuer equals its `iss` (`SignerBinding::RootAnchor` on every hop) |
+| Signer of `DT_i`, i > 0 | Unspecified; single-signer model (§6.4) | Every token must verify under the anchor that signed `DT_0` (`SignerBinding::RootAnchor` on every hop); a child signed by another trusted anchor is denied |
 | Algorithms | Ed25519 required, ES256 MAY; fully specified (§3, step 1) | `Ed25519` and `ES256`, taken from the anchor key's type. `EdDSA` is not accepted. `HS256` exists only for the vectors, through `TrustAnchor::hs256`; the server cannot configure it |
 | `typ` and `crit` | `at+jwt` (RFC 9068) | `typ` must be `at+jwt` or `application/at+jwt`, and any `crit` is rejected, both as `malformed`. attenu-guard checks neither |
 | `cnf` | Carries the JWK thumbprint, proven with DPoP (§7) | `cnf.jkt` is required. attenu-guard also accepts `jwk` or `x5t#S256` at parse; neither can be used with DPoP step 6 |
@@ -70,7 +70,7 @@ No divergences on the vectors: all 36 in [conformance/asor](conformance/asor/) g
 | A child's `del_max_depth` | Rule 5 only; step 3 checks the root's (§6) | Checked for rule 5 against the nearest ancestor that carries one, and not used as a depth cap. `Hop::max_depth` is the root's `del_max_depth - 1` on every hop |
 | Step 7, status lists | Deny when status cannot be established | Not implemented: a token with a `status` claim is denied as `status_unknown`. A token without one is not checked |
 | Cumulative constraints | Checked where the running total is held (step 8) | The library takes a `RunningTotals` source; the gate holds none, so a leaf with `max_lifetime` or `max_subtree` denies every call (`ceiling_exceeded`) |
-| Per-action constraint with no matching parameter | Not defined | Not bounded, as in attenu-guard. A parameter of the wrong type is `ceiling_exceeded` |
+| Per-action constraint with no matching parameter | Not defined | Denied (`ceiling_exceeded`), so an upstream default for an omitted argument cannot pass a ceiling. attenu-guard leaves it unbounded. A parameter of the wrong type is also `ceiling_exceeded` |
 | Step 8 order | Audience, then the action against the leaf authority | Audience, scope, then each constraint in the token's order; the first failure is reported (attenu-guard collects every failing constraint) |
 | DPoP proof | RFC 9449 | `typ` `dpop+jwt`, `Ed25519` or `ES256` with a public `jwk` whose thumbprint is the leaf `cnf.jkt`; `htm` and `htu` (without query or fragment) match the request; `iat` within 60 s; `ath` required, over the leaf token; `jti` at most 256 bytes and accepted once per process. Server nonces are not supported |
 | Size bounds | Not defined | At most 32 tokens, 64 KiB per token, 256 KiB per chain, 8 KiB per proof and 64 KiB of action parameters, checked before decoding |
