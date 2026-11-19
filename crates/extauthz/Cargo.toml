@@ -28,6 +28,7 @@ tracing = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
+tracing-subscriber = { workspace = true }
 visado-testkit = { workspace = true }
 wimsey-mtls = { workspace = true }
 wimsey-identifier = { workspace = true }

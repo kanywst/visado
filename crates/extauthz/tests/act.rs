@@ -13,8 +13,8 @@ use visado_chain_act::Verifier;
 use visado_credentials::{Authenticator, OAuthIssuer, WitIssuer};
 use visado_extauthz::{CheckInput, Gate, GateConfig, Outcome};
 use visado_testkit::{
-    NOW, OAUTH_ISSUER, TRUST_DOMAIN, oauth_jwks, pop_key, signed_access_token, wit,
-    wit_issuer_verifying_key, wpt,
+    AAT_ISSUER, NOW, OAUTH_ISSUER, SignatureSpec, TRUST_DOMAIN, aat_anchor_key, http_signature,
+    oauth_jwks, pop_key, signed_access_token, wit, wit_issuer_verifying_key, wpt,
 };
 use visado_txn_token::{KeySet, Scope, TxnTokenClaims, Validation, mint, verify};
 use wimsey_jose::SigningKey;
@@ -375,4 +375,137 @@ async fn a_forwarded_transaction_records_the_act_chain() {
         )
         .await;
     assert_eq!(denial(&outcome), (403, "chain.principal_mismatch"));
+}
+
+/// agent-b signs the request with an HTTP message signature that covers
+/// `token` as the user token.
+fn signed(token: &str, nonce: &str) -> CheckInput {
+    let key = pop_key(2);
+    let w = wit("agent-b", &key);
+    let headers = [
+        ("x-user-token", token),
+        ("workload-identity-token", w.as_str()),
+    ];
+    let spec = SignatureSpec {
+        nonce,
+        created: NOW,
+        audience: URI,
+        cover: &["x-user-token"],
+    };
+    let (signature_input, signature) = http_signature("POST", HOST, "/mcp", &headers, &key, &spec);
+    let mut input = request(
+        headers
+            .iter()
+            .map(|(n, v)| ((*n).to_owned(), (*v).to_owned()))
+            .collect(),
+    );
+    input.method = "POST".into();
+    input
+        .headers
+        .push(("signature-input".into(), signature_input));
+    input.headers.push(("signature".into(), signature));
+    input.headers.push(("content-length".into(), "0".into()));
+    input
+}
+
+#[tokio::test]
+async fn an_act_chain_rides_on_a_signed_request() {
+    let gate = gate();
+    let act = json!({ "sub": AGENT });
+    let outcome = gate
+        .check(&signed(&token("c", Some(act)), "n1"), NOW, "t")
+        .await;
+    assert_eq!(minted_chain(&outcome)["actor"]["sub"], AGENT);
+    let act = json!({ "sub": "spiffe://td.example/agent-c" });
+    let outcome = gate
+        .check(&signed(&token("c", Some(act)), "n2"), NOW, "t")
+        .await;
+    assert_eq!(denial(&outcome), (403, "act.actor_mismatch"));
+}
+
+#[tokio::test]
+async fn a_subject_prefix_applies_to_the_principal_not_to_the_actor() {
+    let authenticator = Authenticator::new()
+        .with_wit_issuer(WitIssuer::new(TRUST_DOMAIN).with_key("wit-1", wit_issuer_verifying_key()))
+        .with_oauth_issuer(
+            OAuthIssuer::new(
+                OAUTH_ISSUER,
+                URI,
+                serde_json::from_value(oauth_jwks()).unwrap(),
+            )
+            .with_subject_prefix("idp:"),
+        );
+    let gate = Gate::new(gate_config(), authenticator, RecordingPdp::default());
+    let act = json!({ "sub": AGENT });
+    let outcome = gate
+        .check(&workload(&token("c", Some(act.clone())), 1), NOW, "t")
+        .await;
+    let chain = minted_chain(&outcome);
+    assert_eq!(chain["principal"], "idp:alice");
+    assert_eq!(chain["actor"]["sub"], AGENT);
+    // The bearer client is idp:c; it cannot present a chain at all.
+    let act = json!({ "sub": "idp:c" });
+    let outcome = gate.check(&bearer(&token("c", Some(act))), NOW, "t").await;
+    assert_eq!(denial(&outcome), (403, "chain.unbound_caller"));
+}
+
+#[tokio::test]
+async fn an_actor_named_by_another_issuer_is_recorded_with_it() {
+    let act = json!({ "sub": AGENT, "iss": "https://wit.td.example",
+                      "act": { "sub": "user-agent-0", "iss": "https://other.example" } });
+    let pdp = RecordingPdp::default();
+    let gate = gate_recording(gate_config(), pdp.clone());
+    let outcome = gate
+        .check(&workload(&token("c", Some(act)), 1), NOW, "t")
+        .await;
+    let chain = minted_chain(&outcome);
+    assert_eq!(
+        chain["actor"],
+        json!({ "iss": "https://wit.td.example", "sub": AGENT })
+    );
+    assert_eq!(chain["prior_actors"][0]["iss"], "https://other.example");
+    let seen = Value::Object(pdp.0.lock().unwrap().last().unwrap().clone());
+    assert_eq!(seen["chain"]["actor"]["iss"], "https://wit.td.example");
+    assert!(!seen.to_string().contains("other.example"));
+}
+
+fn aat_verifier() -> visado_chain_aat::Verifier {
+    visado_chain_aat::Verifier::new(
+        vec![visado_chain_aat::TrustAnchor::new(
+            AAT_ISSUER,
+            aat_anchor_key().verifying_key(),
+        )],
+        vec!["https://tools.td.example".to_owned()],
+    )
+}
+
+#[tokio::test]
+async fn an_act_claim_next_to_an_aat_chain_is_ambiguous_without_act() {
+    let mut config = gate_config();
+    config.act = None;
+    config.aat = Some(aat_verifier());
+    let mut input = workload(&token("c", Some(json!({ "sub": AGENT }))), 1);
+    input.headers.push(("aat-chain".into(), "x.y.z".into()));
+    assert_eq!(
+        denial(&gate_with(config).check(&input, NOW, "t").await),
+        (400, "chain.ambiguous")
+    );
+}
+
+#[tokio::test]
+async fn an_act_chain_satisfies_a_chain_required_with_aat() {
+    let mut config = gate_config();
+    config.aat = Some(aat_verifier());
+    config.require_chain = true;
+    let gate = gate_with(config);
+    let outcome = gate
+        .check(
+            &workload(&token("c", Some(json!({ "sub": AGENT }))), 1),
+            NOW,
+            "t",
+        )
+        .await;
+    assert_eq!(minted_chain(&outcome)["profile"], "rfc8693-act");
+    let outcome = gate.check(&workload(&token("c", None), 2), NOW, "t").await;
+    assert_eq!(denial(&outcome), (403, "chain.required"));
 }
