@@ -1,12 +1,13 @@
-//! PoP `jti` tracking (§7.3; §8 step 7i).
+//! Proof-of-possession `jti` tracking: AAT PoP JWTs (AAT §7.3) and DPoP
+//! proofs (RFC 9449 §11.1).
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-/// Accepted PoP `jti` values.
+/// Accepted proof `jti` values.
 ///
-/// Replicas of one enforcement point must share this state (§7.3), so a
-/// deployment with several replicas implements it over shared storage.
+/// Replicas of one enforcement point must share this state, so a deployment
+/// with several replicas implements it over shared storage.
 pub trait ReplayCache {
     /// Records `jti` until `until` (seconds since the Unix epoch) and returns
     /// `true`, or returns `false` if it is already recorded and not expired.

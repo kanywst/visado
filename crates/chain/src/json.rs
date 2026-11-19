@@ -1,7 +1,8 @@
 //! A strict JSON parser that keeps numbers as written, rejects duplicate
 //! member names, and serializes values as JCS (RFC 8785).
 //!
-//! AAT needs all three (§3.4, §8 steps 3b, 4b, 6b, 7b and 7f), and a parser
+//! The chain formats need all three: AAT checks number admissibility
+//! (§3.4), and asor requires every token to be exactly its JCS form. A parser
 //! that rounds numbers to doubles cannot tell an admissible number from an
 //! inadmissible one.
 
@@ -14,58 +15,76 @@ const MAX_NESTING: usize = 256;
 
 /// Why a document did not parse.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ParseError {
+pub enum ParseError {
+    /// Not JSON, including invalid UTF-8 and lone surrogates.
     Syntax,
+    /// An object repeats a member name.
     DuplicateMember,
+    /// Nested deeper than the parser accepts.
     TooDeep,
 }
 
 /// A JSON number, kept as written.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Number(String);
+pub struct Number(String);
 
 /// A JSON value. Objects keep member order.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Value {
+pub enum Value {
+    /// `null`.
     Null,
+    /// `true` or `false`.
     Bool(bool),
+    /// A number, as written.
     Number(Number),
+    /// A string.
     String(String),
+    /// An array.
     Array(Vec<Value>),
+    /// An object, members in document order.
     Object(Vec<(String, Value)>),
 }
 
 impl Value {
-    pub(crate) fn get(&self, key: &str) -> Option<&Value> {
+    /// The member `key` of an object.
+    #[must_use]
+    pub fn get(&self, key: &str) -> Option<&Value> {
         match self {
             Self::Object(members) => members.iter().find(|(k, _)| k == key).map(|(_, v)| v),
             _ => None,
         }
     }
 
-    pub(crate) fn as_str(&self) -> Option<&str> {
+    /// The string, if this is one.
+    #[must_use]
+    pub fn as_str(&self) -> Option<&str> {
         match self {
             Self::String(s) => Some(s),
             _ => None,
         }
     }
 
-    pub(crate) fn as_object(&self) -> Option<&[(String, Value)]> {
+    /// The members, if this is an object.
+    #[must_use]
+    pub fn as_object(&self) -> Option<&[(String, Value)]> {
         match self {
             Self::Object(members) => Some(members),
             _ => None,
         }
     }
 
-    pub(crate) fn as_array(&self) -> Option<&[Value]> {
+    /// The items, if this is an array.
+    #[must_use]
+    pub fn as_array(&self) -> Option<&[Value]> {
         match self {
             Self::Array(items) => Some(items),
             _ => None,
         }
     }
 
-    /// An integer written with no fraction or exponent part (§3.2).
-    pub(crate) fn as_integer(&self) -> Option<i64> {
+    /// An integer written with no fraction or exponent part.
+    #[must_use]
+    pub fn as_integer(&self) -> Option<i64> {
         match self {
             Self::Number(n) => n.as_integer(),
             _ => None,
@@ -73,12 +92,15 @@ impl Value {
     }
 
     /// A non-negative integer written with no fraction or exponent part.
-    pub(crate) fn as_count(&self) -> Option<u32> {
+    #[must_use]
+    pub fn as_count(&self) -> Option<u32> {
         self.as_integer().and_then(|n| u32::try_from(n).ok())
     }
 
-    /// Whether every number in this value is admissible (§3.4).
-    pub(crate) fn numbers_admissible(&self) -> bool {
+    /// Whether every number in this value is admissible: its JCS form
+    /// denotes the value as written.
+    #[must_use]
+    pub fn numbers_admissible(&self) -> bool {
         match self {
             Self::Number(n) => n.is_admissible(),
             Self::Array(items) => items.iter().all(Self::numbers_admissible),
@@ -89,7 +111,8 @@ impl Value {
 
     /// The JCS serialization. Numbers go through their double, so call
     /// [`Value::numbers_admissible`] first where that matters.
-    pub(crate) fn jcs(&self) -> String {
+    #[must_use]
+    pub fn jcs(&self) -> String {
         let mut out = String::new();
         self.write_jcs(&mut out);
         out
@@ -131,7 +154,7 @@ impl Value {
 }
 
 /// Writes `s` as a JCS string literal (RFC 8785 §3.2.2.2).
-pub(crate) fn write_jcs_string(s: &str, out: &mut String) {
+pub fn write_jcs_string(s: &str, out: &mut String) {
     out.push('"');
     for c in s.chars() {
         match c {
@@ -153,7 +176,8 @@ pub(crate) fn write_jcs_string(s: &str, out: &mut String) {
 
 impl Number {
     /// The value as an `i64`, if it is written as an integer.
-    pub(crate) fn as_integer(&self) -> Option<i64> {
+    #[must_use]
+    pub fn as_integer(&self) -> Option<i64> {
         if self.0.contains(['.', 'e', 'E']) {
             return None;
         }
@@ -161,19 +185,22 @@ impl Number {
     }
 
     /// The nearest double. Finite for every admissible number.
-    pub(crate) fn to_f64(&self) -> f64 {
+    #[must_use]
+    pub fn to_f64(&self) -> f64 {
         self.0.parse().unwrap_or(f64::NAN)
     }
 
     /// The JCS form: ECMAScript `Number.prototype.toString` of the double.
     /// `None` if the double is not finite.
-    pub(crate) fn jcs(&self) -> Option<String> {
+    #[must_use]
+    pub fn jcs(&self) -> Option<String> {
         es_number(self.to_f64())
     }
 
-    /// §3.4: the JCS form of the double denotes the same mathematical value
-    /// as the number as written.
-    pub(crate) fn is_admissible(&self) -> bool {
+    /// Whether the JCS form of the double denotes the same mathematical
+    /// value as the number as written (AAT §3.4).
+    #[must_use]
+    pub fn is_admissible(&self) -> bool {
         self.jcs()
             .is_some_and(|jcs| Decimal::parse(&jcs) == Decimal::parse(&self.0))
     }
@@ -304,7 +331,11 @@ fn parse_exponent(text: &str) -> i128 {
 }
 
 /// Parses a complete JSON document.
-pub(crate) fn parse(input: &[u8]) -> Result<Value, ParseError> {
+///
+/// # Errors
+///
+/// Why the input is not one strict JSON document.
+pub fn parse(input: &[u8]) -> Result<Value, ParseError> {
     let mut p = Parser { input, pos: 0 };
     p.skip_ws();
     let value = p.value(0)?;
@@ -316,10 +347,11 @@ pub(crate) fn parse(input: &[u8]) -> Result<Value, ParseError> {
 }
 
 /// Reads the top-level string member `name` without building the document
-/// (§8 step 2c). Returns `None` if the input is not a JSON object, or the
+/// (AAT §8 step 2c). Returns `None` if the input is not a JSON object, or the
 /// member is absent or not a string. With duplicates, the first wins; full
 /// parsing rejects them later.
-pub(crate) fn top_level_string(input: &[u8], name: &str) -> Option<String> {
+#[must_use]
+pub fn top_level_string(input: &[u8], name: &str) -> Option<String> {
     let mut p = Parser { input, pos: 0 };
     p.skip_ws();
     p.expect(b'{').ok()?;

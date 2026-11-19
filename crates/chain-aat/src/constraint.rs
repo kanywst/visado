@@ -4,7 +4,7 @@ use std::cell::OnceCell;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::error::Step;
-use crate::json::Value;
+use visado_chain::json::Value;
 
 /// The reserved constraint-map key for unnamed arguments (§3.3).
 const STAR: &str = "*";
@@ -404,7 +404,7 @@ fn subsumes(parent: &Constraint, child: &Constraint) -> bool {
 mod tests {
     use super::ToolMap;
     use crate::error::Step;
-    use crate::json::parse;
+    use visado_chain::json::parse;
 
     fn map(json: &str) -> ToolMap {
         let v = parse(json.as_bytes()).unwrap();

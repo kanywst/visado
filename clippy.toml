@@ -1,1 +1,1 @@
-doc-valid-idents = ["ext_authz", "AuthZEN", "OpenID", "OAuth", "WIMSE", "SPIFFE", "PoP", "..",]
+doc-valid-idents = ["ext_authz", "AuthZEN", "OpenID", "OAuth", "WIMSE", "SPIFFE", "PoP", "DPoP", "..",]
