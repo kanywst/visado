@@ -9,11 +9,12 @@ Which method a request uses is decided by the headers it carries, in this order:
 1. `Workload-Identity-Token` and `Authorization: WPT`: WIT with WPT.
 2. `Workload-Identity-Token` and `Signature-Input`, with no `Authorization`: WIT with an HTTP message signature. An `Authorization` header next to a signature is denied (`credential.ambiguous`).
 3. `Authorization: Bearer` with no WIT: a JWT-SVID if `[jwt_svid]` is configured, `sub` is a SPIFFE ID and `iss` is not a configured OAuth issuer; otherwise an OAuth access token.
-4. None of these, `[mtls]` configured and a peer certificate in the check request: mTLS.
+4. `Authorization: DPoP` with no WIT: a DPoP-bound OAuth access token with its `DPoP` proof.
+5. None of these, `[mtls]` configured and a peer certificate in the check request: mTLS.
 
 A credential header longer than 16 KiB is denied (`credential.too_large`) before it is decoded.
 
-An inbound `Txn-Token` is accepted only from a workload in `internal_callers` that proved possession of a key for the request: WIT with WPT (`tth`), WIT with a signature that covers it, or mTLS. A bearer caller cannot forward one (`txn.untrusted_hop`).
+An inbound `Txn-Token` is accepted only from a workload in `internal_callers` that proved possession of a key for the request: WIT with WPT (`tth`), WIT with a signature that covers it, or mTLS. A bearer caller or an OAuth client cannot forward one (`txn.untrusted_hop`).
 
 ## WIMSE
 
@@ -76,7 +77,21 @@ Rules:
 
 ## OAuth
 
-`Authorization: Bearer <access token>` when the caller has no WIT and the token is not a JWT-SVID.
+| Item | Carried in |
+| --- | --- |
+| Bearer access token | `Authorization: Bearer <access token>`, when the caller has no WIT and the token is not a JWT-SVID |
+| DPoP-bound access token | `Authorization: DPoP <access token>` |
+| DPoP proof (RFC 9449) | `DPoP` header, exactly one |
+
+The caller is the token's `client_id` (or `azp`), and the user is its `sub`.
+
+Rules for DPoP:
+
+- The token must have `cnf.jkt` and no other `cnf` member, and it must equal the RFC 7638 thumbprint of the proof's `jwk`. A token with `cnf.jkt` sent as `Bearer`, or as the user token next to a WPT or a signature, is denied (`token.dpop_bound`).
+- The proof's `typ` is `dpop+jwt`, its `alg` `ES256`, `EdDSA` or `Ed25519`, and its `jwk` a public key. `htm` must be the request method and `htu` the request's `scheme://authority/path`, both without query or fragment, compared after lowercasing scheme and host and dropping a default port. `iat` must be within `dpop_iat_window` (default 60 s) of now. `ath` is required. The `jti` (at most 256 bytes) is accepted once per proof key, in the same bounded replay cache as WPT `jti` values. Server nonces are not supported.
+- A failed proof is a 401 with `WWW-Authenticate: DPoP error="invalid_dpop_proof", algs="ES256 EdDSA Ed25519"` (`dpop.invalid`, or `dpop.replay`). A token not bound to the proof key, a bound token sent as `Bearer`, and any other token failure under the `DPoP` scheme send `error="invalid_token"` (`dpop.binding`, `token.dpop_bound`, or the token's own code). Other access token failures send `Bearer, DPoP algs="ES256 EdDSA Ed25519"`.
+- The PDP context and the Transaction Token `tctx` name the method `oauth-dpop`; `req_wl` is `oauth-client:<client_id>`, as for a bearer token. The gate removes `Authorization` and `DPoP` before the request goes upstream.
+- The proof key is the caller's key for the request, so the client may present an AAT chain whose leaf it holds. It cannot present an asor chain (`chain.proof_conflict`, 400): the asor leaf proof would need the same `DPoP` header.
 
 ## AAT
 
@@ -90,7 +105,7 @@ Rules:
 Rules:
 
 - A comma cannot appear in a compact JWS, so a proxy that joins repeated headers with commas does not change the meaning of `AAT-Chain`.
-- The leaf token's `cnf` key must be the key the caller proved possession of for this request: the WIT's `cnf` key with a WPT or an HTTP signature, or the certificate's key over mTLS (Ed25519 or P-256 only). That workload is then the holder the chain was delegated to. A bearer caller (an OAuth access token or a JWT-SVID) has no such key and is denied (`chain.unbound_caller`).
+- The leaf token's `cnf` key must be the key the caller proved possession of for this request: the WIT's `cnf` key with a WPT or an HTTP signature, or the certificate's key over mTLS (Ed25519 or P-256 only). That workload is then the holder the chain was delegated to. An OAuth client with a DPoP-bound token holds its DPoP proof key. A bearer caller (a bearer access token or a JWT-SVID) has no such key and is denied (`chain.unbound_caller`).
 - Anything else is denied rather than guessed: a JSON-RPC batch, any other JSON-RPC method, a body that is not JSON or not UTF-8, a malformed `tools/call`, a query string, or a missing body on POST, PUT or PATCH.
 - `[aat]` must set `required` explicitly. With `required = false` a request without `AAT-Chain` skips every chain check, and the server logs a warning at startup; with `required = true` such a request is denied.
 - What a verified chain does: the gate denies the call unless the chain permits this tool with these arguments. It does not narrow the minted Transaction Token's `scope`, which comes from the user token or `default_scope`, because AAT tool grants and OAuth scopes are different vocabularies. The chain goes to the PDP as `context.chain` and into the token: as `tctx.chain` when the gate mints a new token, or, when the caller forwards a Transaction Token, as a new member `tctx.chain:<caller>` in a replacement token (scope, `txn`, `sub` and `aud` unchanged, lifetime not extended). A downstream service that needs the delegated limits must read these members. Within one transaction a caller can record one chain: forwarding the same transaction again with a different chain is denied, since `tctx` members never change.
@@ -108,8 +123,8 @@ Rules:
 Rules:
 
 - The chain format is chosen by the header, not by the token `typ`: asor tokens are plain RFC 9068 access tokens (`at+jwt`), so `typ` cannot tell them from other access tokens. A request that carries both `AAT-Chain` and `Agent-Delegation-Chain` is denied (`chain.ambiguous`).
-- As for AAT, only a WIT caller may present a chain, and the leaf `cnf.jkt` must be the thumbprint of the WIT's `cnf` key, so the DPoP proof is made with the WIT key. A bearer-only caller is denied (`chain.unbound_caller`), a missing `DPoP` header is a 401 (`chain.missing_pop`), and a leaf held by another key is `chain.holder_mismatch`.
-- The DPoP `htu` is compared with `scheme://authority/path` of the request, both without query or fragment. `ath` is required, since a Delegation Token is an access token (RFC 9449 §4.2). `iat` must be within 60 seconds of now, and a proof `jti` is accepted once per process.
+- As for AAT, only a WIT caller may present a chain, and the leaf `cnf.jkt` must be the thumbprint of the WIT's `cnf` key, so the DPoP proof is made with the WIT key. A bearer-only caller is denied (`chain.unbound_caller`), an OAuth client authenticated with DPoP is denied because its `DPoP` header already proves its access token (`chain.proof_conflict`), a missing `DPoP` header is a 401 (`chain.missing_pop`), and a leaf held by another key is `chain.holder_mismatch`.
+- The DPoP `htu` is compared with `scheme://authority/path` of the request, both without query or fragment and normalized as for DPoP-bound access tokens. `ath` is required, since a Delegation Token is an access token (RFC 9449 §4.2). `iat` must be within 60 seconds of now, and a proof `jti` is accepted once per process.
 - The tool name is the action's scope and is matched with the draft's covering relation (§4.1), so a tool name is usually an opaque scope matched exactly, or a dotted literal such as `crm.read` that a wildcard can cover. A per-action constraint reads the argument named by its `key`; an absent argument fails the constraint (`asor.ceiling_exceeded`). A body-less GET, HEAD, DELETE or OPTIONS request has the tool `<METHOD> <path>`, which is never a valid scope, so it is denied (`asor.scope_not_granted`).
 - The gate holds no running totals, so a leaf with a `max_lifetime` or `max_subtree` constraint denies every call (`asor.ceiling_exceeded`), and a leaf with a constraint type visado does not implement denies every call (`asor.unknown_constraint`). Status lists are not implemented: a token with a `status` claim is denied (`asor.status_unknown`).
 - `[asor]` takes `audiences`, `trust_anchors` (as for `[aat]`) and `required`, which has no default. A request without a chain is denied when `[aat]` or `[asor]` sets `required = true`; a chain of either configured format satisfies it.

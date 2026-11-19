@@ -1,6 +1,6 @@
 # Spec map
 
-Pinned revisions and where the code departs from them. Checked 2026-11-19.
+Pinned revisions and where the code departs from them. Checked 2026-11-20.
 
 ## Pinned revisions
 
@@ -11,6 +11,7 @@ Pinned revisions and where the code departs from them. Checked 2026-11-19.
 | [draft-ietf-oauth-identity-assertion-authz-grant](https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/06/) | -06 | (planned) | |
 | [draft-niyikiza-oauth-attenuating-agent-tokens](https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/) | -02 | `visado-chain-aat` | §8 chain and PoP verification; 229/229 published vectors. Enforced by the gate (`docs/bindings.md`) |
 | [draft-asor-wimse-agent-delegation-chain](https://datatracker.ietf.org/doc/draft-asor-wimse-agent-delegation-chain/03/) | -03 | `visado-chain-asor` | §6 steps 1 to 6 and 8; 36/36 published vectors. Enforced by the gate (`docs/bindings.md`) |
+| [RFC 9449](https://www.rfc-editor.org/rfc/rfc9449.html) (DPoP) | RFC | `visado-chain` (`dpop`), `visado-credentials` | Proof checks of §4.3 and the §7.1 resource server rules for DPoP-bound access tokens; also the asor leaf proof. No server nonces (§8, §9) |
 | [OpenID AuthZEN Authorization API](https://openid.net/specs/authorization-api-1_0.html) | 1.0 Final | `visado-authzen` | Single evaluation and metadata discovery |
 
 WIMSE credentials (WIT, WPT, HTTP signatures per draft-ietf-wimse-http-signature-08, mTLS per draft-ietf-wimse-mutual-tls) come from [wimsey](https://github.com/kanywst/wimsey) 0.10.1, which keeps its own spec map. JWT-SVIDs follow the SPIFFE JWT-SVID and trust bundle specifications.
@@ -72,7 +73,7 @@ No divergences on the vectors: all 36 in [conformance/asor](conformance/asor/) g
 | Cumulative constraints | Checked where the running total is held (step 8) | The library takes a `RunningTotals` source; the gate holds none, so a leaf with `max_lifetime` or `max_subtree` denies every call (`ceiling_exceeded`) |
 | Per-action constraint with no matching parameter | Not defined | Denied (`ceiling_exceeded`), so an upstream default for an omitted argument cannot pass a ceiling. attenu-guard leaves it unbounded. A parameter of the wrong type is also `ceiling_exceeded` |
 | Step 8 order | Audience, then the action against the leaf authority | Audience, scope, then each constraint in the token's order; the first failure is reported (attenu-guard collects every failing constraint) |
-| DPoP proof | RFC 9449 | `typ` `dpop+jwt`, `Ed25519` or `ES256` with a public `jwk` whose thumbprint is the leaf `cnf.jkt`; `htm` and `htu` (without query or fragment) match the request; `iat` within 60 s; `ath` required, over the leaf token; `jti` at most 256 bytes and accepted once per process. Server nonces are not supported |
+| DPoP proof | RFC 9449 | `typ` `dpop+jwt`, `Ed25519` or `ES256` with a public `jwk` whose thumbprint is the leaf `cnf.jkt`; `htm` and `htu` (without query or fragment, normalized as in the DPoP section below) match the request; `iat` within 60 s; `ath` required, over the leaf token; `jti` at most 256 bytes and accepted once per process. Server nonces are not supported |
 | Size bounds | Not defined | At most 32 tokens, 64 KiB per token, 256 KiB per chain, 8 KiB per proof and 64 KiB of action parameters, checked before decoding |
 | `check()` and `decode()` | Steps 1 to 5 without a request (§6.1) | `decode()` runs the parse rules and steps 1 to 5; `check()` adds the leaf audience, which is what the vectors test. Both return `holder_proof: false` |
 | HTTP binding | Not defined | `Agent-Delegation-Chain` and `DPoP` headers; the format is chosen by the header, not by `typ`. The MCP tool name is the action's scope and its arguments the parameters (see `docs/bindings.md`) |
@@ -124,8 +125,24 @@ No divergences on the vectors: all 36 in [conformance/asor](conformance/asor/) g
 
 | Topic | Spec | visado |
 | --- | --- | --- |
-| Sender-constrained tokens (`cnf`) | RFC 9449, RFC 8705 | Rejected until DPoP and mTLS binding are implemented |
+| Sender-constrained tokens (`cnf`) | RFC 9449, RFC 8705 | `cnf` with only a `jkt` string is a DPoP-bound token (below). Any other `cnf`, including `x5t#S256` (RFC 8705), is rejected (`token.sender_constrained`) |
 | `scope` vs `scp` | RFC 9068 uses `scope` | `scp` (string or array) is read when `scope` is absent |
 | No scope in a user token | Txn-Tokens §13.14 | Denied (`token.no_scope`); the default scope applies only to a workload without a user token |
 | Several issuers | | Each needs a `subject_prefix`, so `sub` and `client_id` cannot collide |
 | `typ` | RFC 9068 `at+jwt` | Not checked |
+
+## DPoP (RFC 9449): choices
+
+| Topic | RFC 9449 | visado |
+| --- | --- | --- |
+| Request | `Authorization: DPoP <token>` and one `DPoP` header (§7.1) | Same. No `DPoP` header, two of them, or a value with a comma (a proxy-joined pair) is `dpop.invalid` |
+| `typ`, `alg`, `jwk` (§4.3 items 4 to 7) | `dpop+jwt`, asymmetric, public key only | `ES256`, `EdDSA` or `Ed25519` with a matching P-256 or Ed25519 JWK; private or symmetric members, `crit`, and every other `alg` are refused |
+| `htm`, `htu` (items 8, 9) | Method; URI without query and fragment, normalized per RFC 3986 §6.2.2 and §6.2.3 | `htu` and `scheme://authority/path` of the request, each with scheme and host lowercased, the default port dropped and an empty path made `/`. Percent-encodings are compared as sent |
+| `iat` (item 11) | Within an acceptable window | Within `dpop_iat_window` (default 60 s, at most 300 s) either side of now |
+| `jti` (§11.1) | Not reused within the window | At most 256 bytes; recorded per proof key in the same bounded in-memory replay cache as WPT `jti` values, until `iat` plus the window. Not shared across replicas |
+| `ath` (item 12) | Required with an access token | Required; base64url SHA-256 of the token as sent |
+| Key binding (§6, §7.1) | `cnf.jkt` equals the proof key's RFC 7638 thumbprint | Same. A token without `cnf.jkt`, or a proof by another key, is `dpop.binding` (`invalid_token`) |
+| Downgrade (§7.1) | A bound token must not be accepted as a bearer token | Denied as `Bearer` and as a user token next to a WPT or signature (`token.dpop_bound`) |
+| Challenge (§7.1) | `WWW-Authenticate: DPoP` with `error` and `algs` | `DPoP error="invalid_dpop_proof"` for proof failures and replay, `error="invalid_token"` for token and binding failures; other access token failures send `Bearer, DPoP algs="ES256 EdDSA Ed25519"` |
+| Server nonces (§8), authorization server side (§5, §10) | Optional | Not implemented: no `DPoP-Nonce`, no `use_dpop_nonce` |
+| Holder key | | The proof key is the caller's `proof_key`, so an AAT chain held by it is accepted. An asor chain is refused (`chain.proof_conflict`): its leaf proof would need the same `DPoP` header |

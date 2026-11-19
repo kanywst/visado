@@ -4,7 +4,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
-Adds the remaining workload authentication methods. Breaking: the server refuses to start with an empty `allowed_authorities`. For library users, `RequestView` and `CheckInput` have new fields, `CheckInput::body` is bytes, and `Method` has new variants.
+Adds the remaining workload authentication methods and DPoP-bound access tokens. Breaking: the server refuses to start with an empty `allowed_authorities`. For library users, `RequestView` and `CheckInput` have new fields, `CheckInput::body` is bytes, and `Method` and `AuthError` have new variants.
 
 ### Added
 
@@ -15,7 +15,10 @@ Adds the remaining workload authentication methods. Breaking: the server refuses
 - The PDP context and the Transaction Token `tctx` name the new methods `wit-httpsig`, `mtls` and `jwt-svid`.
 - Credential headers longer than 16 KiB are denied (`credential.too_large`) before decoding.
 - The audit event has a `detail` field with the reason an authentication failed.
-- Testkit fixtures: an HTTP signature signer, a workload CA and X.509-SVIDs, and a JWT-SVID signer with a SPIFFE bundle.
+- `visado-credentials`: DPoP-bound access tokens (RFC 9449) as `Authorization: DPoP` with one `DPoP` proof. The token's `cnf.jkt` must be the proof key's thumbprint; `htm`, `htu`, `iat` (`dpop_iat_window`, default 60 s), `ath` and `jti` replay are checked. The caller is `Method::OAuthDpop` with the proof key as `proof_key`, named `oauth-dpop` in the PDP context and `tctx`. New codes `dpop.invalid`, `dpop.replay`, `dpop.binding` and `token.dpop_bound`. Server nonces are not supported.
+- A 401 for a DPoP failure carries `WWW-Authenticate: DPoP` with `error` (`invalid_dpop_proof` or `invalid_token`) and `algs`; other access token failures send `Bearer, DPoP algs="..."`.
+- `visado-chain`: a shared `dpop` module with the RFC 9449 proof checks, used by `visado-chain-asor` and `visado-credentials`.
+- Testkit fixtures: DPoP proofs and DPoP-bound access tokens, an HTTP signature signer, a workload CA and X.509-SVIDs, and a JWT-SVID signer with a SPIFFE bundle.
 - `visado-chain-asor`: Agent Delegation Chain verification per draft-asor-wimse-agent-delegation-chain-03: the parse rules, steps 1 to 5, the DPoP proof of the leaf key (step 6) and the audience and action check (step 8), with denials named as in the draft's Table 2. A token with a `status` claim is denied as `status_unknown`, since status lists are not implemented.
 - The 36 published asor-03 vectors in `conformance/asor/`, from attenu-io/attenu-guard v0.22.0 (Apache-2.0), all passing. `NOTICE` records the attribution.
 - The gate verifies an asor chain sent in `Agent-Delegation-Chain` with a `DPoP` proof (see `docs/bindings.md`), with the same caller binding as AAT. Configured with `[asor]` in the server file, whose `required` has no default.
@@ -25,6 +28,9 @@ Adds the remaining workload authentication methods. Breaking: the server refuses
 ### Changed
 
 - The server refuses to start when `allowed_authorities` is empty; it used to warn.
+- An access token with `cnf.jkt` sent as `Bearer` or as a user token is denied as `token.dpop_bound` instead of `token.sender_constrained`; any other `cnf` is still `token.sender_constrained`.
+- asor DPoP proofs: the signature is checked before the key is compared with the leaf `cnf.jkt`, and `htu` is compared after lowercasing scheme and host and dropping a default port.
+- The gate denies an asor chain from an OAuth client authenticated with DPoP (`chain.proof_conflict`).
 - An internal caller may forward a `Txn-Token` after a WPT, an HTTP signature that covers it, or mTLS; bearer callers still cannot.
 - The gate removes `Signature` and `Signature-Input` before the request goes upstream.
 - The gate refuses a non-UTF-8 body for an AAT invocation itself; the service no longer replaces such a body with a marker.
