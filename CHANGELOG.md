@@ -14,6 +14,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `visado-chain`: the format-neutral delegation chain model (`NormalizedChain`, `Hop`, signer binding, link, assurance) and the `ChainDecoder` trait.
 - `visado-chain-aat`: Attenuating Agent Token verification per draft-niyikiza-oauth-attenuating-agent-tokens-02, §8 steps 1 to 7, with errors that name the failing step.
 - The 229 published AAT JWS vectors in `conformance/aat/`, from tenuo-ai/tenuo (Apache-2.0), all passing. A root `NOTICE` file records the attribution.
+- cargo-fuzz targets in `fuzz/` for Transaction Token verification and token requests, AAT chain verification and decoding, AuthZEN responses and caller authentication, seeded from the conformance vectors. CI runs each for 30 seconds.
+- The Dockerfile pins its base images by digest, and Dependabot keeps the digests current.
 
 ### Changed
 
