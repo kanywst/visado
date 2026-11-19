@@ -4,7 +4,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
-Adds the remaining workload authentication methods. Breaking for library users: `RequestView` and `CheckInput` have new fields, `CheckInput::body` is bytes, and `Method` has new variants.
+Adds the remaining workload authentication methods. Breaking: the server refuses to start with an empty `allowed_authorities`. For library users, `RequestView` and `CheckInput` have new fields, `CheckInput::body` is bytes, and `Method` has new variants.
 
 ### Added
 
@@ -22,6 +22,7 @@ Adds the remaining workload authentication methods. Breaking for library users: 
 
 ### Changed
 
+- The server refuses to start when `allowed_authorities` is empty; it used to warn.
 - An internal caller may forward a `Txn-Token` after a WPT, an HTTP signature that covers it, or mTLS; bearer callers still cannot.
 - The gate removes `Signature` and `Signature-Input` before the request goes upstream.
 - The gate refuses a non-UTF-8 body for an AAT invocation itself; the service no longer replaces such a body with a marker.
