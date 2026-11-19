@@ -8,7 +8,9 @@ use visado_authzen::{Action, Entity, EvaluationRequest, Pdp};
 use visado_chain::NormalizedChain;
 use visado_chain_aat::{Invocation, MemoryReplayCache, Presentation, Verifier, jwk_thumbprint};
 use visado_credentials::{AuthError, Authenticated, Authenticator, Method, RequestView};
-use visado_txn_token::{KeySet, Scope, TxnTokenClaims, Validation, mint, verify};
+use visado_txn_token::{
+    KeySet, Replacement, Scope, TxnTokenClaims, Validation, VerifiedTxnToken, mint, replace, verify,
+};
 use wimsey_jose::SigningKey;
 
 /// The header carrying an AAT chain, root first, comma-separated.
@@ -198,8 +200,15 @@ impl<P: Pdp> Gate<P> {
             Err(e) => return Err(Denied::new(403, e.code(), &trail)),
         }
 
-        let token = if let (Some(_), Some(token)) = (forwarded, inbound) {
-            token.to_owned()
+        let token = if let (Some(claims), Some(token)) = (forwarded, inbound) {
+            match &chain {
+                // A chain verified at this hop is recorded in the token. The
+                // forwarded token is replaced, never widened: tctx only gains
+                // a member named after this caller, scope and identity stay,
+                // and the lifetime does not grow.
+                Some(chain) => self.replace_with_chain(claims, chain, &caller, now, &trail)?,
+                None => token.to_owned(),
+            }
         } else {
             let claims = TxnTokenClaims {
                 iss: None,
@@ -280,6 +289,37 @@ impl<P: Pdp> Gate<P> {
             return Err(Denied::new(403, "chain.holder_mismatch", trail));
         }
         Ok(Some(authorized.chain))
+    }
+
+    fn replace_with_chain(
+        &self,
+        claims: TxnTokenClaims,
+        chain: &NormalizedChain,
+        caller: &Authenticated,
+        now: u64,
+        trail: &Trail,
+    ) -> Result<String, Denied> {
+        let max_exp = claims.exp;
+        let previous = VerifiedTxnToken {
+            claims,
+            kid: Some(self.config.kid.clone()),
+        };
+        let mut additions = Map::new();
+        additions.insert(format!("chain:{}", caller.caller), chain_context(chain));
+        let next = replace(
+            &previous,
+            Replacement {
+                tctx_additions: additions,
+                req_wl: Some(requesting_workload(caller)),
+                ..Replacement::default()
+            },
+            now,
+            self.config.txn_lifetime,
+            Some(max_exp),
+        )
+        .map_err(|e| Denied::new(403, e.code(), trail))?;
+        mint(&next, Some(&self.config.kid), &self.config.signing_key)
+            .map_err(|e| Denied::new(403, e.code(), trail))
     }
 
     fn check_target(&self, input: &CheckInput) -> Result<(), Denied> {
