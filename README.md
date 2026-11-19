@@ -1,4 +1,7 @@
-# visado
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/lockup-dark.svg">
+  <img alt="visado" src="docs/assets/lockup-light.svg" height="56">
+</picture>
 
 [![ci](https://github.com/kanywst/visado/actions/workflows/ci.yml/badge.svg)](https://github.com/kanywst/visado/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/kanywst/visado/badge)](https://scorecard.dev/viewer/?uri=github.com/kanywst/visado)
