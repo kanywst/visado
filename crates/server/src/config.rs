@@ -60,9 +60,8 @@ pub struct AatConfig {
     /// Deny a proof of possession without `aat_aud`. On by default.
     #[serde(default = "yes")]
     pub require_pop_aud: bool,
-    /// Deny requests that carry no chain. Off by default: a chain then only
-    /// narrows callers that present one.
-    #[serde(default)]
+    /// Deny requests that carry no chain. Has no default: an operator who
+    /// enables AAT must decide whether a request may leave the chain out.
     pub required: bool,
 }
 
@@ -383,6 +382,14 @@ jwks_file = "j"
 "#;
         let config: Config = toml::from_str(&format!("{BASE}{dup}")).unwrap();
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn aat_must_say_whether_a_chain_is_required() {
+        let without = format!("{BASE}[aat]\naudiences = [\"a\"]\ntrust_anchors = []\n");
+        assert!(toml::from_str::<Config>(&without).is_err());
+        let with = format!("{BASE}[aat]\naudiences = [\"a\"]\ntrust_anchors = []\nrequired = true\n");
+        assert!(toml::from_str::<Config>(&with).is_ok());
     }
 
     #[test]

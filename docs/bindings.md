@@ -29,7 +29,7 @@ Rules:
 - A comma cannot appear in a compact JWS, so a proxy that joins repeated headers with commas does not change the meaning of `AAT-Chain`.
 - Only a caller with a WIT may present a chain, and the leaf token's `cnf` key must be the WIT's `cnf` key. The workload that proves possession of the WIT is then the holder the chain was delegated to. A bearer-only caller is denied.
 - Anything else is denied rather than guessed: a JSON-RPC batch, any other JSON-RPC method, a body that is not JSON or not UTF-8, a malformed `tools/call`, a query string, or a missing body on POST, PUT or PATCH.
-- A chain is optional by default: a request without `AAT-Chain` skips every chain check. Set `required = true` under `[aat]` to deny requests without one. The server logs a warning at startup when `[aat]` is configured without it.
+- `[aat]` must set `required` explicitly. With `required = false` a request without `AAT-Chain` skips every chain check, and the server logs a warning at startup; with `required = true` such a request is denied.
 - What a verified chain does: the gate denies the call unless the chain permits this tool with these arguments. It does not narrow the minted Transaction Token's `scope`, which comes from the user token or `default_scope`, because AAT tool grants and OAuth scopes are different vocabularies. The chain goes to the PDP as `context.chain` and into the token as `tctx.chain`; a downstream service that needs the delegated limits must read `tctx.chain`.
 - By default the chain must name this enforcement point in `aud` and the proof must carry `aat_aud`.
 - Reading MCP arguments needs the request body. In Envoy, set `with_request_body` on the ext_authz filter.
