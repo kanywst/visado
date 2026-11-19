@@ -130,9 +130,13 @@ fn call(v: &Vector, seed: u8, jti: &str, tool: &str, args: &str) -> CheckInput {
             ("authorization".into(), format!("WPT {wpt}")),
             ("workload-identity-token".into(), wit),
         ],
-        body: Some(format!(
-            r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"{tool}","arguments":{args}}}}}"#
-        )),
+        body: Some(
+            format!(
+                r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"{tool}","arguments":{args}}}}}"#
+            )
+            .into_bytes(),
+        ),
+        peer_certificate: None,
     }
 }
 

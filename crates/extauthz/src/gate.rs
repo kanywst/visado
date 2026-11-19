@@ -63,8 +63,12 @@ pub struct CheckInput {
     pub path: String,
     /// Headers, names lowercased.
     pub headers: Vec<(String, String)>,
-    /// The request body, when the proxy sends it.
-    pub body: Option<String>,
+    /// The request body exactly as received, when the proxy sends it
+    /// (`with_request_body` in Envoy).
+    pub body: Option<Vec<u8>>,
+    /// The peer certificate from the proxy's own TLS termination, URL-encoded
+    /// PEM as in Envoy's `source.certificate`.
+    pub peer_certificate: Option<String>,
 }
 
 /// What to do with the request.
@@ -340,10 +344,13 @@ impl<P: Pdp> Gate<P> {
 
     fn authenticate(&self, input: &CheckInput, now: u64) -> Result<Authenticated, Denied> {
         let view = RequestView {
+            method: &input.method,
             scheme: &input.scheme,
             authority: &input.authority,
             path: &input.path,
             headers: &input.headers,
+            body: input.body.as_deref(),
+            peer_certificate: input.peer_certificate.as_deref(),
         };
         self.authenticator.authenticate(&view, now).map_err(|e| {
             let wimse = input
@@ -528,8 +535,9 @@ fn chain_context(chain: &NormalizedChain) -> Value {
 ///
 /// Everything else is refused rather than guessed, because the chain would
 /// otherwise be checked against less than the request carries: batches,
-/// other JSON-RPC methods, bodies that are not JSON, malformed `tools/call`,
-/// query strings, and a missing body on a method that carries one.
+/// other JSON-RPC methods, bodies that are not UTF-8 JSON, malformed
+/// `tools/call`, query strings, and a missing body on a method that carries
+/// one.
 fn invocation(input: &CheckInput) -> Option<(String, String)> {
     use serde_json::value::RawValue;
 
@@ -546,7 +554,13 @@ fn invocation(input: &CheckInput) -> Option<(String, String)> {
         arguments: Option<&'a RawValue>,
     }
 
-    let Some(body) = input.body.as_deref().filter(|b| !b.trim().is_empty()) else {
+    let body = match input.body.as_deref() {
+        // A body that is not UTF-8 is refused: decoding it lossily would check
+        // different text from the bytes the upstream gets.
+        Some(bytes) => Some(std::str::from_utf8(bytes).ok()?),
+        None => None,
+    };
+    let Some(body) = body.filter(|b| !b.trim().is_empty()) else {
         let bodiless = matches!(input.method.as_str(), "GET" | "HEAD" | "DELETE" | "OPTIONS");
         if !bodiless || input.path.contains(['?', '#']) {
             return None;

@@ -64,30 +64,31 @@ fn input_from(request: &CheckRequest) -> Option<CheckInput> {
             .collect(),
     };
     headers.sort();
+    let body = if http.raw_body.is_empty() {
+        http.body.as_bytes().to_vec()
+    } else {
+        http.raw_body.clone()
+    };
+    // Set by Envoy from its own TLS termination when the ext_authz filter has
+    // `include_peer_certificate`. It is not a request header, so the client
+    // cannot set it.
+    let peer_certificate = request
+        .attributes
+        .as_ref()
+        .and_then(|a| a.source.as_ref())
+        .map(|source| source.certificate.as_str())
+        .filter(|c| !c.is_empty())
+        .map(ToOwned::to_owned);
     Some(CheckInput {
         method: http.method.clone(),
         scheme: http.scheme.clone(),
         authority: http.host.clone(),
         path: http.path.clone(),
         headers,
-        body: if !http.body.is_empty() {
-            Some(http.body.clone())
-        } else if !http.raw_body.is_empty() {
-            // A body that is not UTF-8 is replaced by a marker that is not
-            // JSON, so a chain check denies it. Lossy decoding would let the
-            // gate check different text from the bytes the upstream gets.
-            Some(
-                String::from_utf8(http.raw_body.clone())
-                    .unwrap_or_else(|_| UNREADABLE_BODY.to_owned()),
-            )
-        } else {
-            None
-        },
+        body: (!body.is_empty()).then_some(body),
+        peer_certificate,
     })
 }
-
-/// Stands in for a body that is not UTF-8.
-const UNREADABLE_BODY: &str = "\u{FFFD}unreadable body";
 
 fn denied_response(status: u16, code: &str, challenge: Option<&str>) -> CheckResponse {
     let mut denied = DeniedHttpResponseBuilder::new();
@@ -179,13 +180,13 @@ impl<P: Pdp + 'static> Authorization for ExtAuthz<P> {
 
 #[cfg(test)]
 mod tests {
-    use super::{UNREADABLE_BODY, input_from};
+    use super::input_from;
     use envoy_types::ext_authz::v3::pb::CheckRequest;
     use envoy_types::pb::envoy::service::auth::v3::AttributeContext;
     use envoy_types::pb::envoy::service::auth::v3::attribute_context::{HttpRequest, Request};
 
     #[test]
-    fn a_body_that_is_not_utf8_is_not_decoded_lossily() {
+    fn a_body_that_is_not_utf8_is_kept_as_bytes() {
         let mut raw =
             br#"{"method":"tools/call","params":{"name":"read_file","arguments":{"path":"/data/"#
                 .to_vec();
@@ -196,7 +197,7 @@ mod tests {
                 request: Some(Request {
                     http: Some(HttpRequest {
                         method: "POST".into(),
-                        raw_body: raw,
+                        raw_body: raw.clone(),
                         ..HttpRequest::default()
                     }),
                     ..Request::default()
@@ -205,6 +206,6 @@ mod tests {
             }),
         };
         let input = input_from(&request).unwrap();
-        assert_eq!(input.body.as_deref(), Some(UNREADABLE_BODY));
+        assert_eq!(input.body.as_deref(), Some(raw.as_slice()));
     }
 }

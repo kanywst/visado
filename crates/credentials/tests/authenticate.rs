@@ -25,10 +25,13 @@ fn run(auth: &Authenticator, headers: &[(&str, &str)]) -> Result<Authenticated, 
         .map(|(n, v)| ((*n).to_owned(), (*v).to_owned()))
         .collect();
     let view = RequestView {
+        method: "POST",
         scheme: "https",
         authority: "tools.td.example",
         path: "/mcp?session=1",
         headers: &headers,
+        body: None,
+        peer_certificate: None,
     };
     auth.authenticate(&view, NOW)
         .map_err(|e| e.code().to_owned())
