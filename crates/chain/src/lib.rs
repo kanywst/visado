@@ -203,7 +203,7 @@ pub struct NormalizedChain {
     /// `false`; a format's request verification sets `true` after checking
     /// the proof. For an RFC 8693 `act` chain, whose actors have no key, it
     /// is `true` when the current actor is the authenticated caller and that
-    /// caller proved possession of a key for the request (a WIT or mTLS).
+    /// caller proved possession of a key for the request (its WIT key).
     pub holder_proof: bool,
 }
 

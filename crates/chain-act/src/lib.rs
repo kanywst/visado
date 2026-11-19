@@ -73,8 +73,8 @@ pub struct ActToken<'a> {
 pub struct Caller<'a> {
     /// The caller's identifier: a workload identifier, or the OAuth client.
     pub id: &'a str,
-    /// Whether the caller proved possession of a key for this request (a
-    /// WIT or mTLS), rather than presenting only bearer tokens.
+    /// Whether the caller proved possession of a key for this request (in
+    /// visado, its WIT key), rather than presenting only bearer tokens.
     pub proved_key: bool,
 }
 
