@@ -470,7 +470,8 @@ impl<P: Pdp> Gate<P> {
     /// it verifies against this gate's key and domain. With a WPT the token is
     /// bound through `tth`; with an HTTP signature it is a covered component;
     /// with mTLS it arrived on the connection the certificate authenticated.
-    /// Bearer callers (an access token or a JWT-SVID) cannot forward one.
+    /// Bearer callers (an access token or a JWT-SVID) and OAuth clients
+    /// (DPoP-bound tokens) cannot forward one.
     fn accept_forwarded(
         &self,
         caller: &Authenticated,
@@ -591,11 +592,11 @@ fn is_normalized(path: &str) -> bool {
         .any(|segment| segment == "." || segment == "..")
 }
 
-/// `req_wl` for the token. Bearer callers are OAuth clients, not workloads,
-/// so they are marked to keep them apart from workload identifiers.
+/// `req_wl` for the token. Access token callers are OAuth clients, not
+/// workloads, so they are marked to keep them apart from workload identifiers.
 fn requesting_workload(caller: &Authenticated) -> String {
     match caller.method {
-        Method::Bearer => format!("oauth-client:{}", caller.caller),
+        Method::Bearer | Method::OAuthDpop => format!("oauth-client:{}", caller.caller),
         _ => caller.caller.clone(),
     }
 }
@@ -619,7 +620,7 @@ fn evaluation_request(
         Entity::new("http_resource", resource_id(input)),
         Action::new(input.method.clone()),
     );
-    if caller.method == Method::Bearer {
+    if matches!(caller.method, Method::Bearer | Method::OAuthDpop) {
         request.subject.kind = "client".into();
     }
     request
@@ -635,6 +636,7 @@ const fn method_name(method: Method) -> &'static str {
         Method::Mtls => "mtls",
         Method::JwtSvid => "jwt-svid",
         Method::Bearer => "bearer",
+        Method::OAuthDpop => "oauth-dpop",
     }
 }
 
