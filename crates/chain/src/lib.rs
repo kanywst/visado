@@ -113,8 +113,9 @@ pub enum Link {
     Root,
     /// A digest of the parent's signed bytes, such as AAT `par_hash`.
     ParHash(String),
-    /// Nested inside the next hop's claim in the same signed token, as a
-    /// prior actor is inside the current actor's RFC 8693 `act` claim.
+    /// The previous hop is nested inside this hop's claim in the same signed
+    /// token, as a prior actor is inside the current actor's RFC 8693 `act`
+    /// claim. Nothing beyond that token's signature binds the two.
     Nested,
 }
 
