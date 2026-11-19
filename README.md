@@ -5,6 +5,7 @@
 
 [![ci](https://github.com/kanywst/visado/actions/workflows/ci.yml/badge.svg)](https://github.com/kanywst/visado/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/kanywst/visado/badge)](https://scorecard.dev/viewer/?uri=github.com/kanywst/visado)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16930/badge)](https://www.bestpractices.dev/projects/16930)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 visado is an ext_authz service for AI agent traffic that runs behind Envoy, Istio or agentgateway. For each request it verifies the caller's workload credential and the delegation chain behind the request, asks an [AuthZEN](https://openid.net/specs/authorization-api-1_0.html) policy decision point, and passes the verified chain downstream as an [OAuth Transaction Token](https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/).
