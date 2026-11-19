@@ -348,6 +348,22 @@ impl Config {
                 return Err("[act] needs at least one oauth_issuers entry".into());
             }
         }
+        // One request carries one chain, so a format with required = false
+        // would let a request without any chain through even when another
+        // format says a chain is required.
+        let required: BTreeSet<bool> = [
+            self.aat.as_ref().map(|c| c.required),
+            self.asor.as_ref().map(|c| c.required),
+            self.act.as_ref().map(|c| c.required),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        if required.len() > 1 {
+            return Err(
+                "[aat], [asor] and [act] must all set the same required value: whether a request without a chain is denied applies to every format".into(),
+            );
+        }
         let mut issuers = BTreeSet::new();
         for issuer in &self.oauth_issuers {
             if !issuers.insert(&issuer.issuer) {
@@ -743,6 +759,28 @@ jwks_file = "j"
         assert!(act("[act.actors]\n\"\" = \"spiffe://td.example/agent-b\"\n").is_err());
         // An act chain is read from an access token, so an issuer is needed.
         assert!(parse_tables("[act]\nrequired = true\n").is_err());
+    }
+
+    #[test]
+    fn chain_formats_must_agree_on_required() {
+        let issuer =
+            "[[oauth_issuers]]\nissuer = \"https://idp\"\naudience = \"a\"\njwks_file = \"j\"\n";
+        let tables = |aat: bool, asor: Option<bool>, act: Option<bool>| {
+            let asor = asor.map_or(String::new(), |r| {
+                format!("[asor]\naudiences = [\"a\"]\ntrust_anchors = []\nrequired = {r}\n")
+            });
+            let act = act.map_or(String::new(), |r| format!("[act]\nrequired = {r}\n"));
+            let t = format!(
+                "{issuer}[aat]\naudiences = [\"a\"]\ntrust_anchors = []\nrequired = {aat}\n{asor}{act}"
+            );
+            parse_tables(&t)
+        };
+        assert!(tables(true, None, Some(true)).is_ok());
+        assert!(tables(false, Some(false), Some(false)).is_ok());
+        let err = tables(true, None, Some(false)).unwrap_err();
+        assert!(err.contains("same required value"), "{err}");
+        assert!(tables(false, Some(true), None).is_err());
+        assert!(tables(true, Some(true), Some(false)).is_err());
     }
 
     #[test]

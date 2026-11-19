@@ -30,6 +30,7 @@ Adds the remaining workload authentication methods and RFC 8693 `act` chains. Br
 ### Changed
 
 - The server refuses to start when `allowed_authorities` is empty; it used to warn.
+- The server refuses to start when `[aat]`, `[asor]` and `[act]` set different `required` values; a format with `required = false` used to let requests without any chain through next to one with `required = true`.
 - The gate denies an access token that carries an `act` claim unless `[act]` is configured (`chain.unsupported`); it used to ignore the claim. A token with an `act` claim next to an `AAT-Chain` or `Agent-Delegation-Chain` header is `chain.ambiguous`.
 - An internal caller may forward a `Txn-Token` after a WPT, an HTTP signature that covers it, or mTLS; bearer callers still cannot.
 - The gate removes `Signature` and `Signature-Input` before the request goes upstream.
