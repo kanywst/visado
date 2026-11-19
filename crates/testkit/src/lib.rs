@@ -5,7 +5,7 @@
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde_json::{Value, json};
 use wimsey_identifier::WorkloadIdentifier;
-use wimsey_jose::{Algorithm, Jwk, SigningKey, VerifyingKey};
+use wimsey_jose::{Algorithm, Jwk, PrivateJwk, SigningKey, VerifyingKey};
 use wimsey_wit::{Confirmation, WitClaims};
 use wimsey_wpt::WptClaims;
 
@@ -174,7 +174,7 @@ pub const AAT_ISSUER: &str = "https://aat.td.example";
 fn sign_aat(typ: &str, payload: &Value, key: &SigningKey) -> String {
     // serde_json maps keep keys sorted and print without whitespace, which is
     // the JCS form for the strings and integers used here.
-    let header = json!({ "alg": "Ed25519", "typ": typ });
+    let header = json!({ "alg": key.algorithm().as_str(), "typ": typ });
     let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header).expect("json"));
     let p = URL_SAFE_NO_PAD.encode(serde_json::to_vec(payload).expect("json"));
     let input = format!("{h}.{p}");
@@ -608,4 +608,89 @@ pub fn dpop_proof(
     let input = format!("{h}.{p}");
     let sig = URL_SAFE_NO_PAD.encode(holder.sign(input.as_bytes()));
     format!("{input}.{sig}")
+}
+
+/// A WIT-SVID and its private key, as SPIRE's Workload API hands them out.
+#[derive(Debug)]
+pub struct SpireWitSvid {
+    /// The WIT-SVID.
+    pub wit: String,
+    /// The SPIFFE ID in the WIT's `sub`.
+    pub spiffe_id: String,
+    /// The private half of the WIT's `cnf.jwk`.
+    pub key: SigningKey,
+}
+
+/// Reads the first WIT-SVID from the output of
+/// `spire-agent api fetch wit -output json`.
+///
+/// SPIRE's private key JWK carries no `alg`, so the key takes the `alg` of the
+/// WIT's `cnf.jwk`, and must match it.
+///
+/// # Errors
+///
+/// Returns a description of what is missing or malformed.
+pub fn spire_wit_svid(output: &str) -> Result<SpireWitSvid, String> {
+    let output: Value = serde_json::from_str(output).map_err(|e| format!("output: {e}"))?;
+    let svid = output
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find_map(|item| item["svids"].get(0))
+        .ok_or("no svids in the output")?;
+    let wit = svid["wit_svid"].as_str().ok_or("no wit_svid")?.to_owned();
+    let claims = wit.split('.').nth(1).ok_or("WIT is not a JWS")?;
+    let claims: Value = serde_json::from_slice(
+        &URL_SAFE_NO_PAD
+            .decode(claims)
+            .map_err(|e| format!("WIT claims: {e}"))?,
+    )
+    .map_err(|e| format!("WIT claims: {e}"))?;
+    let spiffe_id = claims["sub"].as_str().ok_or("WIT has no sub")?.to_owned();
+    let cnf: Jwk = serde_json::from_value(claims["cnf"]["jwk"].clone())
+        .map_err(|e| format!("cnf.jwk: {e}"))?;
+    let mut private: PrivateJwk =
+        serde_json::from_str(svid["wit_svid_key"].as_str().ok_or("no wit_svid_key")?)
+            .map_err(|e| format!("wit_svid_key: {e}"))?;
+    private.alg.clone_from(&cnf.alg);
+    let key = private
+        .to_signing_key()
+        .map_err(|e| format!("wit_svid_key: {e}"))?;
+    if Jwk::from_verifying_key(&key.verifying_key()) != cnf {
+        return Err("wit_svid_key is not the key in cnf.jwk".into());
+    }
+    Ok(SpireWitSvid {
+        wit,
+        spiffe_id,
+        key,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_a_spire_wit_svid() {
+        let key = SigningKey::from_p256_scalar(&[0x17; 32]).expect("p256 key");
+        let wit = wit("agent-a", &key);
+        let mut private = serde_json::to_value(PrivateJwk::from_signing_key(&key)).expect("jwk");
+        private.as_object_mut().expect("object").remove("alg");
+        let output = json!([
+            { "svids": [{ "hint": "", "spiffe_id": "spiffe://td.example/agent-a",
+                          "wit_svid": wit, "wit_svid_key": private.to_string() }] },
+            { "bundles": { "spiffe://td.example": "{\"keys\":[]}" } },
+        ]);
+
+        let svid = spire_wit_svid(&output.to_string()).expect("svid");
+        assert_eq!(svid.spiffe_id, "spiffe://td.example/agent-a");
+        assert_eq!(svid.wit, wit);
+        assert_eq!(svid.key.verifying_key(), key.verifying_key());
+
+        let other = SigningKey::from_p256_scalar(&[0x18; 32]).expect("p256 key");
+        let mut wrong = serde_json::to_value(PrivateJwk::from_signing_key(&other)).expect("jwk");
+        wrong.as_object_mut().expect("object").remove("alg");
+        let output = json!([{ "svids": [{ "wit_svid": wit, "wit_svid_key": wrong.to_string() }] }]);
+        assert!(spire_wit_svid(&output.to_string()).is_err());
+    }
 }
