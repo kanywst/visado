@@ -10,7 +10,7 @@ use visado_chain_aat::{Invocation, MemoryReplayCache, Presentation, Verifier, jw
 use visado_chain_act::{ActError, ActToken, Caller as ActCaller};
 use visado_chain_asor::{Action as AsorAction, HttpRequest};
 use visado_credentials::{
-    AccessToken, AuthError, Authenticated, Authenticator, Method, RequestView,
+    AccessToken, AuthError, Authenticated, Authenticator, DPOP_ALGS, Method, RequestView,
 };
 use visado_txn_token::{
     KeySet, Replacement, Scope, TxnTokenClaims, Validation, VerifiedTxnToken, mint, replace, verify,
@@ -23,8 +23,9 @@ pub const AAT_CHAIN_HEADER: &str = "aat-chain";
 pub const AAT_POP_HEADER: &str = "aat-pop";
 /// The header carrying an asor Delegation Chain, root first, comma-separated.
 pub const ASOR_CHAIN_HEADER: &str = "agent-delegation-chain";
-/// The header carrying the DPoP proof for the asor leaf key (RFC 9449).
-pub const DPOP_HEADER: &str = "dpop";
+/// The header carrying a DPoP proof (RFC 9449): for a DPoP-bound access
+/// token, or for the asor leaf key.
+pub const DPOP_HEADER: &str = visado_credentials::DPOP_HEADER;
 
 /// Headers always removed before the request goes upstream, in addition to the
 /// authenticator's user token header. The upstream gets the Transaction Token
@@ -198,7 +199,7 @@ impl<P: Pdp> Gate<P> {
                 Outcome::Deny {
                     status: denied.status,
                     code: denied.code.to_owned(),
-                    challenge: denied.challenge.map(|c| c.as_str().to_owned()),
+                    challenge: denied.challenge.map(Challenge::render),
                 }
             }
         }
@@ -382,6 +383,11 @@ impl<P: Pdp> Gate<P> {
         if caller.proof_key.is_none() {
             return Err(Denied::new(403, "chain.unbound_caller", trail));
         }
+        // The one DPoP header already proves the caller's access token, so
+        // it cannot also prove the leaf key.
+        if caller.method == Method::OAuthDpop {
+            return Err(Denied::new(400, "chain.proof_conflict", trail));
+        }
         let proof = header(input, DPOP_HEADER)
             .ok_or_else(|| Denied::new(401, "chain.missing_pop", trail))?;
         let chain = split_chain(chain_header);
@@ -528,6 +534,12 @@ impl<P: Pdp> Gate<P> {
                 .headers
                 .iter()
                 .any(|(n, _)| n == "workload-identity-token");
+            let dpop = !wimse
+                && header(input, "authorization").is_some_and(|a| {
+                    a.trim_start()
+                        .split_once(' ')
+                        .is_some_and(|(scheme, _)| scheme.eq_ignore_ascii_case("dpop"))
+                });
             let (status, challenge) = match e {
                 AuthError::ReplayCacheFull => (503, None),
                 // draft-ietf-wimse-http-signature: a failed signed request is
@@ -536,7 +548,16 @@ impl<P: Pdp> Gate<P> {
                 // No scheme the client could answer: the certificate came
                 // from the TLS handshake.
                 AuthError::Certificate(_) | AuthError::CertificateUntrustedDomain => (401, None),
+                // RFC 9449 §7.1.
+                AuthError::DpopProof(_) | AuthError::DpopReplay => {
+                    (401, Some(Challenge::Dpop(DpopError::InvalidProof)))
+                }
+                AuthError::DpopBinding(_) | AuthError::DpopBound => {
+                    (401, Some(Challenge::Dpop(DpopError::InvalidToken)))
+                }
                 _ if wimse => (401, Some(Challenge::Wpt)),
+                AuthError::MissingCredentials => (401, Some(Challenge::Bearer)),
+                _ if dpop => (401, Some(Challenge::Dpop(DpopError::InvalidToken))),
                 _ => (401, Some(Challenge::Bearer)),
             };
             let mut denied = Denied::new(status, e.code(), &Trail::default());
@@ -551,7 +572,8 @@ impl<P: Pdp> Gate<P> {
     /// it verifies against this gate's key and domain. With a WPT the token is
     /// bound through `tth`; with an HTTP signature it is a covered component;
     /// with mTLS it arrived on the connection the certificate authenticated.
-    /// Bearer callers (an access token or a JWT-SVID) cannot forward one.
+    /// Bearer callers (an access token or a JWT-SVID) and OAuth clients
+    /// (DPoP-bound tokens) cannot forward one.
     fn accept_forwarded(
         &self,
         caller: &Authenticated,
@@ -627,18 +649,38 @@ struct Denied {
     trail: Trail,
 }
 
-/// The `WWW-Authenticate` scheme for a 401.
+/// The `WWW-Authenticate` challenge for a 401.
 #[derive(Debug, Clone, Copy)]
 enum Challenge {
     Wpt,
+    /// `Bearer`, with `DPoP` alongside so a client can tell DPoP is accepted.
     Bearer,
+    /// `DPoP` with an RFC 9449 §7.1 `error` code.
+    Dpop(DpopError),
+}
+
+/// The `error` of a `DPoP` challenge (RFC 9449 §7.1).
+#[derive(Debug, Clone, Copy)]
+enum DpopError {
+    /// The proof is missing, repeated or invalid.
+    InvalidProof,
+    /// The token is invalid or not bound to the proof key.
+    InvalidToken,
 }
 
 impl Challenge {
-    const fn as_str(self) -> &'static str {
+    fn render(self) -> String {
+        let algs = DPOP_ALGS.join(" ");
         match self {
-            Self::Wpt => "WPT",
-            Self::Bearer => "Bearer",
+            Self::Wpt => "WPT".to_owned(),
+            Self::Bearer => format!("Bearer, DPoP algs=\"{algs}\""),
+            Self::Dpop(error) => {
+                let error = match error {
+                    DpopError::InvalidProof => "invalid_dpop_proof",
+                    DpopError::InvalidToken => "invalid_token",
+                };
+                format!("DPoP error=\"{error}\", algs=\"{algs}\"")
+            }
         }
     }
 }
@@ -672,11 +714,11 @@ fn is_normalized(path: &str) -> bool {
         .any(|segment| segment == "." || segment == "..")
 }
 
-/// `req_wl` for the token. Bearer callers are OAuth clients, not workloads,
-/// so they are marked to keep them apart from workload identifiers.
+/// `req_wl` for the token. Access token callers are OAuth clients, not
+/// workloads, so they are marked to keep them apart from workload identifiers.
 fn requesting_workload(caller: &Authenticated) -> String {
     match caller.method {
-        Method::Bearer => format!("oauth-client:{}", caller.caller),
+        Method::Bearer | Method::OAuthDpop => format!("oauth-client:{}", caller.caller),
         _ => caller.caller.clone(),
     }
 }
@@ -700,7 +742,7 @@ fn evaluation_request(
         Entity::new("http_resource", resource_id(input)),
         Action::new(input.method.clone()),
     );
-    if caller.method == Method::Bearer {
+    if matches!(caller.method, Method::Bearer | Method::OAuthDpop) {
         request.subject.kind = "client".into();
     }
     request
@@ -716,6 +758,7 @@ const fn method_name(method: Method) -> &'static str {
         Method::Mtls => "mtls",
         Method::JwtSvid => "jwt-svid",
         Method::Bearer => "bearer",
+        Method::OAuthDpop => "oauth-dpop",
     }
 }
 
@@ -795,7 +838,7 @@ fn act_context(chain: &NormalizedChain, caller: &Authenticated, reader: Reader) 
 /// workload from an OAuth client with the same name.
 const fn caller_kind(method: Method) -> &'static str {
     match method {
-        Method::Bearer => "client",
+        Method::Bearer | Method::OAuthDpop => "client",
         Method::WitWpt | Method::WitHttpSig | Method::Mtls | Method::JwtSvid => "workload",
     }
 }

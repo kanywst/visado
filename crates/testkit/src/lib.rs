@@ -592,22 +592,59 @@ pub fn dpop_proof(
     jti: &str,
     now: u64,
 ) -> String {
-    use sha2::{Digest, Sha256};
+    let header = json!({ "alg": "Ed25519", "typ": "dpop+jwt", "jwk": dpop_jwk(holder) });
+    sign_dpop_proof(&header, &dpop_claims(method, uri, token, jti, now), holder)
+}
+
+/// The public JWK of `holder` as a DPoP proof header carries it: no `alg`.
+#[must_use]
+pub fn dpop_jwk(holder: &SigningKey) -> Value {
     let mut jwk = serde_json::to_value(Jwk::from_verifying_key(&holder.verifying_key()))
         .expect("jwk serializes");
     if let Some(jwk) = jwk.as_object_mut() {
         jwk.remove("alg");
     }
-    let header = json!({ "alg": "Ed25519", "typ": "dpop+jwt", "jwk": jwk });
-    let payload = json!({
+    jwk
+}
+
+/// DPoP proof claims for `method` on `uri` at `now`, with `ath` over `token`.
+#[must_use]
+pub fn dpop_claims(method: &str, uri: &str, token: &str, jti: &str, now: u64) -> Value {
+    use sha2::{Digest, Sha256};
+    json!({
         "jti": jti, "htm": method, "htu": uri, "iat": now,
         "ath": URL_SAFE_NO_PAD.encode(Sha256::digest(token.as_bytes())),
-    });
-    let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header).expect("json"));
-    let p = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).expect("json"));
+    })
+}
+
+/// A DPoP proof with exactly `header` and `claims`, signed by `key`, for
+/// tests that need a malformed proof.
+#[must_use]
+pub fn sign_dpop_proof(header: &Value, claims: &Value, key: &SigningKey) -> String {
+    let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(header).expect("json"));
+    let p = URL_SAFE_NO_PAD.encode(serde_json::to_vec(claims).expect("json"));
     let input = format!("{h}.{p}");
-    let sig = URL_SAFE_NO_PAD.encode(holder.sign(input.as_bytes()));
+    let sig = URL_SAFE_NO_PAD.encode(key.sign(input.as_bytes()));
     format!("{input}.{sig}")
+}
+
+/// An access token like [`access_token`], DPoP-bound to `holder` with
+/// `cnf.jkt` (RFC 9449 §6.1).
+#[must_use]
+pub fn dpop_access_token(
+    sub: &str,
+    client_id: &str,
+    scope: &str,
+    aud: &str,
+    exp: u64,
+    holder: &SigningKey,
+) -> String {
+    let jkt = visado_chain_aat::jwk_thumbprint(&holder.verifying_key());
+    signed_access_token(&json!({
+        "iss": OAUTH_ISSUER, "sub": sub, "aud": aud, "client_id": client_id,
+        "scope": scope, "iat": NOW - 5, "exp": exp, "jti": format!("at-{sub}-{exp}"),
+        "cnf": { "jkt": jkt },
+    }))
 }
 
 /// A WIT-SVID and its private key, as SPIRE's Workload API hands them out.

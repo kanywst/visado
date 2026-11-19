@@ -19,6 +19,9 @@ timeout_ms = 500
 [[wit_issuers]]
 trust_domain = "td.example"
 keys = [{ kid = "wit-1", jwk_file = "keys/wit-issuer.jwk.json" }]
+# Or a JWK set, such as a SPIRE WIT bundle (read at startup; a key without
+# alg gets ES256 for P-256 and EdDSA for Ed25519):
+# jwks_file = "spire/wit-bundle.json"
 
 [[oauth_issuers]]
 issuer = "https://idp.example"

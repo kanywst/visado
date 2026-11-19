@@ -20,7 +20,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 
 - `tonic` ext_authz server. Credential verifiers for WIT+WPT, WIT+HTTP-sig and mTLS (via `wimsey`), JWT-SVID, and OAuth access tokens (RS256/ES256, DPoP).
 - **Gate:** Envoy integration test admits valid callers, rejects each negative case with its reason code, and injects a Txn-Token.
-- **Status:** partly met. The ext_authz service and caller authentication by WIT+WPT, WIT+HTTP signature, mTLS with an X.509-SVID, JWT-SVID and OAuth access tokens are in, with tests against the gate and the gRPC handler. Runs behind a real Envoy in `deploy/lab`, which CI exercises with WIT+WPT and access tokens. Not yet: DPoP, and the HTTP signature, mTLS and JWT-SVID callers in the Envoy lab.
+- **Status:** partly met. The ext_authz service and caller authentication by WIT+WPT, WIT+HTTP signature, mTLS with an X.509-SVID, JWT-SVID and OAuth access tokens, bearer or DPoP-bound (RFC 9449, without server nonces), are in, with tests against the gate and the gRPC handler. Runs behind a real Envoy in `deploy/lab`, which CI exercises with WIT+WPT and access tokens. Not yet: the HTTP signature, mTLS, JWT-SVID and DPoP callers in the Envoy lab.
 
 ## Phase 3: Delegation chains
 

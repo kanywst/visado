@@ -13,7 +13,7 @@ The targets run under [cargo-fuzz](https://rust-fuzz.github.io/book/cargo-fuzz.h
 | `aat_verify` | `Verifier::verify`: a `,`-separated chain, the PoP JWT, the tool and the arguments JSON, one per line, against the conformance anchors |
 | `aat_decode` | `ChainDecoder::decode` on a `,`-separated chain |
 | `authzen_response` | `visado_authzen::parse_response` on the input as a response body |
-| `credentials_authenticate` | `Authenticator::authenticate` with the `workload-identity-token`, `authorization` and `x-user-token` values, one per line (empty means absent) |
+| `credentials_authenticate` | `Authenticator::authenticate` with the `workload-identity-token`, `authorization`, `x-user-token` and `dpop` values, one per line (empty means absent) |
 
 Keys, anchors and clocks are fixed to the conformance suite's, so seeds from the vectors pass the signature checks and the fuzzer spends its time in what follows. What is tested is that every rejection is a returned error rather than a panic, an overflow or a hang.
 

@@ -13,8 +13,8 @@ use visado_credentials::{Authenticator, OAuthIssuer, WitIssuer};
 use visado_extauthz::{CheckInput, Gate, GateConfig, Outcome};
 use visado_testkit::{
     ASOR_ISSUER, NOW, OAUTH_ISSUER, TRUST_DOMAIN, access_token, asor_anchor_key, asor_child_claims,
-    asor_root_claims, asor_sign, dpop_proof, oauth_jwks, pop_key, wit, wit_issuer_verifying_key,
-    wpt,
+    asor_root_claims, asor_sign, dpop_access_token, dpop_proof, oauth_jwks, pop_key, wit,
+    wit_issuer_verifying_key, wpt,
 };
 use visado_txn_token::{KeySet, Scope, Validation, verify};
 use wimsey_jose::SigningKey;
@@ -266,6 +266,29 @@ async fn bindings_and_configuration() {
     assert_eq!(
         denial(&gate.check(&bearer, NOW, "t").await),
         (403, "chain.unbound_caller")
+    );
+
+    // A DPoP client's one DPoP header proves its access token, so it
+    // cannot also prove the leaf key, even when it is the leaf holder.
+    let bound = dpop_access_token(
+        "alice",
+        "client-1",
+        "tools.call",
+        AUDIENCE,
+        NOW + 60,
+        &pop_key(2),
+    );
+    let mut dpop = call(&narrow(), 2, None, "crm.read", &json!({ "rows": 1 }), 5);
+    dpop.headers.retain(|(n, _)| n == "agent-delegation-chain");
+    dpop.headers
+        .push(("authorization".into(), format!("DPoP {bound}")));
+    dpop.headers.push((
+        "dpop".into(),
+        dpop_proof(&pop_key(2), "POST", URI, &bound, "d5", NOW),
+    ));
+    assert_eq!(
+        denial(&gate.check(&dpop, NOW, "t").await),
+        (400, "chain.proof_conflict")
     );
 
     // Both chain formats at once.
