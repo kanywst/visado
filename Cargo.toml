@@ -5,6 +5,7 @@ members = [
     "crates/chain",
     "crates/chain-aat",
     "crates/chain-asor",
+    "crates/chain-act",
     "crates/authzen",
     "crates/credentials",
     "crates/testkit",

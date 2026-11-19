@@ -1,0 +1,399 @@
+{
+  "format": "visado-act-vectors/v1",
+  "suite": "rfc8693-act",
+  "spec": "RFC 8693 §4.1",
+  "cases": [
+    {
+      "name": "rfc8693-figure-5",
+      "source": "RFC 8693 Figure 5",
+      "claims": {
+        "aud": "https://consumer.example.com",
+        "iss": "https://issuer.example.com",
+        "exp": 1443904177,
+        "nbf": 1443904077,
+        "sub": "user@example.com",
+        "act": {
+          "sub": "admin@example.com"
+        }
+      },
+      "caller": "admin@example.com",
+      "expect": "accept",
+      "actor": {
+        "iss": "https://issuer.example.com",
+        "sub": "admin@example.com"
+      },
+      "prior_actors": []
+    },
+    {
+      "name": "rfc8693-figure-6",
+      "source": "RFC 8693 Figure 6",
+      "claims": {
+        "aud": "https://service26.example.com",
+        "iss": "https://issuer.example.com",
+        "exp": 1443904100,
+        "nbf": 1443904000,
+        "sub": "user@example.com",
+        "act": {
+          "sub": "https://service16.example.com",
+          "act": {
+            "sub": "https://service77.example.com"
+          }
+        }
+      },
+      "caller": "https://service16.example.com",
+      "expect": "accept",
+      "actor": {
+        "iss": "https://issuer.example.com",
+        "sub": "https://service16.example.com"
+      },
+      "prior_actors": [
+        {
+          "iss": "https://issuer.example.com",
+          "sub": "https://service77.example.com"
+        }
+      ]
+    },
+    {
+      "name": "rfc8693-figure-6-prior-actor-as-caller",
+      "source": "RFC 8693 Figure 6; caller is visado's",
+      "claims": {
+        "aud": "https://service26.example.com",
+        "iss": "https://issuer.example.com",
+        "exp": 1443904100,
+        "nbf": 1443904000,
+        "sub": "user@example.com",
+        "act": {
+          "sub": "https://service16.example.com",
+          "act": {
+            "sub": "https://service77.example.com"
+          }
+        }
+      },
+      "caller": "https://service77.example.com",
+      "expect": "act.actor_mismatch"
+    },
+    {
+      "name": "rfc8693-figure-5-other-caller",
+      "source": "RFC 8693 Figure 5; caller is visado's",
+      "claims": {
+        "aud": "https://consumer.example.com",
+        "iss": "https://issuer.example.com",
+        "exp": 1443904177,
+        "nbf": 1443904077,
+        "sub": "user@example.com",
+        "act": {
+          "sub": "admin@example.com"
+        }
+      },
+      "caller": "user@example.com",
+      "expect": "act.actor_mismatch"
+    },
+    {
+      "name": "actor-iss-names-the-actor",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": {
+          "sub": "spiffe://td.example/agent",
+          "iss": "https://wit.td.example"
+        }
+      },
+      "caller": "spiffe://td.example/agent",
+      "expect": "accept",
+      "actor": {
+        "iss": "https://wit.td.example",
+        "sub": "spiffe://td.example/agent"
+      },
+      "prior_actors": []
+    },
+    {
+      "name": "mapped-actor",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": {
+          "sub": "client-7"
+        }
+      },
+      "actors": {
+        "client-7": "spiffe://td.example/agent"
+      },
+      "caller": "spiffe://td.example/agent",
+      "expect": "accept",
+      "actor": {
+        "iss": "https://as.example",
+        "sub": "client-7"
+      },
+      "prior_actors": []
+    },
+    {
+      "name": "mapping-replaces-exact-match",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": {
+          "sub": "client-7"
+        }
+      },
+      "actors": {
+        "client-7": "spiffe://td.example/agent"
+      },
+      "caller": "client-7",
+      "expect": "act.actor_mismatch"
+    },
+    {
+      "name": "non-identity-claims-ignored",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": {
+          "sub": "agent-1",
+          "exp": 1,
+          "aud": "https://elsewhere",
+          "scope": "admin"
+        }
+      },
+      "caller": "agent-1",
+      "expect": "accept",
+      "actor": {
+        "iss": "https://as.example",
+        "sub": "agent-1"
+      },
+      "prior_actors": []
+    },
+    {
+      "name": "at-the-depth-limit",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": {
+          "sub": "agent-2",
+          "act": {
+            "sub": "agent-1",
+            "act": {
+              "sub": "agent-0"
+            }
+          }
+        }
+      },
+      "max_actors": 3,
+      "caller": "agent-2",
+      "expect": "accept",
+      "actor": {
+        "iss": "https://as.example",
+        "sub": "agent-2"
+      },
+      "prior_actors": [
+        {
+          "iss": "https://as.example",
+          "sub": "agent-0"
+        },
+        {
+          "iss": "https://as.example",
+          "sub": "agent-1"
+        }
+      ]
+    },
+    {
+      "name": "past-the-depth-limit",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": {
+          "sub": "agent-3",
+          "act": {
+            "sub": "agent-2",
+            "act": {
+              "sub": "agent-1",
+              "act": {
+                "sub": "agent-0"
+              }
+            }
+          }
+        }
+      },
+      "max_actors": 3,
+      "caller": "agent-3",
+      "expect": "act.too_deep"
+    },
+    {
+      "name": "past-the-default-depth-limit",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": {
+          "sub": "agent-8",
+          "act": {
+            "sub": "agent-7",
+            "act": {
+              "sub": "agent-6",
+              "act": {
+                "sub": "agent-5",
+                "act": {
+                  "sub": "agent-4",
+                  "act": {
+                    "sub": "agent-3",
+                    "act": {
+                      "sub": "agent-2",
+                      "act": {
+                        "sub": "agent-1",
+                        "act": {
+                          "sub": "agent-0"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "caller": "agent-8",
+      "expect": "act.too_deep"
+    },
+    {
+      "name": "act-is-a-string",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": "agent-1"
+      },
+      "caller": "agent-1",
+      "expect": "act.not_object"
+    },
+    {
+      "name": "act-is-an-array",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": [
+          {
+            "sub": "agent-1"
+          }
+        ]
+      },
+      "caller": "agent-1",
+      "expect": "act.not_object"
+    },
+    {
+      "name": "act-is-null",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": null
+      },
+      "caller": "agent-1",
+      "expect": "act.not_object"
+    },
+    {
+      "name": "nested-act-is-a-number",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": {
+          "sub": "agent-1",
+          "act": 1
+        }
+      },
+      "caller": "agent-1",
+      "expect": "act.not_object"
+    },
+    {
+      "name": "act-without-sub",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": {
+          "iss": "https://as.example"
+        }
+      },
+      "caller": "agent-1",
+      "expect": "act.missing_sub"
+    },
+    {
+      "name": "act-sub-not-a-string",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": {
+          "sub": 7
+        }
+      },
+      "caller": "7",
+      "expect": "act.missing_sub"
+    },
+    {
+      "name": "act-sub-empty",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": {
+          "sub": ""
+        }
+      },
+      "caller": "",
+      "expect": "act.missing_sub"
+    },
+    {
+      "name": "prior-actor-without-sub",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": {
+          "sub": "agent-1",
+          "act": {
+            "iss": "https://as.example"
+          }
+        }
+      },
+      "caller": "agent-1",
+      "expect": "act.missing_sub"
+    },
+    {
+      "name": "act-iss-not-a-string",
+      "source": "visado",
+      "claims": {
+        "iss": "https://as.example",
+        "sub": "alice",
+        "exp": 1800000060,
+        "act": {
+          "sub": "agent-1",
+          "iss": 1
+        }
+      },
+      "caller": "agent-1",
+      "expect": "act.bad_issuer"
+    }
+  ]
+}

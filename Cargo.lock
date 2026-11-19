@@ -2474,6 +2474,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "visado-chain-act"
+version = "0.2.0"
+dependencies = [
+ "serde_json",
+ "visado-chain",
+]
+
+[[package]]
 name = "visado-chain-asor"
 version = "0.2.0"
 dependencies = [
