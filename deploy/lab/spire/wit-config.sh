@@ -17,7 +17,8 @@ for i in $(seq 60); do
   sleep 1
 done
 
-jq -e '[.[] | .bundles? // empty | .["spiffe://td.example"]][0] | select(.keys | length > 0)' \
+# The CLI prints each bundle as a JSON string.
+jq -e '[.[] | .bundles? // empty | .["spiffe://td.example"]][0] | fromjson | select(.keys | length > 0)' \
   /tmp/wit.json > /out/wit-bundle.json.tmp
 mv /out/wit-bundle.json.tmp /out/wit-bundle.json
 jq -r '.keys[].kid | "trusting SPIRE WIT key \(.)"' /out/wit-bundle.json
