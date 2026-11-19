@@ -403,3 +403,97 @@ pub fn envoy_peer_certificate(der: &[u8]) -> String {
     }
     out
 }
+
+/// The JWT-SVID signing key (`ES256`).
+///
+/// # Panics
+///
+/// Never: the scalar is a valid P-256 key.
+#[must_use]
+pub fn jwt_svid_key() -> SigningKey {
+    SigningKey::from_p256_scalar(&[0x71; 32]).expect("P-256 key")
+}
+
+/// A fixed RSA-2048 key for `RS256` JWT-SVIDs, PKCS#1 DER in base64. A test
+/// key: anyone can sign with it.
+const RSA_TEST_KEY: &str = concat!(
+    "MIIEpAIBAAKCAQEAtAzkLeJlV04Q3l/uwFp8vXN02Ktb+cK3PA9WtAjsXi3RN1YiYidnDgy35BD76M92iMKFCZpOey",
+    "RZxK9KuAf175q692wIdHnXdyUVLeq9G/wghBzqSc5JjjiNZVoyi7Jzl9fhRmn4mbcFA4SfIdyEjvizFOimIpt321DH",
+    "rrg+TfZcbEEgcLwdJ353h697ozdm/lKg1uJvGe+qIFth9s77SGc0AAQAFSNfYHM3yu+EsEvTD8dzOi7YOClglgYimC",
+    "12qObTNj6KFt9PiCdtgPSiblONkWaLWYmb6lDquLQjCwjaDTy3DKxng5g2lUqjotRfIa4683MI5RAwVlp7t55PgQID",
+    "AQABAoIBACxNxML2o62nL7bsX60Uxv9+Hrkm90+epmRguNq9nF3zQ7ksWHMTE4RtRD2aIUZw8E+oH8DUZ63c7LrdUF",
+    "M24EEob4us2WrBxW9ToGHHUmfFs0GW9N6a5FYa284d8vSVgWSSciQXtNysII90TYzxPGwKzdQeCC1ZWJWOi8gWHXyk",
+    "sbv+bt/IhrGzPIIXfFATWTObQkOFGeTk6/gZ6yunFt6boItM5CpYmk4kae8tLlhG4qeYOujJArTP1rOV14/raH8O1p",
+    "u19FOyyEC1IzhVy2BdFlfTsTO9tLR4158JYCXOMMcstxVzFNPqiD7tgzpHvhozRWPfb6M4ItqEjSZjZ60CgYEA5sMx",
+    "1Laax1JG6DmQRxR/hjNoMNgM/nYpStuve/eHUC7/cmUL96m7tRE6lPPlkBzMrL6Xzjm4JWtXL1ow+mShgI06y1kZtX",
+    "MfKAaerpXx4/+C/+3X+FhihL4Gs3dIyqaUzP8tDPMgcv/gw4oHdN9INaG7tAHv2BctuSM56jF4keUCgYEAx73gdqUc",
+    "E78pAd0tXPUt4OmUFb492HXqavvCtcfPOvcDQkJkkKcdDz26TsQVJpQKa3rOuqyvnhEHtrrFNF18/ik9VWIlORGaII",
+    "2SqyuWw7d2RjpNifgHuAt204tVB8kZByPHJwkL13KqVpfXTrD1at5wlkSnuuuApvrwqeyoXW0CgYB1GQfoUOEp0+53",
+    "WP6FkzlC+EMexgOR/JPnkKLz3R+k6LRncC8qdc7yitOXUkxjXLnfzrdpxpBTLK0JMlM4PGhXu1LibUxGbyyYOwO6xA",
+    "wDDl2DUUYOl4smoOb1msotS2qmu7Y4pAcLVBzSHPC7tbIGxRNivLjghqKFGAMDfCcaoQKBgQClU4eIDK/JtG8XyN90",
+    "UsfPouZcfOOp2CfYt1v5pFHlp3D+FgAxLvFBnUEpUumCzgQ15CdaofaWadgtqjfyWPNNWAsZMixHKUeebDAbF/ApPS",
+    "BbjoSBj1esQWjwPiJ6WDwsCbQcnkM76AAPvoyK6LOp6kXcSyVd9PG+xHQQ4f6VnQKBgQC6KSRpqobirue9jgJtaP7V",
+    "L/FUE66iarb3OkQSRXeHEAOtX/UGzCmYl59fyYW2WTIOCF2aKz+DL1jw8dwI30hCEVbuG5oca/uQb0cL+jinLnOT9E",
+    "Nal8PCsPcAbLCNoyS5zI2C/wZsQbZbkqLnMi+GqLeeXLaZ+++ae9dkOxKoNQ==",
+);
+
+/// The modulus of [`RSA_TEST_KEY`], base64url.
+const RSA_TEST_N: &str = "tAzkLeJlV04Q3l_uwFp8vXN02Ktb-cK3PA9WtAjsXi3RN1YiYidnDgy35BD76M92iMKFCZpOeyRZxK9KuAf175q692wIdHnXdyUVLeq9G_wghBzqSc5JjjiNZVoyi7Jzl9fhRmn4mbcFA4SfIdyEjvizFOimIpt321DHrrg-TfZcbEEgcLwdJ353h697ozdm_lKg1uJvGe-qIFth9s77SGc0AAQAFSNfYHM3yu-EsEvTD8dzOi7YOClglgYimC12qObTNj6KFt9PiCdtgPSiblONkWaLWYmb6lDquLQjCwjaDTy3DKxng5g2lUqjotRfIa4683MI5RAwVlp7t55PgQ";
+
+/// A SPIFFE trust bundle for [`TRUST_DOMAIN`] with two JWT-SVID keys,
+/// "svid-es" (`ES256`, [`jwt_svid_key`]) and "svid-rs" (`RS256`), and one
+/// X.509 entry that a JWT verifier must skip.
+#[must_use]
+pub fn jwt_bundle() -> Value {
+    let mut es = serde_json::to_value(Jwk::from_verifying_key(&jwt_svid_key().verifying_key()))
+        .expect("jwk serializes");
+    es["kid"] = json!("svid-es");
+    es["use"] = json!("jwt-svid");
+    json!({
+        "keys": [
+            es,
+            { "kty": "RSA", "kid": "svid-rs", "use": "jwt-svid", "alg": "RS256",
+               "n": RSA_TEST_N, "e": "AQAB" },
+            { "kty": "EC", "use": "x509-svid", "crv": "P-256",
+               "x": es["x"], "y": es["y"], "x5c": [] },
+        ],
+        "spiffe_sequence": 1,
+    })
+}
+
+/// A JWT-SVID for `sub` with `aud`, expiring at `exp`, signed `ES256` with
+/// "svid-es".
+#[must_use]
+pub fn jwt_svid(sub: &str, aud: &str, exp: u64) -> String {
+    signed_jwt_svid(
+        &json!({ "alg": "ES256", "typ": "JWT", "kid": "svid-es" }),
+        &json!({ "sub": sub, "aud": [aud], "exp": exp, "iat": NOW - 5 }),
+    )
+}
+
+/// A JWT with exactly `header` and `claims`, signed with [`jwt_svid_key`] when
+/// `alg` is `ES256` and with the RSA test key when it is `RS256`.
+///
+/// # Panics
+///
+/// For any other `alg`.
+#[must_use]
+pub fn signed_jwt_svid(header: &Value, claims: &Value) -> String {
+    let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(header).expect("json"));
+    let c = URL_SAFE_NO_PAD.encode(serde_json::to_vec(claims).expect("json"));
+    let input = format!("{h}.{c}");
+    let signature = match header["alg"].as_str() {
+        Some("ES256") => jwt_svid_key().sign(input.as_bytes()).to_vec(),
+        Some("RS256") => {
+            use base64::engine::general_purpose::STANDARD;
+            let der = STANDARD.decode(RSA_TEST_KEY).expect("key decodes");
+            let key = jsonwebtoken::EncodingKey::from_rsa_der(&der);
+            let signed =
+                jsonwebtoken::crypto::sign(input.as_bytes(), &key, jsonwebtoken::Algorithm::RS256)
+                    .expect("RS256 signs");
+            URL_SAFE_NO_PAD.decode(signed).expect("base64url")
+        }
+        other => panic!("unsupported alg {other:?}"),
+    };
+    format!("{input}.{}", URL_SAFE_NO_PAD.encode(signature))
+}

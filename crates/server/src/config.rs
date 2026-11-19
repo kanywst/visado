@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 use visado_chain_aat::{Policy, TrustAnchor, Verifier};
-use visado_credentials::{Authenticator, OAuthIssuer, WitIssuer, X509Bundle};
+use visado_credentials::{Authenticator, JwtBundle, OAuthIssuer, WitIssuer, X509Bundle};
 use visado_extauthz::GateConfig;
 use visado_txn_token::Scope;
 use wimsey_jose::{Jwk, PrivateJwk};
@@ -49,6 +49,26 @@ pub struct Config {
     pub aat: Option<AatConfig>,
     #[serde(default)]
     pub mtls: Option<MtlsConfig>,
+    #[serde(default)]
+    pub jwt_svid: Option<JwtSvidConfig>,
+}
+
+/// SPIFFE JWT-SVIDs as bearer tokens.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct JwtSvidConfig {
+    /// This service's names, matched exactly against `aud`.
+    pub audiences: Vec<String>,
+    pub trust_bundles: Vec<JwtBundleConfig>,
+}
+
+/// The JWT signing keys for one trust domain.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct JwtBundleConfig {
+    pub trust_domain: String,
+    /// A SPIFFE trust bundle (JWK set); keys with `use` `jwt-svid` are used.
+    pub bundle_file: PathBuf,
 }
 
 /// mTLS with X.509-SVIDs. The proxy must terminate the client's TLS itself and
@@ -248,6 +268,15 @@ impl Config {
                 mtls.trust_bundles.iter().map(|b| &b.trust_domain),
             )?;
         }
+        if let Some(jwt) = &self.jwt_svid {
+            check_trust_domains(
+                "jwt_svid.trust_bundles",
+                jwt.trust_bundles.iter().map(|b| &b.trust_domain),
+            )?;
+            if jwt.audiences.is_empty() || jwt.audiences.iter().any(|a| a.trim().is_empty()) {
+                return Err("jwt_svid.audiences needs at least one non-empty audience".into());
+            }
+        }
         let mut issuers = BTreeSet::new();
         for issuer in &self.oauth_issuers {
             if !issuers.insert(&issuer.issuer) {
@@ -292,7 +321,7 @@ impl Config {
             }
             authenticator = authenticator.with_oauth_issuer(oauth);
         }
-        let authenticator = with_svid_bundles(authenticator, self.mtls, base)?;
+        let authenticator = with_svid_bundles(authenticator, self.mtls, self.jwt_svid, base)?;
         authenticator.check()?;
 
         let require_chain = self.aat.as_ref().is_some_and(|a| a.required);
@@ -356,10 +385,12 @@ impl Config {
     }
 }
 
-/// Adds the SPIFFE trust bundles: X.509 CAs for mTLS.
+/// Adds the SPIFFE trust bundles: X.509 CAs for mTLS and JWT keys for
+/// JWT-SVIDs.
 fn with_svid_bundles(
     mut authenticator: Authenticator,
     mtls: Option<MtlsConfig>,
+    jwt_svid: Option<JwtSvidConfig>,
     base: &Path,
 ) -> Result<Authenticator, String> {
     for bundle in mtls.map(|m| m.trust_bundles).unwrap_or_default() {
@@ -368,6 +399,18 @@ fn with_svid_bundles(
         let trusted = X509Bundle::from_pem(bundle.trust_domain, &pem)
             .map_err(|e| format!("{}: {e}", path.display()))?;
         authenticator = authenticator.with_x509_bundle(trusted);
+    }
+    if let Some(jwt) = jwt_svid {
+        for bundle in jwt.trust_bundles {
+            let path = base.join(&bundle.bundle_file);
+            let json: serde_json::Value = read_json(&path)?;
+            let trusted = JwtBundle::from_spiffe_bundle(bundle.trust_domain, &json)
+                .map_err(|e| format!("{}: {e}", path.display()))?;
+            authenticator = authenticator.with_jwt_bundle(trusted);
+        }
+        for audience in jwt.audiences {
+            authenticator = authenticator.with_jwt_svid_audience(audience);
+        }
     }
     Ok(authenticator)
 }
@@ -497,6 +540,52 @@ jwks_file = "j"
         assert!(parse_tables(&bundle("spiffe://td.example")).is_err());
         assert!(parse_tables(&bundle("")).is_err());
         assert!(parse_tables("[[mtls.trust_bundles]]\ntrust_domain = \"td.example\"\nca_file = \"ca.pem\"\nchain = true\n").is_err());
+    }
+
+    #[test]
+    fn jwt_svid_needs_an_audience_and_bundles() {
+        let bundle =
+            "[[jwt_svid.trust_bundles]]\ntrust_domain = \"td.example\"\nbundle_file = \"b.json\"\n";
+        assert!(
+            parse_tables(&format!(
+                "[jwt_svid]\naudiences = [\"spiffe://td.example/visado\"]\n{bundle}"
+            ))
+            .is_ok()
+        );
+        assert!(parse_tables(&format!("[jwt_svid]\naudiences = []\n{bundle}")).is_err());
+        assert!(parse_tables(&format!("[jwt_svid]\naudiences = [\" \"]\n{bundle}")).is_err());
+        assert!(parse_tables("[jwt_svid]\naudiences = [\"a\"]\ntrust_bundles = []\n").is_err());
+        assert!(
+            toml::from_str::<Config>(&format!("{BASE}[jwt_svid]\ntrust_bundles = []\n")).is_err()
+        );
+    }
+
+    #[test]
+    fn loads_svid_trust_bundles_relative_to_the_file() {
+        use visado_testkit::{certificate_pem, jwt_bundle, workload_ca};
+        let dir = std::env::temp_dir().join(format!("visado-config-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let key = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../deploy/local/keys/txn-signing.private.jwk.json");
+        std::fs::copy(key, dir.join("k.json")).unwrap();
+        std::fs::write(
+            dir.join("ca.pem"),
+            certificate_pem(workload_ca().certificate_der()),
+        )
+        .unwrap();
+        std::fs::write(dir.join("b.json"), jwt_bundle().to_string()).unwrap();
+        let tables = "[mtls]\n[[mtls.trust_bundles]]\ntrust_domain = \"td.example\"\nca_file = \"ca.pem\"\n\
+            [jwt_svid]\naudiences = [\"spiffe://td.example/visado\"]\n\
+            [[jwt_svid.trust_bundles]]\ntrust_domain = \"td.example\"\nbundle_file = \"b.json\"\n";
+        let path = dir.join("visado.toml");
+        std::fs::write(&path, format!("{BASE}{tables}")).unwrap();
+        let loaded = Config::load(&path);
+
+        std::fs::write(dir.join("ca.pem"), "not a certificate").unwrap();
+        let bad_ca = Config::load(&path);
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(loaded.is_ok());
+        assert!(bad_ca.is_err());
     }
 
     #[test]

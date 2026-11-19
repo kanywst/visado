@@ -54,6 +54,12 @@ pub enum AuthError {
     /// The peer certificate names a trust domain with no configured CA.
     #[error("untrusted certificate trust domain")]
     CertificateUntrustedDomain,
+    /// The JWT-SVID did not verify.
+    #[error("invalid JWT-SVID: {0}")]
+    JwtSvid(String),
+    /// The JWT-SVID names a trust domain with no configured bundle.
+    #[error("untrusted JWT-SVID trust domain")]
+    JwtSvidUntrustedDomain,
     /// The request carries credentials for more than one method, or a header
     /// the chosen method does not use.
     #[error("ambiguous credentials")]
@@ -92,6 +98,8 @@ impl AuthError {
             Self::Ambiguous => "credential.ambiguous",
             Self::Certificate(_) => "mtls.invalid",
             Self::CertificateUntrustedDomain => "mtls.untrusted_domain",
+            Self::JwtSvid(_) => "jwt_svid.invalid",
+            Self::JwtSvidUntrustedDomain => "jwt_svid.untrusted_domain",
             Self::TooLarge => "credential.too_large",
             Self::Internal => "internal",
         }

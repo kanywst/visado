@@ -13,6 +13,9 @@
 //!   signature covers it.
 //! - A client presenting only an OAuth access token as `Authorization: Bearer`.
 //!   The client is identified by `client_id` (or `azp`).
+//! - A workload presenting a SPIFFE JWT-SVID as `Authorization: Bearer`, told
+//!   apart from an access token by a SPIFFE ID in `sub` and an `iss` that is
+//!   not a configured OAuth issuer.
 //! - A workload that presented no credential header but authenticated to the
 //!   proxy with an X.509-SVID over mTLS. The proxy must be the TLS terminator
 //!   and pass the certificate out of band (Envoy's `source.certificate`).
@@ -26,6 +29,7 @@ mod mtls;
 mod oauth;
 mod replay;
 mod request;
+mod svid;
 mod wimse;
 
 use std::sync::Mutex;
@@ -34,6 +38,7 @@ pub use error::AuthError;
 pub use mtls::X509Bundle;
 pub use oauth::{AccessToken, OAuthIssuer};
 pub use request::RequestView;
+pub use svid::JwtBundle;
 pub use wimse::WitIssuer;
 
 use replay::ReplayCache;
@@ -61,6 +66,8 @@ pub enum Method {
     WitHttpSig,
     /// X.509-SVID over mTLS, terminated by the proxy.
     Mtls,
+    /// SPIFFE JWT-SVID, a bearer token.
+    JwtSvid,
     /// OAuth access token only.
     Bearer,
 }
@@ -78,7 +85,7 @@ pub struct Authenticated {
     /// The key the caller proved possession of for this request: the WIT
     /// `cnf` key for [`Method::WitWpt`] and [`Method::WitHttpSig`], the
     /// certificate's key for [`Method::Mtls`] when it is Ed25519 or P-256, and
-    /// `None` for [`Method::Bearer`].
+    /// `None` for the bearer methods [`Method::Bearer`] and [`Method::JwtSvid`].
     pub proof_key: Option<wimsey_jose::VerifyingKey>,
 }
 
@@ -88,6 +95,8 @@ pub struct Authenticator {
     wit_issuers: Vec<WitIssuer>,
     oauth_issuers: Vec<OAuthIssuer>,
     x509_bundles: Vec<X509Bundle>,
+    jwt_bundles: Vec<JwtBundle>,
+    jwt_audiences: Vec<String>,
     user_token_header: String,
     leeway: u64,
     max_wpt_lifetime: u64,
@@ -103,6 +112,8 @@ impl Authenticator {
             wit_issuers: Vec::new(),
             oauth_issuers: Vec::new(),
             x509_bundles: Vec::new(),
+            jwt_bundles: Vec::new(),
+            jwt_audiences: Vec::new(),
             user_token_header: "x-user-token".into(),
             leeway: 30,
             max_wpt_lifetime: 60,
@@ -130,6 +141,21 @@ impl Authenticator {
     #[must_use]
     pub fn with_x509_bundle(mut self, bundle: X509Bundle) -> Self {
         self.x509_bundles.push(bundle);
+        self
+    }
+
+    /// Trusts JWT-SVIDs signed with the keys in `bundle`.
+    #[must_use]
+    pub fn with_jwt_bundle(mut self, bundle: JwtBundle) -> Self {
+        self.jwt_bundles.push(bundle);
+        self
+    }
+
+    /// Accepts JWT-SVIDs whose `aud` contains `audience`. At least one is
+    /// needed when a JWT bundle is configured.
+    #[must_use]
+    pub fn with_jwt_svid_audience(mut self, audience: impl Into<String>) -> Self {
+        self.jwt_audiences.push(audience.into());
         self
     }
 
@@ -167,13 +193,17 @@ impl Authenticator {
         self
     }
 
-    /// Checks that identifiers from different OAuth issuers cannot collide:
-    /// with more than one issuer, each needs a subject prefix.
+    /// Checks that identifiers from different OAuth issuers cannot collide
+    /// (with more than one issuer, each needs a subject prefix), and that
+    /// JWT-SVIDs have an audience to be checked against.
     ///
     /// # Errors
     ///
     /// A description of the problem.
     pub fn check(&self) -> Result<(), String> {
+        if !self.jwt_bundles.is_empty() && self.jwt_audiences.is_empty() {
+            return Err("JWT-SVID bundles need at least one audience".into());
+        }
         if self.oauth_issuers.len() > 1 && self.oauth_issuers.iter().any(|i| !i.has_prefix()) {
             return Err(
                 "with more than one OAuth issuer, every issuer needs a subject_prefix".into(),
@@ -233,7 +263,7 @@ impl Authenticator {
             (Some(_), Some(_)) if signed => Err(AuthError::Ambiguous),
             (Some(wit), None) if signed => self.authenticate_signed(request, wit, now),
             (Some(_), _) => Err(AuthError::MissingProof),
-            (None, Some(authorization)) => self.authenticate_bearer(authorization, now),
+            (None, Some(authorization)) => self.authenticate_bearer(request, authorization, now),
             (None, None) => match request.peer_certificate {
                 Some(certificate) if !self.x509_bundles.is_empty() => {
                     self.authenticate_mtls(request, certificate, now)
@@ -399,6 +429,7 @@ impl Authenticator {
 
     fn authenticate_bearer(
         &self,
+        request: &RequestView<'_>,
         authorization: &str,
         now: u64,
     ) -> Result<Authenticated, AuthError> {
@@ -409,7 +440,30 @@ impl Authenticator {
         if !scheme.eq_ignore_ascii_case("bearer") {
             return Err(AuthError::MissingCredentials);
         }
-        let token = oauth::verify(&self.oauth_issuers, token.trim(), now, self.leeway)?;
+        let token = token.trim();
+        if !self.jwt_bundles.is_empty() {
+            let issuers: Vec<&str> = self.oauth_issuers.iter().map(OAuthIssuer::issuer).collect();
+            if svid::is_svid(token, &issuers) {
+                // A bearer token cannot bind a user token to this request.
+                if request.single(&self.user_token_header)?.is_some() {
+                    return Err(AuthError::UnboundUserToken);
+                }
+                let caller = svid::verify(
+                    &self.jwt_bundles,
+                    &self.jwt_audiences,
+                    token,
+                    now,
+                    self.leeway,
+                )?;
+                return Ok(Authenticated {
+                    caller,
+                    method: Method::JwtSvid,
+                    user: None,
+                    proof_key: None,
+                });
+            }
+        }
+        let token = oauth::verify(&self.oauth_issuers, token, now, self.leeway)?;
         let caller = token.client_id.clone().ok_or(AuthError::NoClient)?;
         Ok(Authenticated {
             caller,

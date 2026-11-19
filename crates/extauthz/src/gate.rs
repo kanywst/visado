@@ -391,7 +391,7 @@ impl<P: Pdp> Gate<P> {
     /// it verifies against this gate's key and domain. With a WPT the token is
     /// bound through `tth`; with an HTTP signature it is a covered component;
     /// with mTLS it arrived on the connection the certificate authenticated.
-    /// Bearer callers cannot forward one.
+    /// Bearer callers (an access token or a JWT-SVID) cannot forward one.
     fn accept_forwarded(
         &self,
         caller: &Authenticated,
@@ -539,6 +539,7 @@ const fn method_name(method: Method) -> &'static str {
         Method::WitWpt => "wit-wpt",
         Method::WitHttpSig => "wit-httpsig",
         Method::Mtls => "mtls",
+        Method::JwtSvid => "jwt-svid",
         Method::Bearer => "bearer",
     }
 }

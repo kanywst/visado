@@ -34,6 +34,10 @@ impl OAuthIssuer {
         self
     }
 
+    pub(crate) fn issuer(&self) -> &str {
+        &self.issuer
+    }
+
     pub(crate) const fn has_prefix(&self) -> bool {
         self.prefix.is_some()
     }

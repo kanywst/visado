@@ -9,12 +9,12 @@ use std::sync::{Arc, Mutex};
 use serde_json::{Value, json};
 use visado_authzen::{Decision, EvaluationRequest, Pdp, PdpError};
 use visado_chain_aat::{TrustAnchor, Verifier};
-use visado_credentials::{Authenticator, WitIssuer, X509Bundle};
+use visado_credentials::{Authenticator, JwtBundle, WitIssuer, X509Bundle};
 use visado_extauthz::{CheckInput, Gate, GateConfig, Outcome};
 use visado_testkit::{
     AAT_ISSUER, NOW, SignatureSpec, TRUST_DOMAIN, aat_anchor_key, aat_pop, aat_root,
-    certificate_pem, content_digest, envoy_peer_certificate, http_signature, pop_key, wic, wit,
-    wit_issuer_verifying_key, workload_ca,
+    certificate_pem, content_digest, envoy_peer_certificate, http_signature, jwt_bundle, jwt_svid,
+    pop_key, wic, wit, wit_issuer_verifying_key, workload_ca,
 };
 use visado_txn_token::{KeySet, Scope, TxnTokenClaims, Validation, verify};
 use wimsey_jose::SigningKey;
@@ -68,7 +68,11 @@ fn authenticator() -> Authenticator {
     Authenticator::new()
         .with_wit_issuer(WitIssuer::new(TRUST_DOMAIN).with_key("wit-1", wit_issuer_verifying_key()))
         .with_x509_bundle(X509Bundle::from_pem(TRUST_DOMAIN, &ca).unwrap())
+        .with_jwt_bundle(JwtBundle::from_spiffe_bundle(TRUST_DOMAIN, &jwt_bundle()).unwrap())
+        .with_jwt_svid_audience(SVID_AUDIENCE)
 }
+
+const SVID_AUDIENCE: &str = "spiffe://td.example/visado";
 
 fn gate() -> Gate<RecordingPdp> {
     gate_with(authenticator()).0
@@ -358,4 +362,72 @@ async fn an_mtls_caller_holds_an_aat_chain_with_its_certificate_key() {
     assert!(minted(&outcome).tctx.unwrap().contains_key("chain"));
     let outcome = gate.check(&call(3, "m2"), NOW, "t").await;
     assert_eq!(denied(&outcome).1, "chain.holder_mismatch");
+}
+
+#[tokio::test]
+async fn a_jwt_svid_caller_is_a_workload_without_a_proof_key() {
+    let (gate, seen) = gate_with(authenticator());
+    let svid = |workload: &str| {
+        format!(
+            "Bearer {}",
+            jwt_svid(
+                &format!("spiffe://{TRUST_DOMAIN}/{workload}"),
+                SVID_AUDIENCE,
+                NOW + 300
+            )
+        )
+    };
+    let call = |workload: &str, extra: &[(&str, &str)]| {
+        let mut headers = vec![("authorization".to_owned(), svid(workload))];
+        headers.extend(
+            extra
+                .iter()
+                .map(|(n, v)| ((*n).to_owned(), (*v).to_owned())),
+        );
+        input("/mcp", headers, None)
+    };
+
+    let outcome = gate.check(&call("agent-b", &[]), NOW, "s1").await;
+    let (pdp, token, req_wl) = auth_method(&seen, &outcome);
+    assert_eq!(pdp, json!("jwt-svid"));
+    assert_eq!(token, json!("jwt-svid"));
+    assert_eq!(req_wl, "spiffe://td.example/agent-b");
+    let subject = seen.lock().unwrap().as_ref().unwrap().subject.kind.clone();
+    assert_eq!(subject, "agent");
+
+    // A bearer token proves nothing about who sends it, so even an internal
+    // caller cannot forward a Transaction Token with one.
+    let Outcome::Allow { set, .. } = &outcome else {
+        unreachable!()
+    };
+    let forwarded = gate
+        .check(&call("agent-a", &[("txn-token", &set[0].1)]), NOW, "s2")
+        .await;
+    assert_eq!(denied(&forwarded).1, "txn.untrusted_hop");
+
+    // Nor can it present an AAT chain.
+    let chained = gate
+        .check(
+            &call("agent-b", &[("aat-chain", "x.y.z"), ("aat-pop", "x.y.z")]),
+            NOW,
+            "s3",
+        )
+        .await;
+    assert_eq!(denied(&chained).1, "chain.unbound_caller");
+
+    let expired = input(
+        "/mcp",
+        vec![(
+            "authorization".to_owned(),
+            format!(
+                "Bearer {}",
+                jwt_svid("spiffe://td.example/agent-b", SVID_AUDIENCE, NOW - 60)
+            ),
+        )],
+        None,
+    );
+    assert_eq!(
+        denied(&gate.check(&expired, NOW, "t").await),
+        (401, "jwt_svid.invalid", Some("Bearer"))
+    );
 }

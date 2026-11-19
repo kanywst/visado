@@ -2433,6 +2433,7 @@ dependencies = [
  "visado-chain-aat",
  "visado-credentials",
  "visado-extauthz",
+ "visado-testkit",
  "visado-txn-token",
  "wimsey-jose",
 ]
@@ -2513,6 +2514,7 @@ name = "visado-testkit"
 version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
+ "jsonwebtoken",
  "serde_json",
  "sha2",
  "visado-chain-aat",
