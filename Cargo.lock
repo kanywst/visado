@@ -2527,6 +2527,7 @@ dependencies = [
  "visado-authzen",
  "visado-chain",
  "visado-chain-aat",
+ "visado-chain-act",
  "visado-chain-asor",
  "visado-credentials",
  "visado-testkit",

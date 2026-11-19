@@ -60,6 +60,7 @@ fn config() -> GateConfig {
             vec![AAT_AUDIENCE.to_owned()],
         )),
         asor: None,
+        act: None,
         require_chain: false,
     }
 }

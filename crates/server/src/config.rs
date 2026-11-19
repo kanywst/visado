@@ -379,6 +379,7 @@ impl Config {
                 allowed_authorities: self.allowed_authorities,
                 aat,
                 asor,
+                act: None,
                 require_chain,
             },
             authenticator,

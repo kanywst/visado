@@ -99,6 +99,7 @@ fn gate(v: &Vector) -> Gate<ChainPdp> {
         allowed_authorities: BTreeSet::from([HOST.to_owned()]),
         aat: Some(Verifier::new(v.anchors.clone(), vec![v.audience.clone()])),
         asor: None,
+        act: None,
         require_chain: false,
     };
     let authenticator = Authenticator::new().with_wit_issuer(
@@ -217,6 +218,7 @@ async fn rejections() {
         allowed_authorities: BTreeSet::new(),
         aat: None,
         asor: None,
+        act: None,
         require_chain: false,
     };
     config.allowed_authorities.insert(HOST.to_owned());

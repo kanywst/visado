@@ -18,6 +18,7 @@ visado-txn-token = { workspace = true }
 visado-chain = { workspace = true }
 visado-chain-aat = { workspace = true }
 visado-chain-asor = { workspace = true }
+visado-chain-act = { workspace = true }
 serde = { workspace = true }
 wimsey-jose = { workspace = true }
 envoy-types = { workspace = true }
