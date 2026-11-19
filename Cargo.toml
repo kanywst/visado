@@ -4,12 +4,14 @@ members = [
     "crates/txn-token",
     "crates/chain",
     "crates/chain-aat",
+    "crates/chain-asor",
     "crates/authzen",
     "crates/credentials",
     "crates/testkit",
     "crates/extauthz",
     "crates/server",
 ]
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.2.0"
@@ -25,6 +27,7 @@ categories = ["authentication", "cryptography"]
 visado-txn-token = { path = "crates/txn-token", version = "0.2.0" }
 visado-chain = { path = "crates/chain", version = "0.2.0" }
 visado-chain-aat = { path = "crates/chain-aat", version = "0.2.0" }
+visado-chain-asor = { path = "crates/chain-asor", version = "0.2.0" }
 visado-authzen = { path = "crates/authzen", version = "0.2.0" }
 visado-credentials = { path = "crates/credentials", version = "0.2.0" }
 visado-extauthz = { path = "crates/extauthz", version = "0.2.0" }
@@ -55,6 +58,7 @@ base64 = "0.23"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value"] }
 sha2 = "0.11"
+hmac = "0.13"
 ryu = "1.0.23"
 thiserror = "2"
 

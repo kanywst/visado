@@ -6,7 +6,9 @@ use serde_json::{Map, Value, json};
 use tracing::Instrument;
 use visado_authzen::{Action, Entity, EvaluationRequest, Pdp};
 use visado_chain::NormalizedChain;
+use visado_chain::Principal;
 use visado_chain_aat::{Invocation, MemoryReplayCache, Presentation, Verifier, jwk_thumbprint};
+use visado_chain_asor::{Action as AsorAction, HttpRequest};
 use visado_credentials::{AuthError, Authenticated, Authenticator, Method, RequestView};
 use visado_txn_token::{
     KeySet, Replacement, Scope, TxnTokenClaims, Validation, VerifiedTxnToken, mint, replace, verify,
@@ -17,6 +19,10 @@ use wimsey_jose::SigningKey;
 pub const AAT_CHAIN_HEADER: &str = "aat-chain";
 /// The header carrying the AAT proof of possession.
 pub const AAT_POP_HEADER: &str = "aat-pop";
+/// The header carrying an asor Delegation Chain, root first, comma-separated.
+pub const ASOR_CHAIN_HEADER: &str = "agent-delegation-chain";
+/// The header carrying the DPoP proof for the asor leaf key (RFC 9449).
+pub const DPOP_HEADER: &str = "dpop";
 
 /// Headers always removed before the request goes upstream, in addition to the
 /// authenticator's user token header. The upstream gets the Transaction Token
@@ -51,7 +57,10 @@ pub struct GateConfig {
     /// AAT delegation-chain verification. `None` rejects requests that carry
     /// an `AAT-Chain` header.
     pub aat: Option<Verifier>,
-    /// Deny requests that carry no AAT chain.
+    /// asor delegation-chain verification. `None` rejects requests that
+    /// carry an `Agent-Delegation-Chain` header.
+    pub asor: Option<visado_chain_asor::Verifier>,
+    /// Deny requests that carry no delegation chain of either format.
     pub require_chain: bool,
 }
 
@@ -108,6 +117,7 @@ pub struct Gate<P> {
     txn_keys: KeySet,
     stripped: Vec<String>,
     aat_replay: MemoryReplayCache,
+    dpop_replay: MemoryReplayCache,
 }
 
 impl<P: Pdp> Gate<P> {
@@ -116,7 +126,15 @@ impl<P: Pdp> Gate<P> {
         let txn_keys =
             KeySet::new().with_key(config.kid.clone(), config.signing_key.verifying_key());
         let mut stripped: Vec<String> = STRIPPED_HEADERS.iter().map(|h| (*h).to_owned()).collect();
-        stripped.extend([AAT_CHAIN_HEADER.to_owned(), AAT_POP_HEADER.to_owned()]);
+        stripped.extend(
+            [
+                AAT_CHAIN_HEADER,
+                AAT_POP_HEADER,
+                ASOR_CHAIN_HEADER,
+                DPOP_HEADER,
+            ]
+            .map(str::to_owned),
+        );
         stripped.push(authenticator.user_token_header().to_owned());
         Self {
             config,
@@ -125,6 +143,7 @@ impl<P: Pdp> Gate<P> {
             txn_keys,
             stripped,
             aat_replay: MemoryReplayCache::new(100_000),
+            dpop_replay: MemoryReplayCache::new(100_000),
         }
     }
 
@@ -243,9 +262,10 @@ impl<P: Pdp> Gate<P> {
         Ok(Allowed { token, trail })
     }
 
-    /// Verifies an AAT chain if the request carries one (see docs/bindings.md).
-    /// With a WIT, the chain's holder must be the workload that proved
-    /// possession of the WIT key.
+    /// Verifies the delegation chain if the request carries one (see
+    /// docs/bindings.md): an AAT chain or an asor chain, never both. Only a
+    /// WIT caller may present a chain, and the chain's holder must be the
+    /// workload that proved possession of the WIT key.
     fn verify_chain(
         &self,
         input: &CheckInput,
@@ -253,38 +273,59 @@ impl<P: Pdp> Gate<P> {
         now: u64,
         trail: &Trail,
     ) -> Result<Option<NormalizedChain>, Denied> {
-        let header = |name: &str| {
-            input
-                .headers
-                .iter()
-                .find(|(n, _)| n == name)
-                .map(|(_, v)| v.as_str())
-        };
-        let Some(chain_header) = header(AAT_CHAIN_HEADER) else {
-            if self.config.require_chain {
-                return Err(Denied::new(403, "chain.required", trail));
+        let aat = header(input, AAT_CHAIN_HEADER);
+        let asor = header(input, ASOR_CHAIN_HEADER);
+        let chain = match (aat, asor) {
+            (None, None) => {
+                if self.config.require_chain {
+                    return Err(Denied::new(403, "chain.required", trail));
+                }
+                return Ok(None);
             }
-            return Ok(None);
+            (Some(_), Some(_)) => return Err(Denied::new(400, "chain.ambiguous", trail)),
+            (Some(chain), None) => self.verify_aat(input, caller, chain, now, trail)?,
+            (None, Some(chain)) => self.verify_asor(input, caller, chain, now, trail)?,
         };
+        // The chain must belong to the caller: its leaf holder key is the
+        // key the caller proved possession of with its WIT.
+        let key = caller
+            .proof_key
+            .as_ref()
+            .ok_or_else(|| Denied::new(403, "chain.unbound_caller", trail))?;
+        let holder = chain
+            .leaf()
+            .and_then(|leaf| leaf.cnf.as_ref())
+            .map(|c| c.thumbprint.0.as_str());
+        if holder != Some(jwk_thumbprint(key).as_str()) {
+            return Err(Denied::new(403, "chain.holder_mismatch", trail));
+        }
+        Ok(Some(chain))
+    }
+
+    fn verify_aat(
+        &self,
+        input: &CheckInput,
+        caller: &Authenticated,
+        chain_header: &str,
+        now: u64,
+        trail: &Trail,
+    ) -> Result<NormalizedChain, Denied> {
         let Some(verifier) = &self.config.aat else {
             return Err(Denied::new(403, "chain.unsupported", trail));
         };
         // The chain must belong to the caller: the leaf holder must be the key
         // the caller proved possession of (the WIT key, or the certificate key
         // over mTLS). A bearer caller has no such key and cannot present one.
-        let Some(key) = &caller.proof_key else {
+        if caller.proof_key.is_none() {
             return Err(Denied::new(403, "chain.unbound_caller", trail));
-        };
-        let pop =
-            header(AAT_POP_HEADER).ok_or_else(|| Denied::new(401, "chain.missing_pop", trail))?;
-        let chain: Vec<String> = chain_header
-            .split(',')
-            .map(|t| t.trim().to_owned())
-            .collect();
+        }
+        let pop = header(input, AAT_POP_HEADER)
+            .ok_or_else(|| Denied::new(401, "chain.missing_pop", trail))?;
+        let chain = split_chain(chain_header);
         let (tool, args) =
             invocation(input).ok_or_else(|| Denied::new(400, "chain.bad_invocation", trail))?;
         let now = i64::try_from(now).map_err(|_| Denied::new(500, "internal.clock", trail))?;
-        let authorized = verifier
+        verifier
             .verify(
                 &Presentation { chain: &chain, pop },
                 &Invocation {
@@ -294,16 +335,54 @@ impl<P: Pdp> Gate<P> {
                 now,
                 Some(&self.aat_replay),
             )
-            .map_err(|e| Denied::new(403, e.code(), trail))?;
-        let holder = authorized
-            .chain
-            .leaf()
-            .and_then(|leaf| leaf.cnf.as_ref())
-            .map(|c| c.thumbprint.0.as_str());
-        if holder != Some(jwk_thumbprint(key).as_str()) {
-            return Err(Denied::new(403, "chain.holder_mismatch", trail));
+            .map(|authorized| authorized.chain)
+            .map_err(|e| Denied::new(403, e.code(), trail))
+    }
+
+    /// An asor chain: the tool is the action's scope and its arguments the
+    /// action's parameters; the DPoP proof binds the leaf key to this
+    /// request.
+    fn verify_asor(
+        &self,
+        input: &CheckInput,
+        caller: &Authenticated,
+        chain_header: &str,
+        now: u64,
+        trail: &Trail,
+    ) -> Result<NormalizedChain, Denied> {
+        let Some(verifier) = &self.config.asor else {
+            return Err(Denied::new(403, "chain.unsupported", trail));
+        };
+        if caller.proof_key.is_none() {
+            return Err(Denied::new(403, "chain.unbound_caller", trail));
         }
-        Ok(Some(authorized.chain))
+        let proof = header(input, DPOP_HEADER)
+            .ok_or_else(|| Denied::new(401, "chain.missing_pop", trail))?;
+        let chain = split_chain(chain_header);
+        let (tool, args) =
+            invocation(input).ok_or_else(|| Denied::new(400, "chain.bad_invocation", trail))?;
+        let uri = format!("{}://{}{}", input.scheme, input.authority, input.path);
+        let now = i64::try_from(now).map_err(|_| Denied::new(500, "internal.clock", trail))?;
+        verifier
+            .verify(
+                &visado_chain_asor::Presentation {
+                    chain: &chain,
+                    dpop: proof,
+                },
+                &HttpRequest {
+                    method: &input.method,
+                    uri: &uri,
+                },
+                &AsorAction {
+                    scope: &tool,
+                    params_json: &args,
+                    totals: None,
+                },
+                now,
+                Some(&self.dpop_replay),
+            )
+            .map(|authorized| authorized.chain)
+            .map_err(|e| Denied::new(403, e.code(), trail))
     }
 
     fn replace_with_chain(
@@ -428,6 +507,21 @@ impl<P: Pdp> Gate<P> {
             None => Ok((caller.caller.clone(), self.config.default_scope.clone())),
         }
     }
+}
+
+/// The first value of header `name`.
+fn header<'a>(input: &'a CheckInput, name: &str) -> Option<&'a str> {
+    input
+        .headers
+        .iter()
+        .find(|(n, _)| n == name)
+        .map(|(_, v)| v.as_str())
+}
+
+/// A chain header's tokens. A comma never appears in a compact JWS, so a
+/// proxy that joins repeated headers with commas does not change it.
+fn split_chain(value: &str) -> Vec<String> {
+    value.split(',').map(|t| t.trim().to_owned()).collect()
 }
 
 /// What is known about the request so far, for the audit event.
@@ -562,13 +656,17 @@ fn chain_context(chain: &NormalizedChain) -> Value {
         .iter()
         .filter_map(|hop| hop.cnf.as_ref().map(|c| c.thumbprint.0.clone()))
         .collect();
-    json!({
+    let mut context = json!({
         "profile": chain.profile.as_str(),
         "issuer": chain.root.issuer,
         "depth": chain.hops.len().saturating_sub(1),
         "holders": holders,
         "authority": chain.leaf().map(|leaf| leaf.authority.json.clone()),
-    })
+    });
+    if let Principal::Subject { subject, .. } = &chain.principal {
+        context["principal"] = json!(subject);
+    }
+    context
 }
 
 /// The tool and its arguments the chain must authorize.

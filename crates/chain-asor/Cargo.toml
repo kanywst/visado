@@ -1,0 +1,25 @@
+[package]
+name = "visado-chain-asor"
+description = "Verify Agent Delegation Chains (draft-asor-wimse-agent-delegation-chain)."
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+visado-chain = { workspace = true }
+wimsey-jose = { workspace = true }
+sha2 = { workspace = true }
+hmac = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+visado-testkit = { workspace = true }
+
+[lints]
+workspace = true

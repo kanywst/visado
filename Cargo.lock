@@ -2431,6 +2431,7 @@ dependencies = [
  "tracing-subscriber",
  "visado-authzen",
  "visado-chain-aat",
+ "visado-chain-asor",
  "visado-credentials",
  "visado-extauthz",
  "visado-testkit",
@@ -2454,16 +2455,33 @@ dependencies = [
 [[package]]
 name = "visado-chain"
 version = "0.2.0"
+dependencies = [
+ "base64 0.23.1",
+ "ryu",
+ "sha2",
+ "wimsey-jose",
+]
 
 [[package]]
 name = "visado-chain-aat"
 version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
- "ryu",
  "serde_json",
  "sha2",
  "visado-chain",
+ "wimsey-jose",
+]
+
+[[package]]
+name = "visado-chain-asor"
+version = "0.2.0"
+dependencies = [
+ "hmac",
+ "serde_json",
+ "sha2",
+ "visado-chain",
+ "visado-testkit",
  "wimsey-jose",
 ]
 
@@ -2501,6 +2519,7 @@ dependencies = [
  "visado-authzen",
  "visado-chain",
  "visado-chain-aat",
+ "visado-chain-asor",
  "visado-credentials",
  "visado-testkit",
  "visado-txn-token",

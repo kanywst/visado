@@ -1,6 +1,6 @@
 # Design (draft)
 
-Status: 2026-11-19. Steps 1, 2 (except DPoP), 4, 5 and 6 (audit events and OpenTelemetry spans) are implemented, and AAT chains for step 3; the invariant engine, other chain formats and the chain view are not. Items marked Open need a decision before the code that depends on them.
+Status: unreleased, after v0.2.0. Steps 1 to 6 are implemented: caller authentication by WIT with WPT or HTTP signatures, mTLS, JWT-SVID and OAuth access tokens (no DPoP yet); AAT and asor-03 chains (decoders and per-format checks; no separate invariant engine or authority algebra); audit events and OpenTelemetry spans. RFC 8693 act chains, DPoP for access tokens and the chain view are not. Items marked Open need a decision before the code that depends on them.
 
 ## Request pipeline
 
@@ -74,7 +74,7 @@ Only `Verified` hops are used for authorization, and only when `holder_proof` is
 Order of formats:
 
 1. AAT (draft-niyikiza-oauth-attenuating-agent-tokens-02): 229 published vectors, and each hop is signed by the parent's `cnf` key.
-2. asor (draft-asor-wimse-agent-delegation-chain-03) on the same decoder.
+2. asor (draft-asor-wimse-agent-delegation-chain-03): 36 published vectors; every hop is signed by a trust anchor, and the leaf key is proven with DPoP.
 3. RFC 8693 `act` adapter at Declared assurance.
 4. Delegate SD-JWT once it has vectors.
 

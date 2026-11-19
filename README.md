@@ -5,12 +5,13 @@
 
 [![ci](https://github.com/kanywst/visado/actions/workflows/ci.yml/badge.svg)](https://github.com/kanywst/visado/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/kanywst/visado/badge)](https://scorecard.dev/viewer/?uri=github.com/kanywst/visado)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16930/badge)](https://www.bestpractices.dev/projects/16930)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 visado is an ext_authz service for AI agent traffic that runs behind Envoy, Istio or agentgateway. For each request it verifies the caller's workload credential and the delegation chain behind the request, asks an [AuthZEN](https://openid.net/specs/authorization-api-1_0.html) policy decision point, and passes the verified chain downstream as an [OAuth Transaction Token](https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/).
 
 > [!IMPORTANT]
-> visado is pre-alpha and implements Internet-Drafts that are still changing. AAT is the only delegation-chain format so far. See the [roadmap](ROADMAP.md).
+> visado is pre-alpha and implements Internet-Drafts that are still changing. AAT and asor are the delegation-chain formats so far. See the [roadmap](ROADMAP.md).
 
 ## How it fits
 
@@ -32,7 +33,8 @@ It follows the composition in [draft-ietf-wimse-aims](https://datatracker.ietf.o
 | [`visado`](crates/server) | | alpha: server binary |
 | [`visado-chain`](crates/chain) | | alpha: normalized chain model and decoder trait |
 | [`visado-chain-aat`](crates/chain-aat) | draft-niyikiza-oauth-attenuating-agent-tokens-02 | alpha: §8 verification, 229/229 published vectors, enforced by the gate |
-| Delegation chains (asor, RFC 8693 `act`) | see [SPEC-MAP.md](SPEC-MAP.md) | planned |
+| [`visado-chain-asor`](crates/chain-asor) | draft-asor-wimse-agent-delegation-chain-03 | alpha: §6 verification with DPoP, 36/36 published vectors, enforced by the gate |
+| Delegation chains (RFC 8693 `act`) | see [SPEC-MAP.md](SPEC-MAP.md) | planned |
 | Chain view, OpenTelemetry | | planned |
 
 ## Try it
@@ -44,7 +46,7 @@ cargo test --workspace
 cargo run -p visado -- deploy/local/visado.toml
 ```
 
-To see it behind Envoy with a real PDP, run the [lab](deploy/lab/): `docker compose up -d --build && ./demo.sh` in `deploy/lab`. The Transaction Token conformance vectors in [conformance/](conformance/) can be used to test other implementations; the AAT vectors there are a copy of the suite from [tenuo-ai/tenuo](https://github.com/tenuo-ai/tenuo).
+To see it behind Envoy with a real PDP, run the [lab](deploy/lab/): `docker compose up -d --build && ./demo.sh` in `deploy/lab`. The Transaction Token conformance vectors in [conformance/](conformance/) can be used to test other implementations; the AAT vectors there are a copy of the suite from [tenuo-ai/tenuo](https://github.com/tenuo-ai/tenuo), and the asor vectors a copy of the set from [attenu-io/attenu-guard](https://github.com/attenu-io/attenu-guard).
 
 ## Documentation
 

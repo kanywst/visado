@@ -57,9 +57,9 @@ async fn run(path: &std::path::Path) -> Result<(), String> {
             "allowed_authorities is empty: WPT and HTTP signature audiences are checked against whatever authority the request names"
         );
     }
-    if loaded.gate.aat.is_some() && !loaded.gate.require_chain {
+    if (loaded.gate.aat.is_some() || loaded.gate.asor.is_some()) && !loaded.gate.require_chain {
         tracing::warn!(
-            "[aat] is configured without required = true: requests without an AAT-Chain header skip the chain checks"
+            "a delegation chain format is configured without required = true: requests without a chain header skip the chain checks"
         );
     }
     let result = serve(loaded).await;

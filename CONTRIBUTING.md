@@ -15,6 +15,8 @@ cargo test --workspace --all-targets
 npx markdownlint-cli2 "**/*.md"
 ```
 
+The parsers also have cargo-fuzz targets; `fuzz/README.md` shows how to seed and run them (`cargo +nightly fuzz run <target>`).
+
 ## Guidelines
 
 - One logical change per commit. Keep refactors apart from behaviour changes.

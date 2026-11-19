@@ -15,12 +15,18 @@ Adds the remaining workload authentication methods. Breaking for library users: 
 - Credential headers longer than 16 KiB are denied (`credential.too_large`) before decoding.
 - The audit event has a `detail` field with the reason an authentication failed.
 - Testkit fixtures: an HTTP signature signer, a workload CA and X.509-SVIDs, and a JWT-SVID signer with a SPIFFE bundle.
+- `visado-chain-asor`: Agent Delegation Chain verification per draft-asor-wimse-agent-delegation-chain-03: the parse rules, steps 1 to 5, the DPoP proof of the leaf key (step 6) and the audience and action check (step 8), with denials named as in the draft's Table 2. A token with a `status` claim is denied as `status_unknown`, since status lists are not implemented.
+- The 36 published asor-03 vectors in `conformance/asor/`, from attenu-io/attenu-guard v0.22.0 (Apache-2.0), all passing. `NOTICE` records the attribution.
+- The gate verifies an asor chain sent in `Agent-Delegation-Chain` with a `DPoP` proof (see `docs/bindings.md`), with the same caller binding as AAT. Configured with `[asor]` in the server file, whose `required` has no default.
+- `visado-chain`: `Profile::Asor03`, and the shared `json` (strict parser and JCS), `jose` (compact JWS parts and JWK thumbprints) and `replay` modules.
 
 ### Changed
 
 - An internal caller may forward a `Txn-Token` after a WPT, an HTTP signature that covers it, or mTLS; bearer callers still cannot.
 - The gate removes `Signature` and `Signature-Input` before the request goes upstream.
 - The gate refuses a non-UTF-8 body for an AAT invocation itself; the service no longer replaces such a body with a marker.
+- The strict JSON parser, the JWS helpers and the replay cache moved from `visado-chain-aat` to `visado-chain`. `visado-chain-aat` re-exports `ReplayCache` and `MemoryReplayCache`; its behaviour is unchanged.
+- The gate denies a request that carries both `AAT-Chain` and `Agent-Delegation-Chain` (`chain.ambiguous`). The chain context sent to the PDP and the Transaction Token has `principal` when the format names one.
 
 ## [0.2.0] - 2026-11-19
 
@@ -36,6 +42,8 @@ Adds AAT delegation-chain verification to the gate, the lab, tracing and the pro
 - `visado-chain`: the format-neutral delegation chain model (`NormalizedChain`, `Hop`, signer binding, link, assurance) and the `ChainDecoder` trait.
 - `visado-chain-aat`: Attenuating Agent Token verification per draft-niyikiza-oauth-attenuating-agent-tokens-02, §8 steps 1 to 7, with errors that name the failing step.
 - The 229 published AAT JWS vectors in `conformance/aat/`, from tenuo-ai/tenuo (Apache-2.0), all passing. A root `NOTICE` file records the attribution.
+- cargo-fuzz targets in `fuzz/` for Transaction Token verification and token requests, AAT chain verification and decoding, AuthZEN responses and caller authentication, seeded from the conformance vectors. CI runs each for 30 seconds.
+- The Dockerfile pins its base images by digest, and Dependabot keeps the digests current.
 
 ### Changed
 

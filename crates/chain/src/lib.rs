@@ -8,6 +8,14 @@
 //! from a chain whose [`holder_proof`](NormalizedChain::holder_proof) is
 //! `true`. [`Assurance::Declared`] hops are for the audit record and the
 //! Transaction Token context.
+//!
+//! The [`json`], [`jose`] and [`replay`] modules hold what the JWS-based
+//! decoders share: a strict JSON parser with JCS (RFC 8785), compact JWS
+//! parts and JWK thumbprints, and a proof `jti` cache.
+
+pub mod jose;
+pub mod json;
+pub mod replay;
 
 use std::fmt;
 
@@ -17,6 +25,8 @@ use std::fmt;
 pub enum Profile {
     /// draft-niyikiza-oauth-attenuating-agent-tokens-02.
     Aat02,
+    /// draft-asor-wimse-agent-delegation-chain-03.
+    Asor03,
 }
 
 impl Profile {
@@ -25,6 +35,7 @@ impl Profile {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Aat02 => "aat-02",
+            Self::Asor03 => "asor-03",
         }
     }
 }
