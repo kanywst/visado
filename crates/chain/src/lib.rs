@@ -25,6 +25,8 @@ use std::fmt;
 pub enum Profile {
     /// draft-niyikiza-oauth-attenuating-agent-tokens-02.
     Aat02,
+    /// draft-asor-wimse-agent-delegation-chain-03.
+    Asor03,
 }
 
 impl Profile {
@@ -33,6 +35,7 @@ impl Profile {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Aat02 => "aat-02",
+            Self::Asor03 => "asor-03",
         }
     }
 }

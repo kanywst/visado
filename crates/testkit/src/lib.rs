@@ -265,3 +265,115 @@ pub fn aat_pop(
     });
     sign_aat("aat-pop+jwt", &payload, holder)
 }
+
+/// The asor trust anchor's signing key.
+#[must_use]
+pub fn asor_anchor_key() -> SigningKey {
+    SigningKey::from_ed25519_seed(&[0x71; 32])
+}
+
+/// The asor trust anchor's issuer.
+pub const ASOR_ISSUER: &str = "https://asor.td.example";
+
+/// The Principal of the asor test chains.
+pub const ASOR_PRINCIPAL: &str = "user:alice";
+
+/// Signs `header` and `payload`, both given as the exact JSON text to encode,
+/// with the asor anchor key.
+#[must_use]
+pub fn asor_sign_raw(header: &str, payload: &str) -> String {
+    let h = URL_SAFE_NO_PAD.encode(header);
+    let p = URL_SAFE_NO_PAD.encode(payload);
+    let input = format!("{h}.{p}");
+    let sig = URL_SAFE_NO_PAD.encode(asor_anchor_key().sign(input.as_bytes()));
+    format!("{input}.{sig}")
+}
+
+/// A Delegation Token with exactly `payload`, signed by the asor anchor.
+/// `serde_json` maps keep keys sorted and print without whitespace, which is
+/// the JCS form for the strings and integers used here.
+#[must_use]
+pub fn asor_sign(payload: &Value) -> String {
+    asor_sign_raw(
+        r#"{"alg":"Ed25519","typ":"at+jwt"}"#,
+        &serde_json::to_string(payload).expect("json"),
+    )
+}
+
+/// The claims of a root Delegation Token from [`ASOR_ISSUER`] for
+/// [`ASOR_PRINCIPAL`], acted on by `client_id` holding `holder`, granting
+/// `scopes` under `constraints`, for `audience`, valid 10 minutes from `now`.
+#[must_use]
+pub fn asor_root_claims(
+    jti: &str,
+    client_id: &str,
+    holder: &SigningKey,
+    scopes: &Value,
+    constraints: &Value,
+    audience: &str,
+    now: u64,
+    max_depth: u32,
+) -> Value {
+    json!({
+        "iss": ASOR_ISSUER, "sub": ASOR_PRINCIPAL, "client_id": client_id, "aud": audience,
+        "iat": now, "exp": now + 600, "jti": jti, "del_depth": 0, "del_max_depth": max_depth,
+        "cnf": { "jkt": visado_chain_aat::jwk_thumbprint(&holder.verifying_key()) },
+        "authorization_details": [
+            { "type": "agent_delegation", "scopes": scopes, "constraints": constraints }
+        ],
+    })
+}
+
+/// The claims of a child of `parent` at `depth`, like [`asor_root_claims`]
+/// but valid 5 minutes and committing to `parent` with `par_hash`.
+#[must_use]
+pub fn asor_child_claims(
+    jti: &str,
+    client_id: &str,
+    parent: &str,
+    holder: &SigningKey,
+    depth: u32,
+    scopes: &Value,
+    constraints: &Value,
+    audience: &str,
+    now: u64,
+) -> Value {
+    json!({
+        "iss": ASOR_ISSUER, "sub": ASOR_PRINCIPAL, "client_id": client_id, "aud": audience,
+        "iat": now, "exp": now + 300, "jti": jti, "del_depth": depth,
+        "par_hash": signing_input_hash(parent),
+        "cnf": { "jkt": visado_chain_aat::jwk_thumbprint(&holder.verifying_key()) },
+        "authorization_details": [
+            { "type": "agent_delegation", "scopes": scopes, "constraints": constraints }
+        ],
+    })
+}
+
+/// A DPoP proof (RFC 9449) by `holder` for `method` on `uri`, presenting the
+/// access token `token`.
+#[must_use]
+pub fn dpop_proof(
+    holder: &SigningKey,
+    method: &str,
+    uri: &str,
+    token: &str,
+    jti: &str,
+    now: u64,
+) -> String {
+    use sha2::{Digest, Sha256};
+    let mut jwk = serde_json::to_value(Jwk::from_verifying_key(&holder.verifying_key()))
+        .expect("jwk serializes");
+    if let Some(jwk) = jwk.as_object_mut() {
+        jwk.remove("alg");
+    }
+    let header = json!({ "alg": "Ed25519", "typ": "dpop+jwt", "jwk": jwk });
+    let payload = json!({
+        "jti": jti, "htm": method, "htu": uri, "iat": now,
+        "ath": URL_SAFE_NO_PAD.encode(Sha256::digest(token.as_bytes())),
+    });
+    let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header).expect("json"));
+    let p = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).expect("json"));
+    let input = format!("{h}.{p}");
+    let sig = URL_SAFE_NO_PAD.encode(holder.sign(input.as_bytes()));
+    format!("{input}.{sig}")
+}
