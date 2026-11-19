@@ -10,7 +10,7 @@ use visado_chain_aat::{Policy, TrustAnchor, Verifier};
 use visado_credentials::{Authenticator, OAuthIssuer, WitIssuer};
 use visado_extauthz::GateConfig;
 use visado_txn_token::Scope;
-use wimsey_jose::{Jwk, PrivateJwk};
+use wimsey_jose::{Jwk, PrivateJwk, VerifyingKey};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -43,6 +43,8 @@ pub struct Config {
     pub telemetry: Option<TelemetryConfig>,
     #[serde(default)]
     pub aat: Option<AatConfig>,
+    #[serde(default)]
+    pub asor: Option<AsorConfig>,
 }
 
 /// AAT delegation-chain verification.
@@ -62,6 +64,21 @@ pub struct AatConfig {
     pub require_pop_aud: bool,
     /// Deny requests that carry no chain. Has no default: an operator who
     /// enables AAT must decide whether a request may leave the chain out.
+    pub required: bool,
+}
+
+/// asor delegation-chain verification
+/// (draft-asor-wimse-agent-delegation-chain-03).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AsorConfig {
+    /// Identifiers of this enforcement point, matched exactly against the
+    /// leaf token's `aud`.
+    pub audiences: Vec<String>,
+    /// Keys trusted to sign Delegation Tokens. Each key's type sets its
+    /// algorithm: `Ed25519` for an OKP key, `ES256` for a P-256 key.
+    pub trust_anchors: Vec<AatAnchorConfig>,
+    /// Deny requests that carry no chain. Has no default, as for `[aat]`.
     pub required: bool,
 }
 
@@ -254,34 +271,10 @@ impl Config {
         }
         authenticator.check()?;
 
-        let require_chain = self.aat.as_ref().is_some_and(|a| a.required);
-        let aat = match self.aat {
-            None => None,
-            Some(config) => {
-                let mut anchors = Vec::new();
-                for anchor in config.trust_anchors {
-                    let jwk: Jwk = read_json(&base.join(&anchor.jwk_file))?;
-                    let key = jwk
-                        .to_verifying_key()
-                        .map_err(|e| format!("{}: {e}", anchor.jwk_file.display()))?;
-                    let mut trusted = TrustAnchor::new(anchor.issuer, key);
-                    if let Some(kid) = anchor.kid {
-                        trusted = trusted.with_kid(kid);
-                    }
-                    anchors.push(trusted);
-                }
-                if anchors.is_empty() || config.audiences.is_empty() {
-                    return Err("aat needs at least one trust anchor and one audience".into());
-                }
-                Some(
-                    Verifier::new(anchors, config.audiences).with_policy(Policy {
-                        require_chain_aud: config.require_chain_aud,
-                        require_pop_aud: config.require_pop_aud,
-                        nonces: None,
-                    }),
-                )
-            }
-        };
+        let require_chain = self.aat.as_ref().is_some_and(|a| a.required)
+            || self.asor.as_ref().is_some_and(|a| a.required);
+        let aat = self.aat.map(|c| c.verifier(base)).transpose()?;
+        let asor = self.asor.map(|c| c.verifier(base)).transpose()?;
 
         let pdp_bearer = match &self.pdp.bearer_env {
             Some(name) => Some(std::env::var(name).map_err(|_| format!("{name} is not set"))?),
@@ -301,6 +294,7 @@ impl Config {
                 internal_callers: self.internal_callers,
                 allowed_authorities: self.allowed_authorities,
                 aat,
+                asor,
                 require_chain,
             },
             authenticator,
@@ -313,6 +307,51 @@ impl Config {
             telemetry: self.telemetry,
         })
     }
+}
+
+impl AatConfig {
+    fn verifier(self, base: &Path) -> Result<Verifier, String> {
+        let mut anchors = Vec::new();
+        for anchor in &self.trust_anchors {
+            let mut trusted = TrustAnchor::new(anchor.issuer.clone(), anchor_key(base, anchor)?);
+            if let Some(kid) = &anchor.kid {
+                trusted = trusted.with_kid(kid.clone());
+            }
+            anchors.push(trusted);
+        }
+        if anchors.is_empty() || self.audiences.is_empty() {
+            return Err("aat needs at least one trust anchor and one audience".into());
+        }
+        Ok(Verifier::new(anchors, self.audiences).with_policy(Policy {
+            require_chain_aud: self.require_chain_aud,
+            require_pop_aud: self.require_pop_aud,
+            nonces: None,
+        }))
+    }
+}
+
+impl AsorConfig {
+    fn verifier(self, base: &Path) -> Result<visado_chain_asor::Verifier, String> {
+        let mut anchors = Vec::new();
+        for anchor in &self.trust_anchors {
+            let key = anchor_key(base, anchor)?;
+            let mut trusted = visado_chain_asor::TrustAnchor::new(anchor.issuer.clone(), key);
+            if let Some(kid) = &anchor.kid {
+                trusted = trusted.with_kid(kid.clone());
+            }
+            anchors.push(trusted);
+        }
+        if anchors.is_empty() || self.audiences.is_empty() {
+            return Err("asor needs at least one trust anchor and one audience".into());
+        }
+        Ok(visado_chain_asor::Verifier::new(anchors, self.audiences))
+    }
+}
+
+fn anchor_key(base: &Path, anchor: &AatAnchorConfig) -> Result<VerifyingKey, String> {
+    let jwk: Jwk = read_json(&base.join(&anchor.jwk_file))?;
+    jwk.to_verifying_key()
+        .map_err(|e| format!("{}: {e}", anchor.jwk_file.display()))
 }
 
 fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
@@ -390,6 +429,15 @@ jwks_file = "j"
         assert!(toml::from_str::<Config>(&without).is_err());
         let with =
             format!("{BASE}[aat]\naudiences = [\"a\"]\ntrust_anchors = []\nrequired = true\n");
+        assert!(toml::from_str::<Config>(&with).is_ok());
+    }
+
+    #[test]
+    fn asor_must_say_whether_a_chain_is_required() {
+        let without = format!("{BASE}[asor]\naudiences = [\"a\"]\ntrust_anchors = []\n");
+        assert!(toml::from_str::<Config>(&without).is_err());
+        let with =
+            format!("{BASE}[asor]\naudiences = [\"a\"]\ntrust_anchors = []\nrequired = false\n");
         assert!(toml::from_str::<Config>(&with).is_ok());
     }
 

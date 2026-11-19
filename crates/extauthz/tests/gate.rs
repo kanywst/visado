@@ -68,6 +68,7 @@ fn config() -> GateConfig {
         ]),
         allowed_authorities: BTreeSet::from([HOST.to_owned()]),
         aat: None,
+        asor: None,
         require_chain: false,
     }
 }
