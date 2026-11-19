@@ -21,6 +21,7 @@ Some negative tokens have more than one defect (an `exp` before `iat` is also in
 | --- | --- |
 | [txn-token/vectors.json](txn-token/vectors.json) | draft-ietf-oauth-transaction-tokens-11 |
 | [aat/aat-jws-vectors.json](aat/aat-jws-vectors.json) | draft-niyikiza-oauth-attenuating-agent-tokens-02 (third-party suite in its own format; see [aat/README.md](aat/README.md)) |
+| [asor/vectors/](asor/vectors/) | draft-asor-wimse-agent-delegation-chain-03 (third-party set in its own format, one file per vector; see [asor/README.md](asor/README.md)) |
 
 ## Regenerating
 

@@ -9,3 +9,13 @@ Tenuo (https://github.com/tenuo-ai/tenuo), licensed under the Apache License,
 Version 2.0. Its NOTICE reads:
 
   Copyright 2025-2026 Tenuo Contributors
+
+conformance/asor/vectors/ is the Delegation Chain test vector set from
+attenu-guard (https://github.com/attenu-io/attenu-guard), licensed under the
+Apache License, Version 2.0. Its NOTICE reads:
+
+  attenu-guard
+  Copyright 2026 Attenu
+
+  This product includes software developed for Attenu (https://attenu.io).
+  Licensed under the Apache License, Version 2.0.
