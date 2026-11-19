@@ -38,9 +38,9 @@ const steps = [
   },
   {
     name: 'Verify the delegation chain',
-    body: 'Decode AAT, asor and RFC 8693 act chains into one model, then check that the principal never changes and that authority only narrows.',
-    state: 'wip',
-    status: 'In progress. Not in a release yet.',
+    body: 'Verify an AAT chain sent in AAT-Chain and AAT-PoP: signatures, links, attenuation at every hop, and a proof of possession by the holder, who must be the WIT caller. The call is denied unless the chain permits this tool with these arguments.',
+    state: 'done',
+    status: 'AAT implemented; asor and RFC 8693 act planned. Not in a release yet.',
   },
   {
     name: 'Authorize',
@@ -68,7 +68,7 @@ const specs = [
   { name: 'WIMSE workload credentials (WIT, WPT)', href: 'https://github.com/kanywst/wimsey', rev: 'pinned in wimsey', state: 'done', status: 'WIT with WPT. HTTP signatures and mTLS are planned.' },
   { name: 'JWT access tokens', href: 'https://www.rfc-editor.org/rfc/rfc9068', rev: 'RFC 9068', state: 'done', status: 'Accepted alone or bound to a WPT. Sender-constrained (cnf) tokens are rejected until DPoP lands.' },
   { name: 'Envoy external authorization', href: 'https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/auth/v3/external_auth.proto', rev: 'ext_authz v3', state: 'done', status: 'gRPC service. Runs behind Envoy in the lab.' },
-  { name: 'Attenuating Agent Tokens (AAT)', href: 'https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/', rev: 'draft-niyikiza-oauth-attenuating-agent-tokens-02', state: 'wip', status: 'Decoder being built against the 229 published vectors. Not in a release yet.' },
+  { name: 'Attenuating Agent Tokens (AAT)', href: 'https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/', rev: 'draft-niyikiza-oauth-attenuating-agent-tokens-02', state: 'done', status: '§8 verification, 229/229 published vectors, enforced by the gate. Not in a release yet.' },
   { name: 'Agent delegation chain (asor)', href: 'https://datatracker.ietf.org/doc/draft-asor-wimse-agent-delegation-chain/03/', rev: 'draft-asor-wimse-agent-delegation-chain-03', state: 'todo', status: '' },
   { name: 'Identity Assertion Authorization Grant (ID-JAG)', href: 'https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/06/', rev: 'draft-ietf-oauth-identity-assertion-authz-grant-06', state: 'todo', status: '' },
   { name: 'WIMSE AI agent identity (AIMS)', href: 'https://datatracker.ietf.org/doc/draft-ietf-wimse-aims/01/', rev: 'draft-ietf-wimse-aims-01', state: 'ref', status: 'The composition visado follows. Not implemented as such yet.' },
@@ -90,7 +90,7 @@ const phases = [
   { n: 0, name: 'Foundation', state: 'done', status: 'Met' },
   { n: 1, name: 'Transaction Tokens', state: 'done', status: 'Met' },
   { n: 2, name: 'ext_authz and caller authentication', state: 'wip', status: 'Partly met' },
-  { n: 3, name: 'Delegation chains', state: 'wip', status: 'In progress' },
+  { n: 3, name: 'Delegation chains', state: 'wip', status: 'Partly met' },
   { n: 4, name: 'AuthZEN', state: 'wip', status: 'Partly met' },
   { n: 5, name: 'Lab, visibility and demos', state: 'wip', status: 'Started' },
   { n: 6, name: 'Interop and launch', state: 'todo', status: 'Not started' },
@@ -108,7 +108,7 @@ const help = [
   <section aria-labelledby="quick">
     <h2 id="quick">Quick start</h2>
     <p class="lead">
-      The lab puts visado behind Envoy with OPA as the policy decision point and runs the eight
+      The lab puts visado behind Envoy with OPA as the policy decision point and runs the
       scenarios above. You need Docker with Compose.
     </p>
     <div class="code"><Code code={quickstart} lang="sh" frame="terminal" title="Terminal" /></div>

@@ -2,7 +2,7 @@
 import { Icon } from '@astrojs/starlight/components';
 import { url } from './url';
 
-// The eight scenarios in deploy/lab/demo.sh, in the order the script runs them.
+// The scenarios in deploy/lab/demo.sh, in the order the script runs them.
 // Keep in sync with deploy/lab/README.md.
 const scenarios = [
   { what: 'No credentials', code: 401, verdict: 'denied' },
@@ -13,6 +13,10 @@ const scenarios = [
   { what: 'A workload outside internal_callers forwards it', code: 403, verdict: 'denied' },
   { what: 'User token without roles.write on the admin API', code: 403, verdict: 'denied by the PDP' },
   { what: 'carol, with roles.write, through agent-a', code: 200, verdict: 'allowed' },
+  { what: 'AAT: agent-b reads the file agent-a delegated', code: 200, verdict: 'allowed' },
+  { what: 'AAT: agent-b reads another file', code: 403, verdict: 'denied by the chain' },
+  { what: 'AAT: agent-b calls a tool agent-a kept', code: 403, verdict: 'denied by the chain' },
+  { what: "AAT: agent-z presents agent-b's chain", code: 403, verdict: 'denied by the chain' },
 ];
 ---
 
@@ -64,7 +68,7 @@ const scenarios = [
         ))
       }
     </ol>
-    <p class="note">Envoy, visado, OPA with the AuthZEN plugin and an echo upstream. CI runs all eight.</p>
+    <p class="note">Envoy, visado, OPA with the AuthZEN plugin and an echo upstream. CI runs all of them.</p>
   </figure>
 </section>
 
