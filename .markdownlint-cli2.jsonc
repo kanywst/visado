@@ -10,6 +10,8 @@
   },
   "ignores": [
     "target/**",
+    "fuzz/target/**",
+    "fuzz/corpus/**",
     // Generated from the repository Markdown by website/scripts/sync-docs.mjs.
     "website/src/content/docs/**",
     "website/node_modules/**",
