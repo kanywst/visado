@@ -27,6 +27,7 @@ categories = ["authentication", "cryptography"]
 visado-txn-token = { path = "crates/txn-token", version = "0.2.0" }
 visado-chain = { path = "crates/chain", version = "0.2.0" }
 visado-chain-aat = { path = "crates/chain-aat", version = "0.2.0" }
+visado-chain-asor = { path = "crates/chain-asor", version = "0.2.0" }
 visado-authzen = { path = "crates/authzen", version = "0.2.0" }
 visado-credentials = { path = "crates/credentials", version = "0.2.0" }
 visado-extauthz = { path = "crates/extauthz", version = "0.2.0" }

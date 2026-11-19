@@ -47,6 +47,7 @@ fn gate_config() -> GateConfig {
             )],
             vec![AUDIENCE.to_owned()],
         )),
+        asor: None,
         require_chain: false,
     }
 }
