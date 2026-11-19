@@ -257,6 +257,11 @@ impl Config {
         if self.trust_domain.trim().is_empty() {
             return Err("trust_domain is empty".into());
         }
+        // WPT and HTTP signature audiences name the request's own authority;
+        // without a list, anyone who sets Host matches any audience.
+        if self.allowed_authorities.is_empty() {
+            return Err("allowed_authorities must list the authorities this gate protects".into());
+        }
         if !(1..=MAX_TXN_LIFETIME).contains(&self.txn_lifetime) {
             return Err(format!(
                 "txn_lifetime must be 1..={MAX_TXN_LIFETIME} seconds"
@@ -505,6 +510,7 @@ mod tests {
 
     const BASE: &str = r#"
 trust_domain = "td.example"
+allowed_authorities = ["tools.td.example"]
 default_scope = "read"
 [signing_key]
 kid = "k"
