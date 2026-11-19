@@ -1,5 +1,5 @@
 /*
- * visado site theme. One accent: the violet of a visa stamp. Green and red are
+ * visado site theme. One accent: the ink blue of the visado mark. Green and red are
  * reserved for allow and deny, the way the lab reports them.
  */
 
@@ -10,9 +10,9 @@
   --sl-line-height: 1.65;
 
   /* Dark (Starlight's default theme). */
-  --sl-color-accent-low: #241b42;
-  --sl-color-accent: #8f78e0;
-  --sl-color-accent-high: #d9cffb;
+  --sl-color-accent-low: #0f2347;
+  --sl-color-accent: #8ab4ff;
+  --sl-color-accent-high: #d6e4ff;
   --sl-color-white: #e6edf3;
   --sl-color-gray-1: #d0d7de;
   --sl-color-gray-2: #b1bac4;
@@ -26,15 +26,15 @@
   --v-allow-ink: #8ee0b0;
   --v-deny: #f0716a;
   --v-deny-ink: #ffaba5;
-  --v-stamp: #a996ec;
+  --v-stamp: #f07167;
   --v-rule: #262c34;
   --v-panel: #11161d;
 }
 
 :root[data-theme='light'] {
-  --sl-color-accent-low: #ece6fb;
-  --sl-color-accent: #5b3fa0;
-  --sl-color-accent-high: #3a2575;
+  --sl-color-accent-low: #e3ebfa;
+  --sl-color-accent: #0b3d91;
+  --sl-color-accent-high: #072a66;
   --sl-color-white: #161e25;
   --sl-color-gray-1: #232d36;
   --sl-color-gray-2: #38444f;
@@ -49,7 +49,7 @@
   --v-allow-ink: #145c36;
   --v-deny: #b42318;
   --v-deny-ink: #912018;
-  --v-stamp: #5b3fa0;
+  --v-stamp: #c8443a;
   --v-rule: #e2e7ea;
   --v-panel: #f7f8fa;
 }

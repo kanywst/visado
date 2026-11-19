@@ -17,9 +17,12 @@ export default defineConfig({
       title: 'visado',
       description:
         'An ext_authz service that verifies WIMSE workload credentials, asks an AuthZEN PDP and mints OAuth Transaction Tokens.',
-      // Placeholder mark until visado has a logo: replace the two files in
-      // src/assets/brand/. If the new logo includes the name, add replacesTitle: true.
-      logo: { light: './src/assets/brand/mark-light.svg', dark: './src/assets/brand/mark-dark.svg', alt: '' },
+      logo: {
+        light: './src/assets/brand/lockup-light.svg',
+        dark: './src/assets/brand/lockup-dark.svg',
+        alt: 'visado',
+        replacesTitle: true,
+      },
       favicon: '/favicon.svg',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/kanywst/visado' }],
       customCss: [
