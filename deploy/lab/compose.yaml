@@ -15,7 +15,9 @@ services:
     build:
       context: ../..
     volumes:
-      - visado-config:/etc/visado:ro
+      - ./visado.toml:/etc/visado/visado.toml:ro
+      - ../local/keys:/etc/visado/keys:ro
+      - spire-bundle:/etc/visado/spire:ro
     depends_on:
       pdp: { condition: service_started }
       jaeger: { condition: service_started }
@@ -72,10 +74,8 @@ services:
     pid: "service:spire-agent"
     volumes:
       - ./spire/wit-config.sh:/lab/wit-config.sh:ro
-      - ./visado.toml:/lab/visado.toml:ro
-      - ../local/keys:/lab/keys:ro
       - spire-agent-socket:/run/spire/agent
-      - visado-config:/etc/visado
+      - spire-bundle:/out
     depends_on:
       spire-agent: { condition: service_healthy }
 
@@ -105,4 +105,4 @@ volumes:
   spire-server-socket:
   spire-shared:
   spire-agent-socket:
-  visado-config:
+  spire-bundle:
