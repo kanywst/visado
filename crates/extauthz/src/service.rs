@@ -73,14 +73,21 @@ fn input_from(request: &CheckRequest) -> Option<CheckInput> {
         body: if !http.body.is_empty() {
             Some(http.body.clone())
         } else if !http.raw_body.is_empty() {
-            // Not UTF-8 is kept as an unreadable body rather than dropped, so
-            // it cannot pass as "no body".
-            Some(String::from_utf8_lossy(&http.raw_body).into_owned())
+            // A body that is not UTF-8 is replaced by a marker that is not
+            // JSON, so a chain check denies it. Lossy decoding would let the
+            // gate check different text from the bytes the upstream gets.
+            Some(
+                String::from_utf8(http.raw_body.clone())
+                    .unwrap_or_else(|_| UNREADABLE_BODY.to_owned()),
+            )
         } else {
             None
         },
     })
 }
+
+/// Stands in for a body that is not UTF-8.
+const UNREADABLE_BODY: &str = "\u{FFFD}unreadable body";
 
 fn denied_response(status: u16, code: &str, challenge: Option<&str>) -> CheckResponse {
     let mut denied = DeniedHttpResponseBuilder::new();
@@ -167,5 +174,37 @@ impl<P: Pdp + 'static> Authorization for ExtAuthz<P> {
             } => denied_response(status, &code, challenge.as_deref()),
         };
         Ok(Response::new(response))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{UNREADABLE_BODY, input_from};
+    use envoy_types::ext_authz::v3::pb::CheckRequest;
+    use envoy_types::pb::envoy::service::auth::v3::AttributeContext;
+    use envoy_types::pb::envoy::service::auth::v3::attribute_context::{HttpRequest, Request};
+
+    #[test]
+    fn a_body_that_is_not_utf8_is_not_decoded_lossily() {
+        let mut raw =
+            br#"{"method":"tools/call","params":{"name":"read_file","arguments":{"path":"/data/"#
+                .to_vec();
+        raw.extend_from_slice(&[0xff, 0xfe]);
+        raw.extend_from_slice(br#""}}}"#);
+        let request = CheckRequest {
+            attributes: Some(AttributeContext {
+                request: Some(Request {
+                    http: Some(HttpRequest {
+                        method: "POST".into(),
+                        raw_body: raw,
+                        ..HttpRequest::default()
+                    }),
+                    ..Request::default()
+                }),
+                ..AttributeContext::default()
+            }),
+        };
+        let input = input_from(&request).unwrap();
+        assert_eq!(input.body.as_deref(), Some(UNREADABLE_BODY));
     }
 }
