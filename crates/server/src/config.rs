@@ -183,7 +183,12 @@ pub struct WitIssuerConfig {
     pub trust_domain: String,
     #[serde(default)]
     pub issuer: Option<String>,
+    /// Single keys, each in its own JWK file.
+    #[serde(default)]
     pub keys: Vec<KeyFile>,
+    /// A JWK set, such as a SPIRE WIT bundle. Read at startup.
+    #[serde(default)]
+    pub jwks_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -289,6 +294,12 @@ impl Config {
                     issuer.trust_domain
                 ));
             }
+            if issuer.keys.is_empty() == issuer.jwks_file.is_none() {
+                return Err(format!(
+                    "wit_issuers {} needs exactly one of keys and jwks_file",
+                    issuer.trust_domain
+                ));
+            }
         }
         if let Some(mtls) = &self.mtls {
             if !self.grpc_listen.ip().is_loopback() && !mtls.grpc_reachable_only_by_proxy {
@@ -341,6 +352,13 @@ impl Config {
                     .to_verifying_key()
                     .map_err(|e| format!("{}: {e}", key.jwk_file.display()))?;
                 wit = wit.with_key(key.kid, verifying);
+            }
+            if let Some(file) = &issuer.jwks_file {
+                let path = base.join(file);
+                let set: JwkSet = read_json(&path)?;
+                for (kid, verifying) in set.verifying_keys(&path)? {
+                    wit = wit.with_key(kid, verifying);
+                }
             }
             authenticator = authenticator.with_wit_issuer(wit);
         }
@@ -490,6 +508,62 @@ fn anchor_key(base: &Path, anchor: &AatAnchorConfig) -> Result<VerifyingKey, Str
     let jwk: Jwk = read_json(&base.join(&anchor.jwk_file))?;
     jwk.to_verifying_key()
         .map_err(|e| format!("{}: {e}", anchor.jwk_file.display()))
+}
+
+/// A JWK set as a SPIFFE bundle or a JWKS endpoint serves it.
+#[derive(Deserialize)]
+struct JwkSet {
+    keys: Vec<SetKey>,
+}
+
+#[derive(Deserialize)]
+struct SetKey {
+    kid: Option<String>,
+    #[serde(rename = "use")]
+    key_use: Option<String>,
+    #[serde(flatten)]
+    jwk: Jwk,
+}
+
+impl JwkSet {
+    /// Every key with its `kid`. A key without `alg` (SPIRE writes none) gets
+    /// the one algorithm its type allows: `ES256` for P-256, `EdDSA` for
+    /// Ed25519. Any other key, a missing or repeated `kid`, or an empty set
+    /// fails, so a bundle is never trusted only in part.
+    fn verifying_keys(self, path: &Path) -> Result<Vec<(String, VerifyingKey)>, String> {
+        let err = |m: &str| format!("{}: {m}", path.display());
+        let mut seen = BTreeSet::new();
+        let mut out = Vec::new();
+        for key in self.keys {
+            if key
+                .key_use
+                .as_deref()
+                .is_some_and(|u| u != "sig" && u != "wit-svid")
+            {
+                continue;
+            }
+            let kid = key.kid.ok_or_else(|| err("a key has no kid"))?;
+            if !seen.insert(kid.clone()) {
+                return Err(err(&format!("kid {kid} appears twice")));
+            }
+            let mut jwk = key.jwk;
+            if jwk.alg.is_none() {
+                jwk.alg = match (jwk.kty.as_str(), jwk.crv.as_str()) {
+                    ("EC", "P-256") => Some("ES256".into()),
+                    ("OKP", "Ed25519") => Some("EdDSA".into()),
+                    _ => return Err(err(&format!("key {kid}: unsupported key type"))),
+                };
+            }
+            let verifying = jwk
+                .to_verifying_key()
+                .map_err(|e| err(&format!("key {kid}: {e}")))?;
+            out.push((kid, verifying));
+        }
+        if out.is_empty() {
+            return Err(err("no signing keys"));
+        }
+        Ok(out)
+    }
 }
 
 fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
@@ -649,6 +723,70 @@ jwks_file = "j"
         std::fs::remove_dir_all(&dir).unwrap();
         assert!(loaded.is_ok());
         assert!(bad_ca.is_err());
+    }
+
+    #[test]
+    fn a_wit_issuer_takes_keys_or_a_jwks_file() {
+        let issuer =
+            |body: &str| format!("{BASE}[[wit_issuers]]\ntrust_domain = \"td.example\"\n{body}");
+        let config: Config = toml::from_str(&issuer("jwks_file = \"b.json\"\n")).unwrap();
+        assert!(config.validate().is_ok());
+        let config: Config = toml::from_str(&issuer("")).unwrap();
+        assert!(config.validate().is_err(), "neither");
+        let both = "jwks_file = \"b.json\"\nkeys = [{ kid = \"k\", jwk_file = \"k.json\" }]\n";
+        let config: Config = toml::from_str(&issuer(both)).unwrap();
+        assert!(config.validate().is_err(), "both");
+    }
+
+    #[test]
+    fn a_jwks_file_is_trusted_whole_or_not_at_all() {
+        use super::JwkSet;
+        use std::path::Path;
+        let ec = serde_json::json!({"kty": "EC", "crv": "P-256",
+            "x": "f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU",
+            "y": "x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"});
+        let with = |extra: serde_json::Value| {
+            let mut key = ec.clone();
+            key.as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
+            key
+        };
+        let keys = |keys: Vec<serde_json::Value>| -> Result<usize, String> {
+            let set: JwkSet = serde_json::from_value(serde_json::json!({ "keys": keys })).unwrap();
+            set.verifying_keys(Path::new("b.json")).map(|k| k.len())
+        };
+        // SPIRE's WIT bundle: kid, no alg, no use.
+        assert_eq!(keys(vec![with(serde_json::json!({"kid": "a"}))]), Ok(1));
+        // Keys for other SVID types in the same bundle are skipped.
+        assert_eq!(
+            keys(vec![
+                with(serde_json::json!({"kid": "a"})),
+                with(serde_json::json!({"kid": "b", "use": "x509-svid"})),
+            ]),
+            Ok(1)
+        );
+        assert!(keys(vec![]).is_err(), "empty");
+        assert!(keys(vec![ec.clone()]).is_err(), "no kid");
+        assert!(
+            keys(vec![
+                with(serde_json::json!({"kid": "a"})),
+                with(serde_json::json!({"kid": "a"}))
+            ])
+            .is_err(),
+            "repeated kid"
+        );
+        assert!(
+            keys(vec![with(serde_json::json!({"kid": "a", "alg": "EdDSA"}))]).is_err(),
+            "alg disagrees with the key"
+        );
+        assert!(
+            keys(vec![
+                serde_json::json!({"kid": "r", "kty": "RSA", "crv": "", "x": "", "n": "AQAB"})
+            ])
+            .is_err(),
+            "unsupported key"
+        );
     }
 
     #[test]
