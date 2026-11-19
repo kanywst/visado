@@ -13,12 +13,16 @@
 //!   signature covers it.
 //! - A client presenting only an OAuth access token as `Authorization: Bearer`.
 //!   The client is identified by `client_id` (or `azp`).
+//! - A workload that presented no credential header but authenticated to the
+//!   proxy with an X.509-SVID over mTLS. The proxy must be the TLS terminator
+//!   and pass the certificate out of band (Envoy's `source.certificate`).
 //!
 //! Trust anchors come from configuration. Keys are never fetched from URLs in a
 //! token.
 
 mod error;
 mod httpsig;
+mod mtls;
 mod oauth;
 mod replay;
 mod request;
@@ -27,6 +31,7 @@ mod wimse;
 use std::sync::Mutex;
 
 pub use error::AuthError;
+pub use mtls::X509Bundle;
 pub use oauth::{AccessToken, OAuthIssuer};
 pub use request::RequestView;
 pub use wimse::WitIssuer;
@@ -54,6 +59,8 @@ pub enum Method {
     WitWpt,
     /// WIT with an HTTP message signature.
     WitHttpSig,
+    /// X.509-SVID over mTLS, terminated by the proxy.
+    Mtls,
     /// OAuth access token only.
     Bearer,
 }
@@ -69,8 +76,9 @@ pub struct Authenticated {
     /// The user's access token, when one was presented and bound.
     pub user: Option<AccessToken>,
     /// The key the caller proved possession of for this request: the WIT
-    /// `cnf` key for [`Method::WitWpt`] and [`Method::WitHttpSig`], `None` for
-    /// [`Method::Bearer`].
+    /// `cnf` key for [`Method::WitWpt`] and [`Method::WitHttpSig`], the
+    /// certificate's key for [`Method::Mtls`] when it is Ed25519 or P-256, and
+    /// `None` for [`Method::Bearer`].
     pub proof_key: Option<wimsey_jose::VerifyingKey>,
 }
 
@@ -79,6 +87,7 @@ pub struct Authenticated {
 pub struct Authenticator {
     wit_issuers: Vec<WitIssuer>,
     oauth_issuers: Vec<OAuthIssuer>,
+    x509_bundles: Vec<X509Bundle>,
     user_token_header: String,
     leeway: u64,
     max_wpt_lifetime: u64,
@@ -93,6 +102,7 @@ impl Authenticator {
         Self {
             wit_issuers: Vec::new(),
             oauth_issuers: Vec::new(),
+            x509_bundles: Vec::new(),
             user_token_header: "x-user-token".into(),
             leeway: 30,
             max_wpt_lifetime: 60,
@@ -112,6 +122,14 @@ impl Authenticator {
     #[must_use]
     pub fn with_oauth_issuer(mut self, issuer: OAuthIssuer) -> Self {
         self.oauth_issuers.push(issuer);
+        self
+    }
+
+    /// Trusts X.509-SVIDs issued by the CA in `bundle`. Without any bundle the
+    /// peer certificate is ignored.
+    #[must_use]
+    pub fn with_x509_bundle(mut self, bundle: X509Bundle) -> Self {
+        self.x509_bundles.push(bundle);
         self
     }
 
@@ -216,8 +234,32 @@ impl Authenticator {
             (Some(wit), None) if signed => self.authenticate_signed(request, wit, now),
             (Some(_), _) => Err(AuthError::MissingProof),
             (None, Some(authorization)) => self.authenticate_bearer(authorization, now),
-            (None, None) => Err(AuthError::MissingCredentials),
+            (None, None) => match request.peer_certificate {
+                Some(certificate) if !self.x509_bundles.is_empty() => {
+                    self.authenticate_mtls(request, certificate, now)
+                }
+                _ => Err(AuthError::MissingCredentials),
+            },
         }
+    }
+
+    fn authenticate_mtls(
+        &self,
+        request: &RequestView<'_>,
+        certificate: &str,
+        now: u64,
+    ) -> Result<Authenticated, AuthError> {
+        // Nothing in a certificate can bind a user token to this request.
+        if request.single(&self.user_token_header)?.is_some() {
+            return Err(AuthError::UnboundUserToken);
+        }
+        let peer = mtls::verify(&self.x509_bundles, certificate, now)?;
+        Ok(Authenticated {
+            caller: peer.id,
+            method: Method::Mtls,
+            user: None,
+            proof_key: peer.key,
+        })
     }
 
     fn authenticate_signed(

@@ -48,6 +48,12 @@ pub enum AuthError {
     /// audit record.
     #[error("invalid signed request: {0}")]
     HttpSig(String),
+    /// The peer certificate did not verify.
+    #[error("invalid peer certificate: {0}")]
+    Certificate(String),
+    /// The peer certificate names a trust domain with no configured CA.
+    #[error("untrusted certificate trust domain")]
+    CertificateUntrustedDomain,
     /// The request carries credentials for more than one method, or a header
     /// the chosen method does not use.
     #[error("ambiguous credentials")]
@@ -84,6 +90,8 @@ impl AuthError {
             Self::NoClient => "token.no_client",
             Self::HttpSig(_) => "httpsig.invalid",
             Self::Ambiguous => "credential.ambiguous",
+            Self::Certificate(_) => "mtls.invalid",
+            Self::CertificateUntrustedDomain => "mtls.untrusted_domain",
             Self::TooLarge => "credential.too_large",
             Self::Internal => "internal",
         }

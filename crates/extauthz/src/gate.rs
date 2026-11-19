@@ -269,9 +269,9 @@ impl<P: Pdp> Gate<P> {
         let Some(verifier) = &self.config.aat else {
             return Err(Denied::new(403, "chain.unsupported", trail));
         };
-        // The chain must belong to the caller. Only a WIT caller has proved
-        // possession of a key that can be compared with the chain's holder, so
-        // a bearer-only caller cannot present a chain.
+        // The chain must belong to the caller: the leaf holder must be the key
+        // the caller proved possession of (the WIT key, or the certificate key
+        // over mTLS). A bearer caller has no such key and cannot present one.
         let Some(key) = &caller.proof_key else {
             return Err(Denied::new(403, "chain.unbound_caller", trail));
         };
@@ -373,6 +373,9 @@ impl<P: Pdp> Gate<P> {
                 // draft-ietf-wimse-http-signature: a failed signed request is
                 // a 400 that does not say which check failed.
                 AuthError::HttpSig(_) => (400, None),
+                // No scheme the client could answer: the certificate came
+                // from the TLS handshake.
+                AuthError::Certificate(_) | AuthError::CertificateUntrustedDomain => (401, None),
                 _ if wimse => (401, Some(Challenge::Wpt)),
                 _ => (401, Some(Challenge::Bearer)),
             };
@@ -386,7 +389,9 @@ impl<P: Pdp> Gate<P> {
     /// An inbound Transaction Token is accepted only from a configured internal
     /// workload that proved possession of a key for this request, and only if
     /// it verifies against this gate's key and domain. With a WPT the token is
-    /// bound through `tth`; with an HTTP signature it is a covered component.
+    /// bound through `tth`; with an HTTP signature it is a covered component;
+    /// with mTLS it arrived on the connection the certificate authenticated.
+    /// Bearer callers cannot forward one.
     fn accept_forwarded(
         &self,
         caller: &Authenticated,
@@ -394,8 +399,10 @@ impl<P: Pdp> Gate<P> {
         now: u64,
         trail: &Trail,
     ) -> Result<TxnTokenClaims, Denied> {
-        if !matches!(caller.method, Method::WitWpt | Method::WitHttpSig)
-            || !self.config.internal_callers.contains(&caller.caller)
+        if !matches!(
+            caller.method,
+            Method::WitWpt | Method::WitHttpSig | Method::Mtls
+        ) || !self.config.internal_callers.contains(&caller.caller)
         {
             return Err(Denied::new(403, "txn.untrusted_hop", trail));
         }
@@ -531,6 +538,7 @@ const fn method_name(method: Method) -> &'static str {
     match method {
         Method::WitWpt => "wit-wpt",
         Method::WitHttpSig => "wit-httpsig",
+        Method::Mtls => "mtls",
         Method::Bearer => "bearer",
     }
 }

@@ -342,3 +342,64 @@ pub fn signature_request(
 pub fn content_digest(body: &[u8]) -> String {
     wimsey_httpsig::content_digest_sha256(body)
 }
+
+/// The workload CA's signing key.
+#[must_use]
+pub fn workload_ca_key() -> SigningKey {
+    SigningKey::from_ed25519_seed(&[0x81; 32])
+}
+
+/// The workload CA for [`TRUST_DOMAIN`], valid from a day before [`NOW`] for a
+/// year.
+#[must_use]
+pub fn workload_ca() -> wimsey_mtls::WorkloadCa {
+    wimsey_mtls::WorkloadCa::from_ed25519(&workload_ca_key(), NOW - 86_400, NOW + 31_536_000)
+        .expect("CA builds")
+}
+
+/// A workload certificate (X.509-SVID) for the identifier `id` and `key`,
+/// issued by [`workload_ca`] and valid from a minute before [`NOW`] for an
+/// hour.
+#[must_use]
+pub fn wic(id: &str, key: &VerifyingKey) -> Vec<u8> {
+    wic_at(id, key, NOW - 60, NOW + 3600)
+}
+
+/// Like [`wic`], valid between `not_before` and `not_after`.
+#[must_use]
+pub fn wic_at(id: &str, key: &VerifyingKey, not_before: u64, not_after: u64) -> Vec<u8> {
+    let id = WorkloadIdentifier::parse(id).expect("valid identifier");
+    workload_ca()
+        .issue(&id, key, not_before, not_after)
+        .expect("certificate issues")
+}
+
+/// `der` as one PEM `CERTIFICATE` block.
+#[must_use]
+pub fn certificate_pem(der: &[u8]) -> String {
+    use base64::engine::general_purpose::STANDARD;
+    let encoded = STANDARD.encode(der);
+    let mut pem = String::from("-----BEGIN CERTIFICATE-----\n");
+    for line in encoded.as_bytes().chunks(64) {
+        pem.push_str(std::str::from_utf8(line).expect("base64 is ASCII"));
+        pem.push('\n');
+    }
+    pem.push_str("-----END CERTIFICATE-----\n");
+    pem
+}
+
+/// `der` as Envoy reports a peer certificate in `source.certificate`:
+/// URL-encoded PEM.
+#[must_use]
+pub fn envoy_peer_certificate(der: &[u8]) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    for b in certificate_pem(der).bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
+            out.push(char::from(b));
+        } else {
+            let _ = write!(out, "%{b:02X}");
+        }
+    }
+    out
+}

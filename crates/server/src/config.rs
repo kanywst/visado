@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 use visado_chain_aat::{Policy, TrustAnchor, Verifier};
-use visado_credentials::{Authenticator, OAuthIssuer, WitIssuer};
+use visado_credentials::{Authenticator, OAuthIssuer, WitIssuer, X509Bundle};
 use visado_extauthz::GateConfig;
 use visado_txn_token::Scope;
 use wimsey_jose::{Jwk, PrivateJwk};
@@ -47,6 +47,26 @@ pub struct Config {
     pub telemetry: Option<TelemetryConfig>,
     #[serde(default)]
     pub aat: Option<AatConfig>,
+    #[serde(default)]
+    pub mtls: Option<MtlsConfig>,
+}
+
+/// mTLS with X.509-SVIDs. The proxy must terminate the client's TLS itself and
+/// pass the peer certificate (Envoy: `include_peer_certificate`).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MtlsConfig {
+    pub trust_bundles: Vec<X509BundleConfig>,
+}
+
+/// The CA for one trust domain. Leaf certificates must be issued directly by
+/// it.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct X509BundleConfig {
+    pub trust_domain: String,
+    /// One PEM certificate.
+    pub ca_file: PathBuf,
 }
 
 /// AAT delegation-chain verification.
@@ -222,6 +242,12 @@ impl Config {
                 ));
             }
         }
+        if let Some(mtls) = &self.mtls {
+            check_trust_domains(
+                "mtls.trust_bundles",
+                mtls.trust_bundles.iter().map(|b| &b.trust_domain),
+            )?;
+        }
         let mut issuers = BTreeSet::new();
         for issuer in &self.oauth_issuers {
             if !issuers.insert(&issuer.issuer) {
@@ -266,6 +292,7 @@ impl Config {
             }
             authenticator = authenticator.with_oauth_issuer(oauth);
         }
+        let authenticator = with_svid_bundles(authenticator, self.mtls, base)?;
         authenticator.check()?;
 
         let require_chain = self.aat.as_ref().is_some_and(|a| a.required);
@@ -329,6 +356,46 @@ impl Config {
     }
 }
 
+/// Adds the SPIFFE trust bundles: X.509 CAs for mTLS.
+fn with_svid_bundles(
+    mut authenticator: Authenticator,
+    mtls: Option<MtlsConfig>,
+    base: &Path,
+) -> Result<Authenticator, String> {
+    for bundle in mtls.map(|m| m.trust_bundles).unwrap_or_default() {
+        let path = base.join(&bundle.ca_file);
+        let pem = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let trusted = X509Bundle::from_pem(bundle.trust_domain, &pem)
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+        authenticator = authenticator.with_x509_bundle(trusted);
+    }
+    Ok(authenticator)
+}
+
+/// At least one trust domain, each a bare name (no scheme or path) and listed
+/// once.
+fn check_trust_domains<'a>(
+    what: &str,
+    domains: impl Iterator<Item = &'a String>,
+) -> Result<(), String> {
+    let mut seen = BTreeSet::new();
+    for domain in domains {
+        if domain.is_empty()
+            || domain.contains([':', '/'])
+            || domain != &domain.to_ascii_lowercase()
+        {
+            return Err(format!("{what}: {domain:?} is not a trust domain name"));
+        }
+        if !seen.insert(domain) {
+            return Err(format!("{what}: duplicate trust_domain {domain}"));
+        }
+    }
+    if seen.is_empty() {
+        return Err(format!("{what} is empty"));
+    }
+    Ok(())
+}
+
 fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
@@ -358,6 +425,13 @@ endpoint = "http://127.0.0.1:8181/access/v1/evaluation"
     fn parse(extra: &str) -> Result<(), String> {
         let config: Config =
             toml::from_str(&format!("{extra}\n{BASE}")).map_err(|e| e.to_string())?;
+        config.validate()
+    }
+
+    /// Like `parse`, with `tables` after the base file.
+    fn parse_tables(tables: &str) -> Result<(), String> {
+        let config: Config =
+            toml::from_str(&format!("{BASE}\n{tables}")).map_err(|e| e.to_string())?;
         config.validate()
     }
 
@@ -408,6 +482,21 @@ jwks_file = "j"
         let with =
             format!("{BASE}[aat]\naudiences = [\"a\"]\ntrust_anchors = []\nrequired = true\n");
         assert!(toml::from_str::<Config>(&with).is_ok());
+    }
+
+    #[test]
+    fn mtls_needs_distinct_trust_domains() {
+        let bundle = |td: &str| {
+            format!("[[mtls.trust_bundles]]\ntrust_domain = \"{td}\"\nca_file = \"ca.pem\"\n")
+        };
+        assert!(parse_tables(&bundle("td.example")).is_ok());
+        assert!(parse_tables("[mtls]\ntrust_bundles = []\n").is_err());
+        assert!(
+            parse_tables(&format!("{}{}", bundle("td.example"), bundle("td.example"))).is_err()
+        );
+        assert!(parse_tables(&bundle("spiffe://td.example")).is_err());
+        assert!(parse_tables(&bundle("")).is_err());
+        assert!(parse_tables("[[mtls.trust_bundles]]\ntrust_domain = \"td.example\"\nca_file = \"ca.pem\"\nchain = true\n").is_err());
     }
 
     #[test]

@@ -27,6 +27,8 @@ uuid = { workspace = true }
 
 [dev-dependencies]
 visado-testkit = { workspace = true }
+wimsey-mtls = { workspace = true }
+wimsey-identifier = { workspace = true }
 tokio = { workspace = true }
 serde_json = { workspace = true }
 
