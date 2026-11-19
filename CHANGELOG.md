@@ -4,6 +4,24 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+Adds the remaining workload authentication methods. Breaking for library users: `RequestView` and `CheckInput` have new fields, `CheckInput::body` is bytes, and `Method` has new variants.
+
+### Added
+
+- `visado-credentials`: a WIT caller can sign the request with an HTTP message signature (draft-ietf-wimse-http-signature-08) instead of sending a WPT. The draft's profile and required components, `wimse-aud`, the `created`/`expires` window (`max_signature_lifetime`, default 60 s), nonce replay and a covered `Content-Digest` against the received body are checked. Failures are `httpsig.invalid` with status 400 and an RFC 9457 problem document.
+- `visado-credentials`: mTLS with an X.509-SVID that Envoy terminated and passes in `source.certificate`, verified against one CA per trust domain (`[mtls]`). The certificate key is the AAT holder key.
+- `visado-credentials`: SPIFFE JWT-SVIDs as bearer tokens (`RS256`, `ES256`), verified against a JWT bundle per trust domain (`[jwt_svid]`).
+- The PDP context and the Transaction Token `tctx` name the new methods `wit-httpsig`, `mtls` and `jwt-svid`.
+- Credential headers longer than 16 KiB are denied (`credential.too_large`) before decoding.
+- The audit event has a `detail` field with the reason an authentication failed.
+- Testkit fixtures: an HTTP signature signer, a workload CA and X.509-SVIDs, and a JWT-SVID signer with a SPIFFE bundle.
+
+### Changed
+
+- An internal caller may forward a `Txn-Token` after a WPT, an HTTP signature that covers it, or mTLS; bearer callers still cannot.
+- The gate removes `Signature` and `Signature-Input` before the request goes upstream.
+- The gate refuses a non-UTF-8 body for an AAT invocation itself; the service no longer replaces such a body with a marker.
+
 ## [0.2.0] - 2026-11-19
 
 Adds AAT delegation-chain verification to the gate, the lab, tracing and the project site. Breaking: `[aat]` must set `required`, and the gate denies AAT requests that are not one tool call or a plain body-less request.

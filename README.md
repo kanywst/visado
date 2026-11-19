@@ -26,7 +26,7 @@ It follows the composition in [draft-ietf-wimse-aims](https://datatracker.ietf.o
 | Component | Spec | Status |
 | --- | --- | --- |
 | [`visado-txn-token`](crates/txn-token) | draft-ietf-oauth-transaction-tokens-11 | alpha: mint, verify, replace, request parsing, conformance vectors |
-| [`visado-credentials`](crates/credentials) | WIMSE WIT and WPT via [wimsey](https://github.com/kanywst/wimsey), OAuth access tokens | alpha; HTTP signatures, mTLS and SVIDs planned |
+| [`visado-credentials`](crates/credentials) | WIMSE WIT with WPT or HTTP signatures (draft-ietf-wimse-http-signature-08) and mTLS via [wimsey](https://github.com/kanywst/wimsey), SPIFFE JWT-SVIDs, OAuth access tokens | alpha; DPoP planned |
 | [`visado-authzen`](crates/authzen) | AuthZEN 1.0 | alpha: evaluation and discovery; batch and search not used |
 | [`visado-extauthz`](crates/extauthz) | Envoy ext_authz v3 | alpha |
 | [`visado`](crates/server) | | alpha: server binary |

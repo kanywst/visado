@@ -3,7 +3,8 @@
 //!
 //! For each request the gate:
 //!
-//! 1. authenticates the caller (WIT with WPT, or an OAuth access token),
+//! 1. authenticates the caller (WIT with WPT or an HTTP signature, mTLS,
+//!    JWT-SVID, or an OAuth access token),
 //! 2. accepts an inbound Transaction Token only from a configured internal hop,
 //! 3. asks the AuthZEN PDP, failing closed on any error,
 //! 4. mints a Transaction Token, or forwards the verified inbound one,

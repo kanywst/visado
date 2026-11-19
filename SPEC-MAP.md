@@ -13,7 +13,7 @@ Pinned revisions and where the code departs from them. Checked 2026-11-18.
 | [draft-asor-wimse-agent-delegation-chain](https://datatracker.ietf.org/doc/draft-asor-wimse-agent-delegation-chain/03/) | -03 | (planned) | |
 | [OpenID AuthZEN Authorization API](https://openid.net/specs/authorization-api-1_0.html) | 1.0 Final | `visado-authzen` | Single evaluation and metadata discovery |
 
-WIMSE credentials (WIT, WPT, HTTP signatures, mTLS) come from [wimsey](https://github.com/kanywst/wimsey), which keeps its own spec map.
+WIMSE credentials (WIT, WPT, HTTP signatures per draft-ietf-wimse-http-signature-08, mTLS per draft-ietf-wimse-mutual-tls) come from [wimsey](https://github.com/kanywst/wimsey) 0.10.1, which keeps its own spec map. JWT-SVIDs follow the SPIFFE JWT-SVID and trust bundle specifications.
 
 ## Transaction Tokens: known divergences and choices
 
@@ -70,6 +70,29 @@ No divergences: all 229 vectors in [conformance/aat](conformance/aat/) give the 
 | WPT replay | `jti` | In-memory cache per process; when full, new proofs are rejected |
 | Key selection | Not specified | The unverified `sub` trust domain and `kid` select a configured key; the signature is then checked |
 | Proof `jti` length | Not limited | At most 256 bytes |
+| Method selection | One method per request | Fixed order by headers (`docs/bindings.md`); a WIT with both `Authorization` and `Signature-Input` is a WPT if the scheme is `WPT`, otherwise denied |
+| HTTP signature audience | `wimse-aud` against the recipient's configured audiences | Compared with the request's scheme, authority and path, like WPT `aud`; the authority is constrained by `allowed_authorities` |
+| HTTP signature window | Tight `expires` (minutes) | `expires` minus `created` and the age of `created` at most `max_signature_lifetime` (default 60 s, at most 300) |
+| HTTP signature nonce | Replay defense is the recipient's | Recorded per workload until `expires` in the WPT replay cache; at most 256 bytes |
+| HTTP signature body | `Content-Digest` covered when present | The digest is recomputed over the body Envoy sends (`with_request_body`); `sha-256` only; a missing body counts as empty and a partial body is denied |
+| HTTP signature failures | 400, one problem type, no detail | `httpsig.invalid`, 400, `application/problem+json`; the detail goes to the audit record only |
+| User token with an HTTP signature | Not defined | Read from `x-user-token` (configurable) and used only when the signature covers it; `Authorization` next to a signature is denied |
+| mTLS certificate source | The TLS peer | Envoy's `source.certificate`; Envoy must terminate TLS and be the only client of the gRPC port |
+| mTLS path validation | RFC 5280 path validation and revocation | One CA per trust domain that signs the leaf directly; no intermediates, name constraints or revocation. The leaf must not be a CA and its key usage, if present, must allow signatures only |
+| mTLS with credential headers | Not defined | A WIT or `Authorization` header takes precedence; the certificate authenticates only a request with neither |
+| Proof key for AAT chains | Not defined | The WIT `cnf` key (WPT and HTTP signature) or the certificate key (mTLS, Ed25519 or P-256); bearer methods have none and cannot present a chain |
+
+## SPIFFE JWT-SVID: choices
+
+| Topic | Spec | visado |
+| --- | --- | --- |
+| Algorithms | RS256 to PS512, ES256 to ES512 | `RS256` and `ES256` only |
+| `typ` | `JWT` or `JOSE` if present | Same |
+| `aud` | Required, validated | Required; one of `[jwt_svid] audiences`, exact match |
+| `kid` | Optional | Selects the bundle key; without it only a bundle with one key works. Bundle keys must have `kid` |
+| Bundle | SPIFFE trust bundle, keys with `use` | Read from a file per trust domain; only `use: jwt-svid` keys; no refresh |
+| Telling it from an OAuth token | Not defined | `sub` is a SPIFFE ID and `iss` is not a configured OAuth issuer |
+| Holder binding | Bearer | No proof key: no AAT chain, no Txn-Token forwarding, no user token |
 
 ## OAuth access tokens: choices
 
