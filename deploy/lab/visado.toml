@@ -1,6 +1,6 @@
-# visado's configuration in the lab. The WIT keys come from SPIRE: the
-# wit-config service writes the bundle to spire/wit-bundle.json before visado
-# starts. The keys under ../local/keys are fixed demo keys; anyone can sign
+# visado's configuration in the lab. The WIT keys, the X.509 CA and the
+# JWT-SVID keys come from SPIRE: wit-config and spire-setup write the bundles
+# to spire/ before visado starts. The keys under ../local/keys are fixed demo keys; anyone can sign
 # with them.
 trust_domain = "td.example"
 grpc_listen = "0.0.0.0:9191"
@@ -35,6 +35,17 @@ jwks_file = "keys/oauth-jwks.json"
 required = false
 audiences = ["http://tools.td.example"]
 trust_anchors = [{ issuer = "https://aat.td.example", jwk_file = "keys/aat-anchor.jwk.json" }]
+
+[mtls]
+trust_bundles = [{ trust_domain = "td.example", ca_file = "spire/x509-bundle.pem" }]
+# grpc_listen is not loopback: Envoy reaches visado over the compose network.
+# Port 9191 is not published, but every container on that network can reach
+# it. In a deployment, only the proxy may.
+grpc_reachable_only_by_proxy = true
+
+[jwt_svid]
+audiences = ["http://tools.td.example"]
+trust_bundles = [{ trust_domain = "td.example", bundle_file = "spire/spiffe-bundle.json" }]
 
 [telemetry]
 otlp_endpoint = "http://jaeger:4317"

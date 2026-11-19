@@ -24,6 +24,7 @@ Adds the remaining workload authentication methods and DPoP-bound access tokens.
 - The gate verifies an asor chain sent in `Agent-Delegation-Chain` with a `DPoP` proof (see `docs/bindings.md`), with the same caller binding as AAT. Configured with `[asor]` in the server file, whose `required` has no default.
 - `visado-chain`: `Profile::Asor03`, and the shared `json` (strict parser and JCS), `jose` (compact JWS parts and JWK thumbprints) and `replay` modules.
 - `deploy/lab`: SPIRE v1.16.0 issues the workloads' WIT-SVIDs (experimental `enable_wit_svids`). A one-shot `wit-config` service writes visado's `[[wit_issuers]]` from the SPIRE WIT bundle before visado starts, and `demo.sh` signs WPTs and AAT holder proofs with the keys SPIRE issued.
+- `deploy/lab` exercises the other caller methods through Envoy: WIT with an HTTP message signature (allowed, replayed nonce, body changed under the covered `Content-Digest`), mTLS on a second Envoy listener that terminates TLS with the gateway's SPIRE X.509-SVID and passes agent-a's X.509-SVID as `source.certificate` (allowed, unbound user token, certificate from another CA), SPIRE JWT-SVIDs (allowed, wrong audience) and a DPoP-bound access token (allowed, sent as `Bearer`). `spire-setup` writes the X.509 CA and the SPIFFE-format bundle for visado's `[mtls]` and `[jwt_svid]`, a `gateway-svid` one-shot writes Envoy's certificate, and a new `lab_methods` testkit example prints the signed and DPoP requests. `demo.sh` can check visado's error code as well as the status.
 
 ### Changed
 
@@ -35,6 +36,7 @@ Adds the remaining workload authentication methods and DPoP-bound access tokens.
 - The gate removes `Signature` and `Signature-Input` before the request goes upstream.
 - The gate refuses a non-UTF-8 body for an AAT invocation itself; the service no longer replaces such a body with a marker.
 - The strict JSON parser, the JWS helpers and the replay cache moved from `visado-chain-aat` to `visado-chain`. `visado-chain-aat` re-exports `ReplayCache` and `MemoryReplayCache`; its behaviour is unchanged.
+- The lab's ext_authz filters set `pack_as_bytes: true`, as `docs/bindings.md` asks for signed bodies.
 - `deploy/lab` no longer signs WITs with the fixed `wit-1` demo key. `lab_headers` and `lab_aat` take a directory of `spire-agent api fetch wit -output json` outputs as their first argument.
 - The gate denies a request that carries both `AAT-Chain` and `Agent-Delegation-Chain` (`chain.ambiguous`). The chain context sent to the PDP and the Transaction Token has `principal` when the format names one.
 

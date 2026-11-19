@@ -25,9 +25,62 @@ static_resources:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
                       transport_api_version: V3
                       failure_mode_allow: false
+                      # The body for MCP arguments and for Content-Digest;
+                      # pack_as_bytes passes a non-UTF-8 body unchanged.
                       with_request_body:
                         max_request_bytes: 65536
                         allow_partial_message: false
+                        pack_as_bytes: true
+                      grpc_service:
+                        envoy_grpc: { cluster_name: visado }
+                        timeout: 1s
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+    # mTLS: Envoy terminates TLS with the gateway's X.509-SVID, requires a
+    # client certificate issued by the SPIRE CA, and passes it to visado as
+    # source.certificate.
+    - name: ingress_mtls
+      address:
+        socket_address: { address: 0.0.0.0, port_value: 10443 }
+      filter_chains:
+        - transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+              require_client_certificate: true
+              common_tls_context:
+                tls_certificates:
+                  - certificate_chain: { filename: /etc/envoy/spire/svid.pem }
+                    private_key: { filename: /etc/envoy/spire/svid.key }
+                validation_context:
+                  trusted_ca: { filename: /etc/envoy/spire/bundle.pem }
+          filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_mtls
+                normalize_path: true
+                merge_slashes: true
+                path_with_escaped_slashes_action: REJECT_REQUEST
+                route_config:
+                  virtual_hosts:
+                    - name: tools
+                      domains: ["tools.td.example"]
+                      routes:
+                        - match: { prefix: "/" }
+                          route: { cluster: upstream }
+                http_filters:
+                  - name: envoy.filters.http.ext_authz
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                      transport_api_version: V3
+                      failure_mode_allow: false
+                      include_peer_certificate: true
+                      with_request_body:
+                        max_request_bytes: 65536
+                        allow_partial_message: false
+                        pack_as_bytes: true
                       grpc_service:
                         envoy_grpc: { cluster_name: visado }
                         timeout: 1s
