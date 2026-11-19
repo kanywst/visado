@@ -1,13 +1,28 @@
 # Lab
 
-Envoy calls visado through ext_authz. visado asks [OPA with the AuthZEN plugin](https://github.com/kanywst/opa-authzen-plugin), and allowed requests reach an echo server that returns the headers it received.
+Envoy calls visado through ext_authz. visado asks [OPA with the AuthZEN plugin](https://github.com/kanywst/opa-authzen-plugin), and allowed requests reach an echo server that returns the headers it received. [SPIRE](https://spiffe.io/) v1.16.0 issues the workloads' WITs.
 
 ```bash
 docker compose up -d --build
 ./demo.sh
 ```
 
-`demo.sh` signs WITs, WPTs and user tokens with the fixed demo keys in `../local/keys` and checks each response status:
+## SPIRE
+
+SPIRE v1.16.0 issues WIT-SVIDs as an experimental feature, turned on with `experimental { enable_wit_svids = true }` in `spire/server.conf` and `spire/agent.conf`. The server sets the WIT `iss` to `https://spire.td.example` (`wit_issuer`).
+
+- `spire-setup` registers `spiffe://td.example/agent-a`, `agent-b` and `agent-z`, and writes a join token for the agent.
+- The agent attests with the join token. Each lab workload is a Unix user in the agent container (uid 1001, 1002, 1003), and the `unix` workload attestor tells them apart by uid.
+- `wit-config` runs before visado. It fetches the `td.example` WIT bundle (a JWKS) from the Workload API and writes visado's configuration: `visado.toml` plus one `[[wit_issuers]]` key per bundle key, with the `iss` it expects. visado reads that configuration from a shared volume.
+- `demo.sh` runs `spire-agent api fetch wit` as each user and gets the WIT-SVID and its private key. The agent generates the key; the WIT binds it in `cnf.jwk` (ES256). The demo signs each WPT, and the AAT holder proofs, with that key.
+
+SPIRE's private key JWK and its bundle keys carry no `alg`. The demo takes it from the WIT's `cnf.jwk`, and `wit-config` writes `ES256` for each P-256 bundle key.
+
+User tokens and the AAT root are still signed with the fixed demo keys in `../local/keys`.
+
+## Scenarios
+
+`demo.sh` checks each response status:
 
 | Scenario | Expected |
 | --- | --- |
@@ -23,6 +38,8 @@ docker compose up -d --build
 | AAT: agent-b reads `/etc/passwd` | 403, outside the delegated constraint |
 | AAT: agent-b calls `delete_file`, which agent-a kept | 403 |
 | AAT: agent-z presents agent-b's chain | 403, the proof is not signed by the holder |
+
+The AAT chains are bound to the keys SPIRE issued: agent-a's WIT key holds the root and signs the delegation to agent-b's WIT key.
 
 Envoy also normalizes `%2e%2e` and `//` before visado sees the path; visado rejects any that still arrive.
 

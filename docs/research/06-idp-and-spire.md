@@ -135,7 +135,7 @@ Sources: PR body and diff, `gh pr diff 4611 --repo dexidp/dex`.
 ## 4. SPIRE v1.16.0 WIT-SVID
 
 - Enable: `experimental { enable_wit_svids = true }` in both the server and agent config.
-  - Server options: `wit_issuer` (sets `iss`; omitted if empty) and `default_wit_svid_ttl` (1h).
+  - Server options: `wit_issuer` (sets `iss`; omitted if empty), which goes inside the `experimental` block (v1.16.0 rejects it at the `server` level as unknown configuration), and `default_wit_svid_ttl` (1h).
   - Agent option: `wit_svid_cache_max_size` (1000).
   - Per-entry WIT TTL (#7302).
   - The `spire` UpstreamAuthority publishes WIT keys for nested setups.
@@ -148,7 +148,7 @@ Sources: PR body and diff, `gh pr diff 4611 --repo dexidp/dex`.
 - Workload API:
   - `FetchWITSVID(WITSVIDRequest{spiffe_id})` streams `WITSVID{spiffe_id, wit_svid (JWS), wit_svid_key (JWK private key), hint}`. The agent generates the key; the workload does not bring its own.
   - `FetchWITBundles` streams JWKS documents keyed by trust domain.
-  - CLI: `spire-agent api fetch wit [-spiffeID]`.
+  - CLI: `spire-agent api fetch wit [-spiffeID]`. With `-output json` it prints the WIT-SVIDs and the bundles. The private key JWK and the bundle keys carry no `alg`; the key in the WIT's `cnf.jwk` does (`ES256` by default). Checked against v1.16.0 in `deploy/lab`.
   - Agent rate limits: `fetch_wit_svid`, `fetch_wit_bundles`.
 - go-spiffe:
   - `exp/svid/witsvid` (parse/verify, typ check, cnf.jwk extraction), `exp/bundle/witbundle` and `workloadapi/witsource.go` exist on main.

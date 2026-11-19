@@ -19,6 +19,7 @@ Adds the remaining workload authentication methods. Breaking: the server refuses
 - The 36 published asor-03 vectors in `conformance/asor/`, from attenu-io/attenu-guard v0.22.0 (Apache-2.0), all passing. `NOTICE` records the attribution.
 - The gate verifies an asor chain sent in `Agent-Delegation-Chain` with a `DPoP` proof (see `docs/bindings.md`), with the same caller binding as AAT. Configured with `[asor]` in the server file, whose `required` has no default.
 - `visado-chain`: `Profile::Asor03`, and the shared `json` (strict parser and JCS), `jose` (compact JWS parts and JWK thumbprints) and `replay` modules.
+- `deploy/lab`: SPIRE v1.16.0 issues the workloads' WIT-SVIDs (experimental `enable_wit_svids`). A one-shot `wit-config` service writes visado's `[[wit_issuers]]` from the SPIRE WIT bundle before visado starts, and `demo.sh` signs WPTs and AAT holder proofs with the keys SPIRE issued.
 
 ### Changed
 
@@ -27,6 +28,7 @@ Adds the remaining workload authentication methods. Breaking: the server refuses
 - The gate removes `Signature` and `Signature-Input` before the request goes upstream.
 - The gate refuses a non-UTF-8 body for an AAT invocation itself; the service no longer replaces such a body with a marker.
 - The strict JSON parser, the JWS helpers and the replay cache moved from `visado-chain-aat` to `visado-chain`. `visado-chain-aat` re-exports `ReplayCache` and `MemoryReplayCache`; its behaviour is unchanged.
+- `deploy/lab` no longer signs WITs with the fixed `wit-1` demo key. `lab_headers` and `lab_aat` take a directory of `spire-agent api fetch wit -output json` outputs as their first argument.
 - The gate denies a request that carries both `AAT-Chain` and `Agent-Delegation-Chain` (`chain.ambiguous`). The chain context sent to the PDP and the Transaction Token has `principal` when the format names one.
 
 ## [0.2.0] - 2026-11-19

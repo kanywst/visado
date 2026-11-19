@@ -1,36 +1,39 @@
 //! Prints the headers and body of an MCP `tools/call` for the lab, carrying an
 //! AAT chain in which agent-a holds the root and delegates `read_file` on
-//! `/data/report.pdf` to agent-b. Signed with the fixed demo keys at the
-//! current time.
+//! `/data/report.pdf` to agent-b, at the current time. The agents' keys and
+//! the WIT are SPIRE WIT-SVIDs, read from `<svid-dir>/<workload>.json` (the
+//! output of `spire-agent api fetch wit -output json`), so the chain is bound
+//! to the keys SPIRE issued. The root AAT is signed with the fixed demo anchor
+//! key.
 //!
 //! ```text
-//! lab_aat <workload> <tool> <arguments-json>
+//! lab_aat <svid-dir> <workload> <tool> <arguments-json>
 //! ```
 //!
 //! Output: `Name: value` header lines, then `BODY: <json>`.
 
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
-use wimsey_identifier::WorkloadIdentifier;
-use wimsey_jose::{Jwk, SigningKey};
-use wimsey_wit::{Confirmation, WitClaims};
+use visado_testkit::SpireWitSvid;
 use wimsey_wpt::WptClaims;
 
 const AUTHORITY: &str = "tools.td.example";
 
-fn key_for(workload: &str) -> SigningKey {
-    let seed = workload
-        .bytes()
-        .fold(7u8, |a, b| a.wrapping_mul(31).wrapping_add(b));
-    visado_testkit::pop_key(seed)
+fn svid(dir: &str, workload: &str) -> SpireWitSvid {
+    let file = Path::new(dir).join(format!("{workload}.json"));
+    let output =
+        std::fs::read_to_string(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+    visado_testkit::spire_wit_svid(&output).unwrap_or_else(|e| panic!("{}: {e}", file.display()))
 }
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let (Some(workload), Some(tool), Some(arguments)) = (args.first(), args.get(1), args.get(2))
+    let (Some(dir), Some(workload), Some(tool), Some(arguments)) =
+        (args.first(), args.get(1), args.get(2), args.get(3))
     else {
-        eprintln!("usage: lab_aat <workload> <tool> <arguments-json>");
+        eprintln!("usage: lab_aat <svid-dir> <workload> <tool> <arguments-json>");
         std::process::exit(2);
     };
     let arguments: Value = serde_json::from_str(arguments).expect("arguments are JSON");
@@ -40,8 +43,8 @@ fn main() {
     let now = clock.as_secs();
     let nonce = format!("{}-{}", clock.as_nanos(), std::process::id());
 
-    let agent_a = key_for("agent-a");
-    let agent_b = key_for("agent-b");
+    let agent_a = svid(dir, "agent-a").key;
+    let agent_b = svid(dir, "agent-b").key;
     let root = visado_testkit::aat_root(
         &format!("root-{nonce}"),
         &agent_a,
@@ -67,7 +70,9 @@ fn main() {
         now,
     );
 
-    let holder = key_for(workload);
+    let SpireWitSvid {
+        wit, key: holder, ..
+    } = svid(dir, workload);
     let pop = visado_testkit::aat_pop(
         &format!("pop-{nonce}"),
         &child,
@@ -78,22 +83,6 @@ fn main() {
         &format!("http://{AUTHORITY}"),
         now,
     );
-    let wit = wimsey_wit::issue(
-        &WitClaims {
-            iss: None,
-            sub: WorkloadIdentifier::parse(&format!("spiffe://td.example/{workload}"))
-                .expect("valid workload name"),
-            iat: Some(now),
-            exp: now + 300,
-            jti: None,
-            cnf: Confirmation {
-                jwk: Jwk::from_verifying_key(&holder.verifying_key()),
-            },
-        },
-        Some("wit-1"),
-        &visado_testkit::wit_issuer_key(),
-    )
-    .expect("wit");
     let wpt = wimsey_wpt::issue(
         &WptClaims {
             aud: format!("http://{AUTHORITY}/mcp"),
