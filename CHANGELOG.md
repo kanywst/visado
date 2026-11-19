@@ -4,10 +4,14 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-19
+
+Adds AAT delegation-chain verification to the gate, the lab, tracing and the project site. Breaking: `[aat]` must set `required`, and the gate denies AAT requests that are not one tool call or a plain body-less request.
+
 ### Added
 
 - The gate verifies an AAT chain sent in `AAT-Chain` and `AAT-PoP` (see `docs/bindings.md`), reads the tool and arguments from an MCP `tools/call` body, requires the chain's holder to be the WIT key when a WIT is present, and passes the chain to the PDP and into the Transaction Token `tctx`. Configured with `[aat]` in the server file.
-- `deploy/lab`: Envoy, visado, OPA with the AuthZEN plugin and an echo upstream in Docker Compose, with eight scenarios in `demo.sh` that CI runs.
+- `deploy/lab`: Envoy, visado, OPA with the AuthZEN plugin and an echo upstream in Docker Compose, with thirteen scenarios in `demo.sh` that CI runs.
 - A Dockerfile for the server.
 - OpenTelemetry: one `visado.authorize` span per decision with `visado.*` attributes, exported over OTLP when `[telemetry] otlp_endpoint` is set. The lab sends them to Jaeger.
 - `scripts/check.sh` runs every CI check locally.
@@ -49,5 +53,6 @@ First release. Pre-alpha: delegation-chain verification is not implemented yet.
 - OAuth issuers can carry a `subject_prefix`; with more than one issuer, every issuer needs one.
 - Sender-constrained access tokens (`cnf`) are rejected until DPoP and mTLS binding exist. `scp` is read when `scope` is absent, and `nbf` is checked.
 
-[Unreleased]: https://github.com/kanywst/visado/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/kanywst/visado/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/kanywst/visado/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kanywst/visado/releases/tag/v0.1.0

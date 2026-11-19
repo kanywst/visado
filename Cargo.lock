@@ -2220,7 +2220,7 @@ checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
 name = "visado"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "envoy-types",
@@ -2246,7 +2246,7 @@ dependencies = [
 
 [[package]]
 name = "visado-authzen"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "reqwest",
@@ -2259,11 +2259,11 @@ dependencies = [
 
 [[package]]
 name = "visado-chain"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "visado-chain-aat"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
  "ryu",
@@ -2275,7 +2275,7 @@ dependencies = [
 
 [[package]]
 name = "visado-credentials"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
  "jsonwebtoken",
@@ -2292,7 +2292,7 @@ dependencies = [
 
 [[package]]
 name = "visado-extauthz"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "envoy-types",
  "serde",
@@ -2312,7 +2312,7 @@ dependencies = [
 
 [[package]]
 name = "visado-testkit"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
  "serde_json",
@@ -2326,7 +2326,7 @@ dependencies = [
 
 [[package]]
 name = "visado-txn-token"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
  "serde",
