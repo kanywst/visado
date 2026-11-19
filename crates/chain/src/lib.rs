@@ -27,6 +27,8 @@ pub enum Profile {
     Aat02,
     /// draft-asor-wimse-agent-delegation-chain-03.
     Asor03,
+    /// The RFC 8693 `act` (actor) claim of an OAuth access token.
+    Rfc8693Act,
 }
 
 impl Profile {
@@ -36,6 +38,7 @@ impl Profile {
         match self {
             Self::Aat02 => "aat-02",
             Self::Asor03 => "asor-03",
+            Self::Rfc8693Act => "rfc8693-act",
         }
     }
 }
@@ -58,6 +61,14 @@ pub enum ActorId {
     Key(KeyThumbprint),
     /// A named actor, such as a SPIFFE ID or a client ID.
     Name(String),
+    /// An actor named by an issuer, such as an RFC 8693 `act` claim's `sub`
+    /// in the namespace of its `iss` (or of the token's issuer).
+    Subject {
+        /// The issuer that named the actor.
+        issuer: String,
+        /// The actor's subject identifier.
+        subject: String,
+    },
 }
 
 /// On whose behalf the chain acts.
@@ -102,6 +113,9 @@ pub enum Link {
     Root,
     /// A digest of the parent's signed bytes, such as AAT `par_hash`.
     ParHash(String),
+    /// Nested inside the next hop's claim in the same signed token, as a
+    /// prior actor is inside the current actor's RFC 8693 `act` claim.
+    Nested,
 }
 
 /// What a hop authorizes, as the format carries it.
@@ -136,7 +150,8 @@ pub enum Assurance {
     /// about whether the presenter holds the leaf key; see
     /// [`NormalizedChain::holder_proof`].
     Verified,
-    /// Carried as data only, such as an inner RFC 8693 `act` entry.
+    /// Carried as data only, such as a prior actor in a nested RFC 8693
+    /// `act` claim.
     Declared,
 }
 
@@ -185,7 +200,9 @@ pub struct NormalizedChain {
     /// Whether the presenter proved possession of the leaf holder key for
     /// this request. [`ChainDecoder::decode`] checks the chain only and sets
     /// `false`; a format's request verification sets `true` after checking
-    /// the proof.
+    /// the proof. For an RFC 8693 `act` chain, whose actors have no key, it
+    /// is `true` when the current actor is the authenticated caller and that
+    /// caller proved possession of a key for the request (a WIT or mTLS).
     pub holder_proof: bool,
 }
 
