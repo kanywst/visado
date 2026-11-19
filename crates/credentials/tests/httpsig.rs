@@ -23,7 +23,7 @@ fn authenticator() -> Authenticator {
 }
 
 /// Runs a POST. Without a body or a length header it says `content-length: 0`,
-/// since a POST is otherwise assumed to carry a body.
+/// since a body is otherwise assumed.
 fn run(
     auth: &Authenticator,
     headers: &[(String, String)],
@@ -171,12 +171,23 @@ fn the_body_must_match_a_covered_digest() {
         "httpsig.invalid",
         "chunked body"
     );
-    // A POST with no length header at all (HTTP/2) is assumed to carry one.
+    // Without a single `Content-Length: 0` (HTTP/2 needs no length header)
+    // a body is assumed, whatever the method.
     let headers = signed(1, &[], &spec("d9"));
     assert_eq!(
         run_raw(&auth, &headers, None, NOW).unwrap_err(),
         "httpsig.invalid",
         "unannounced body"
+    );
+    let headers = with(
+        with(signed(1, &[], &spec("d10")), "content-length", "0"),
+        "content-length",
+        "5",
+    );
+    assert_eq!(
+        run_raw(&auth, &headers, None, NOW).unwrap_err(),
+        "httpsig.invalid",
+        "repeated content-length"
     );
 }
 

@@ -84,45 +84,41 @@ pub(crate) fn verify(
     }
 
     // A request with a body must cover Content-Digest, or the body could be
-    // swapped under a valid signature. The body counts as present when Envoy
-    // sent one, Content-Length says there is one, the request is chunked, or
-    // the method may carry a body and no Content-Length says it is empty
-    // (HTTP/2 needs neither header).
+    // swapped under a valid signature. HTTP/2 needs no length header and Envoy
+    // may not forward the body, so the only proof of no body is a single
+    // `Content-Length: 0`; anything else must cover Content-Digest.
     let covers_digest = verified
         .components
         .contains(&Component::header("content-digest"));
-    let content_length = request
+    let mut lengths = request
         .headers
         .iter()
-        .find(|(n, _)| n == "content-length")
-        .map(|(_, v)| v.trim().parse::<u64>().unwrap_or(u64::MAX));
-    let bodyless_method = matches!(
-        request.method.to_ascii_uppercase().as_str(),
-        "GET" | "HEAD" | "DELETE" | "OPTIONS" | "TRACE"
-    );
-    let has_body = request.body.is_some_and(|b| !b.is_empty())
+        .filter(|(n, _)| n == "content-length")
+        .map(|(_, v)| v.trim());
+    let declared_empty = lengths.next() == Some("0") && lengths.next().is_none();
+    let has_body = !declared_empty
+        || request.body.is_some_and(|b| !b.is_empty())
         || request
             .headers
             .iter()
-            .any(|(n, _)| n == "transfer-encoding")
-        || content_length.map_or(!bodyless_method, |len| len > 0);
+            .any(|(n, _)| n == "transfer-encoding");
     if has_body && !covers_digest {
         return Err(AuthError::HttpSig(
-            "a request with a body must cover content-digest".into(),
+            "a request without Content-Length: 0 must cover content-digest".into(),
         ));
+    }
+    if request
+        .headers
+        .iter()
+        .any(|(n, v)| n == PARTIAL_BODY_HEADER && !v.trim().eq_ignore_ascii_case("false"))
+    {
+        return Err(AuthError::HttpSig("partial body".into()));
     }
 
     // Covering Content-Digest protects only the header string. The body it
     // names must be the body received; a body Envoy did not send counts as
     // empty, so a non-empty signed body fails closed.
     if covers_digest {
-        if request
-            .headers
-            .iter()
-            .any(|(n, v)| n == PARTIAL_BODY_HEADER && !v.trim().eq_ignore_ascii_case("false"))
-        {
-            return Err(AuthError::HttpSig("partial body".into()));
-        }
         let digest = message
             .component_value(&Component::header("content-digest"))
             .map_err(invalid)?;
