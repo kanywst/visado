@@ -98,9 +98,9 @@ No divergences on the vectors: all 36 in [conformance/asor](conformance/asor/) g
 | Proof `jti` length | Not limited | At most 256 bytes |
 | Method selection | One method per request | Fixed order by headers (`docs/bindings.md`); a WIT with both `Authorization` and `Signature-Input` is a WPT if the scheme is `WPT`, otherwise denied |
 | HTTP signature audience | `wimse-aud` against the recipient's configured audiences | Compared with the request's scheme, authority and path, like WPT `aud`; the authority is constrained by `allowed_authorities` |
-| HTTP signature window | Tight `expires` (minutes) | `expires` minus `created` and the age of `created` at most `max_signature_lifetime` (default 60 s, at most 300) |
+| HTTP signature window | Tight `expires` (minutes) | `expires` minus `created` at most `max_signature_lifetime` (default 60 s, at most 300); the age of `created` at most that plus the clock leeway |
 | HTTP signature nonce | Replay defense is the recipient's | Recorded per workload until `expires` in the WPT replay cache; at most 256 bytes |
-| HTTP signature body | `Content-Digest` covered when present | The digest is recomputed over the body Envoy sends (`with_request_body`); `sha-256` only; a missing body counts as empty and a partial body is denied |
+| HTTP signature body | `Content-Digest` covered when present | The digest is recomputed over the body Envoy sends (`with_request_body`); `sha-256` only; a missing body counts as empty and a partial body is denied; a body is assumed unless the method is GET, HEAD, DELETE, OPTIONS or TRACE or `Content-Length` is 0, and then `content-digest` must be covered |
 | HTTP signature failures | 400, one problem type, no detail | `httpsig.invalid`, 400, `application/problem+json`; the detail goes to the audit record only |
 | User token with an HTTP signature | Not defined | Read from `x-user-token` (configurable) and used only when the signature covers it; `Authorization` next to a signature is denied |
 | mTLS certificate source | The TLS peer | Envoy's `source.certificate`; Envoy must terminate TLS and be the only client of the gRPC port, which the server enforces by requiring a loopback `grpc_listen` unless `grpc_reachable_only_by_proxy` is set |
