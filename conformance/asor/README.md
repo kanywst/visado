@@ -14,4 +14,6 @@ The files say `"draft": "02"`: they are the set the -02 introduced, which the -0
 
 Each file gives a chain (`tokens`, root first), the verification time `now`, the test signer, and the verifier's accepted algorithms and audience. A valid chain has `"expect": "accept"`; a rejected one names the outcome of the draft's Table 2 in `expect_reject_reason`. The chains are signed with a test-only HS256 key, published in each file; the draft requires Ed25519 for real deployments.
 
+`crates/chain-asor/tests/vectors.rs` runs the parse rules, steps 1 to 5 and the audience half of step 8 on every vector, and checks the verdict and the outcome name. Result: 36/36, every rejection with the expected outcome.
+
 To update, copy the directory at a new commit, regenerate `SHA256SUMS` with `shasum -a 256 *.json > ../SHA256SUMS` inside `vectors/`, update the commit above, and run `cargo test -p visado-chain-asor`.
