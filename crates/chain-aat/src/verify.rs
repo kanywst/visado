@@ -106,12 +106,21 @@ pub struct Policy {
 }
 
 /// What a holder sends for one tool invocation (§7.4).
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Presentation<'a> {
     /// The chain, root first, each token in compact serialization.
     pub chain: &'a [String],
     /// The PoP JWT.
     pub pop: &'a str,
+}
+
+// Tokens are bearer-equivalent: Debug shows only how many there are.
+impl std::fmt::Debug for Presentation<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Presentation")
+            .field("chain_tokens", &self.chain.len())
+            .finish_non_exhaustive()
+    }
 }
 
 /// The tool invocation being authorized.
