@@ -433,6 +433,10 @@ async fn a_jwt_svid_caller_is_a_workload_without_a_proof_key() {
     );
     assert_eq!(
         denied(&gate.check(&expired, NOW, "t").await),
-        (401, "jwt_svid.invalid", Some("Bearer"))
+        (
+            401,
+            "jwt_svid.invalid",
+            Some(r#"Bearer, DPoP algs="ES256 EdDSA Ed25519""#)
+        )
     );
 }
