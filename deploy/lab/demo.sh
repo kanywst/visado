@@ -80,11 +80,18 @@ call() {
       *) args+=(-H "$line") ;;
     esac
   done < <("$@")
-  local status got
+  local status got rc
   : > "$tmp"
-  status=$(curl ${conn[@]+"${conn[@]}"} "${args[@]}" "$base$path" || true)
+  if status=$(curl ${conn[@]+"${conn[@]}"} "${args[@]}" "$base$path"); then rc=0; else rc=$?; fi
   got=$status
-  if [ "${expect#*/}" != "$expect" ]; then
+  # A refused TLS handshake: no HTTP status, and curl fails in the handshake
+  # (35) or while reading the alert (56), not with any other connection error.
+  if [ "$expect" = tls-refused ]; then
+    case "$status:$rc" in
+      000:35 | 000:56) got=tls-refused ;;
+      *) got="$status (curl exit $rc)" ;;
+    esac
+  elif [ "${expect#*/}" != "$expect" ]; then
     got="$status/$(jq -r '.error // empty' "$tmp" 2>/dev/null || true)"
   fi
   if [ "$got" = "$expect" ]; then
@@ -157,7 +164,7 @@ a_key=$svids/x509-agent-a/svid.0.key
 mtls "$a_cert" "$a_key" 200 "mTLS: agent-a reads tickets" /tickets none
 mtls "$a_cert" "$a_key" 401/credential.unbound_user_token "mTLS: agent-a with an unbound user token" /tickets \
   user_token /tickets
-mtls "$svids/other.pem" "$svids/other.key" 000 "mTLS: certificate from another CA (Envoy refuses it)" /tickets none
+mtls "$svids/other.pem" "$svids/other.key" tls-refused "mTLS: certificate from another CA (Envoy refuses it)" /tickets none
 
 # JWT-SVIDs from SPIRE as bearer tokens.
 call 200 "JWT-SVID: agent-a reads tickets" /tickets bearer "$jwt_tools"
@@ -166,6 +173,15 @@ call 401/jwt_svid.invalid "JWT-SVID for another audience" /tickets bearer "$jwt_
 # A DPoP-bound access token (RFC 9449) and its proof.
 call 200 "DPoP: bob's token with its proof" /tickets dpop /tickets
 call 401/token.dpop_bound "DPoP-bound token sent as Bearer" /tickets dpop /tickets --bearer
+
+# Only Envoy can reach visado's gRPC port: another container on the lab
+# network cannot connect to it, by name or by its authz address.
+if docker compose exec -T spire-agent sh -c 'nc -z -w 2 visado 9191 || nc -z -w 2 172.30.91.10 9191' 2>/dev/null; then
+  printf 'FAIL  %-58s reachable\n' "gRPC port unreachable from other containers"
+  failures=$((failures + 1))
+else
+  printf 'ok    %-58s %s\n' "gRPC port unreachable from other containers" "refused"
+fi
 
 # visado exports one span per decision to Jaeger.
 sleep 6
