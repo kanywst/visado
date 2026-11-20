@@ -914,10 +914,21 @@ fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
 }
 
 fn is_https_or_loopback(endpoint: &str) -> bool {
-    endpoint.starts_with("https://")
-        || endpoint.starts_with("http://127.0.0.1")
-        || endpoint.starts_with("http://localhost")
-        || endpoint.starts_with("http://[::1]")
+    let Ok(url) = reqwest::Url::parse(endpoint) else {
+        return false;
+    };
+    match url.scheme() {
+        "https" => true,
+        "http" => url.host_str().is_some_and(|host| {
+            host == "localhost"
+                || host
+                    .trim_start_matches('[')
+                    .trim_end_matches(']')
+                    .parse::<std::net::IpAddr>()
+                    .is_ok_and(|ip| ip.is_loopback())
+        }),
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -1195,6 +1206,30 @@ jwks_file = "j"
         assert!(err.contains("same required value"), "{err}");
         assert!(tables(false, Some(true), None).is_err());
         assert!(tables(true, Some(true), Some(false)).is_err());
+    }
+
+    #[test]
+    fn plain_http_only_to_loopback() {
+        for ok in [
+            "https://pdp.example/x",
+            "http://localhost:8181/x",
+            "http://127.0.0.1/x",
+            "http://127.0.0.2/x",
+            "http://[::1]:80/x",
+        ] {
+            assert!(super::is_https_or_loopback(ok), "{ok}");
+        }
+        for bad in [
+            "http://localhost.evil.example/1",
+            "http://127.0.0.1.evil.example/1",
+            "http://[::1].evil.example/1",
+            "http://localhost@status.example/1",
+            "http://pdp.example/x",
+            "ftp://127.0.0.1/x",
+            "localhost/x",
+        ] {
+            assert!(!super::is_https_or_loopback(bad), "{bad}");
+        }
     }
 
     #[test]

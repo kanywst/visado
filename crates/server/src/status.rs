@@ -106,27 +106,28 @@ fn now() -> i64 {
 }
 
 fn read_file(path: &std::path::Path) -> Result<String, StatusListError> {
-    let text = std::fs::read_to_string(path).map_err(|_| StatusListError::Unavailable)?;
+    use std::io::Read as _;
+    let file = std::fs::File::open(path).map_err(|_| StatusListError::Unavailable)?;
+    let mut text = String::new();
+    file.take(MAX_TOKEN_SIZE as u64 + 1)
+        .read_to_string(&mut text)
+        .map_err(|_| StatusListError::Unavailable)?;
     if text.len() > MAX_TOKEN_SIZE {
         return Err(StatusListError::TooLarge);
     }
     Ok(text.trim().to_owned())
 }
 
-/// A client that follows at most three redirects, and only to `https`.
+/// A client that follows no redirects: the list's `sub` must equal the
+/// configured `uri`, so a list served from elsewhere would not verify, and
+/// following one would let the origin point the gate at internal hosts.
 fn client(timeout: Duration) -> Result<reqwest::Client, String> {
     // reqwest is built without a bundled crypto provider; as for the PDP
     // client, install ring unless the process already chose one.
     let _ = rustls::crypto::ring::default_provider().install_default();
     reqwest::Client::builder()
         .timeout(timeout)
-        .redirect(reqwest::redirect::Policy::custom(|attempt| {
-            if attempt.previous().len() >= 3 || attempt.url().scheme() != "https" {
-                attempt.stop()
-            } else {
-                attempt.follow()
-            }
-        }))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|e| format!("status list client: {e}"))
 }
@@ -241,7 +242,7 @@ mod tests {
             fetch(&client, &format!("{base}/missing")).await,
             Err(StatusListError::Unavailable)
         );
-        // A redirect to plain http is not followed.
+        // A redirect is not followed.
         assert_eq!(
             fetch(&client, &format!("{base}/redirect")).await,
             Err(StatusListError::Unavailable)
