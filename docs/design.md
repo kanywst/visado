@@ -139,7 +139,7 @@ Per draft-ietf-oauth-transaction-tokens-11:
 
 ### Chain view
 
-Off by default. With `[chain_view] enabled = true` the gate keeps a summary of each recent decision in a bounded in-memory ring buffer (`capacity`, default 256, at most 10000; 0 keeps none; the oldest entry is dropped first, and everything is lost on restart). The HTTP listener serves:
+Off by default. With `[chain_view] enabled = true` the gate keeps a summary of each recent decision in a bounded in-memory ring buffer (`capacity`, default 256, at most 10000; 0 keeps none; the oldest entry is dropped first, and everything is lost on restart). Denials of unauthenticated requests are recorded too, so anyone who can reach the proxy can push real entries out: the view is a debugging aid, not an audit trail, which is the `visado::audit` log. The HTTP listener serves:
 
 | Route | Returns |
 | --- | --- |
