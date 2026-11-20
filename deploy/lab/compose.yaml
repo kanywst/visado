@@ -13,6 +13,7 @@ services:
       - "10000:10000"
       # mTLS with X.509-SVIDs.
       - "10443:10443"
+    networks: [default, authz]
     depends_on:
       visado: { condition: service_started }
       upstream: { condition: service_started }
@@ -25,6 +26,11 @@ services:
       - ./visado.toml:/etc/visado/visado.toml:ro
       - ../local/keys:/etc/visado/keys:ro
       - spire-bundle:/etc/visado/spire:ro
+    # The gRPC port listens only on the authz network, which only Envoy
+    # shares; the other containers reach visado's HTTP port alone.
+    networks:
+      default: {}
+      authz: { ipv4_address: 172.30.91.10 }
     depends_on:
       pdp: { condition: service_started }
       jaeger: { condition: service_started }
@@ -121,6 +127,12 @@ services:
     image: mendhak/http-https-echo:37
     environment:
       HTTP_PORT: "8080"
+
+networks:
+  authz:
+    internal: true
+    ipam:
+      config: [{ subnet: 172.30.91.0/24 }]
 
 volumes:
   spire-server-socket:

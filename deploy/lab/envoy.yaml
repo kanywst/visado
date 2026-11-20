@@ -100,7 +100,7 @@ static_resources:
           - lb_endpoints:
               - endpoint:
                   address:
-                    socket_address: { address: visado, port_value: 9191 }
+                    socket_address: { address: 172.30.91.10, port_value: 9191 }
     - name: upstream
       type: STRICT_DNS
       load_assignment:

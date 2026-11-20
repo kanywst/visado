@@ -54,7 +54,7 @@ User tokens, the DPoP-bound access token and the AAT root are still signed with 
 
 The AAT chains are bound to the keys SPIRE issued: agent-a's WIT key holds the root and signs the delegation to agent-b's WIT key.
 
-The signed requests need the body: the ext_authz filters set `with_request_body` with `pack_as_bytes: true`. The mTLS listener's filter sets `include_peer_certificate: true`. visado listens on `0.0.0.0:9191` so Envoy can reach it over the compose network, so `visado.toml` sets `grpc_reachable_only_by_proxy = true`. The port is not published, but every container on that network can reach it; in a deployment, only the proxy may.
+The signed requests need the body: the ext_authz filters set `with_request_body` with `pack_as_bytes: true`. The mTLS listener's filter sets `include_peer_certificate: true`. visado's gRPC port listens only on its address on `authz`, an internal network that only Envoy shares, so `visado.toml` can set `grpc_reachable_only_by_proxy = true`: no other container can send a check request with someone else's certificate.
 
 Envoy also normalizes `%2e%2e` and `//` before visado sees the path; visado rejects any that still arrive.
 
