@@ -27,3 +27,10 @@ keys = [{ kid = "wit-1", jwk_file = "keys/wit-issuer.jwk.json" }]
 issuer = "https://idp.example"
 audience = "https://tools.td.example/admin/roles"
 jwks_file = "keys/oauth-jwks.json"
+
+# Recent decisions and their delegation chains at http://127.0.0.1:8080/chain.
+# Shows caller and principal identities; see docs/design.md before enabling
+# it anywhere but a laptop.
+# [chain_view]
+# enabled = true
+# capacity = 256
