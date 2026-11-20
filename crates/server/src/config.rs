@@ -478,7 +478,15 @@ impl Config {
         }
         if view.allowed_hosts.is_empty()
             || view.allowed_hosts.iter().any(|h| {
-                h.is_empty() || h.contains(['/', ' ', '@']) || h != &h.to_ascii_lowercase()
+                // The request Host loses its port before the comparison, so an
+                // entry with one could never match. A colon is allowed only
+                // inside a bracketed IPv6 literal such as [::1].
+                let port = if h.starts_with('[') {
+                    !h.ends_with(']')
+                } else {
+                    h.contains(':')
+                };
+                h.is_empty() || port || h.contains(['/', ' ', '@']) || h != &h.to_ascii_lowercase()
             })
         {
             return Err(
@@ -1039,6 +1047,21 @@ jwks_file = "j"
         assert!(!config.chain_view.enabled);
         assert_eq!(config.chain_view.capacity, 256);
         parse_tables("[chain_view]\nenabled = true").unwrap();
+    }
+
+    #[test]
+    fn chain_view_hosts_have_no_port() {
+        let parse = |hosts: &str| {
+            let config: Config = toml::from_str(&format!(
+                "{BASE}\n[chain_view]\nenabled = true\nallowed_hosts = [{hosts}]"
+            ))
+            .map_err(|e| e.to_string())?;
+            config.validate()
+        };
+        parse(r#""localhost", "127.0.0.1", "[::1]""#).unwrap();
+        assert!(parse(r#""localhost:8080""#).is_err());
+        assert!(parse(r#""[::1]:8080""#).is_err());
+        assert!(parse(r#""::1""#).is_err());
     }
 
     #[test]
