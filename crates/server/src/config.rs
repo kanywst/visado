@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde::Deserialize;
@@ -11,6 +12,8 @@ use visado_credentials::{Authenticator, JwtBundle, OAuthIssuer, WitIssuer, X509B
 use visado_extauthz::GateConfig;
 use visado_txn_token::Scope;
 use wimsey_jose::{Jwk, PrivateJwk, VerifyingKey};
+
+use crate::status::{Source, StatusRefresh};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -210,7 +213,63 @@ pub struct AsorConfig {
     pub trust_anchors: Vec<AatAnchorConfig>,
     /// Deny requests that carry no chain. Has no default, as for `[aat]`.
     pub required: bool,
+    /// Token Status Lists for step 7. Without this section, a token with a
+    /// `status` claim is denied (`asor.status_unknown`).
+    #[serde(default)]
+    pub status: Option<AsorStatusConfig>,
 }
+
+/// The Token Status Lists the gate holds for step 7
+/// (draft-ietf-oauth-status-list-21).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AsorStatusConfig {
+    /// Keys trusted to sign Status List Tokens. A token with an `iss` must
+    /// name the key's issuer.
+    pub trust_anchors: Vec<AatAnchorConfig>,
+    /// The lists. A token whose `status_list.uri` is not one of them is
+    /// denied: the gate never fetches a URI a token names.
+    pub lists: Vec<StatusListConfig>,
+    /// How long a fetched list is trusted, in seconds, when its `ttl` is
+    /// longer or absent.
+    #[serde(default = "default_status_max_age")]
+    pub max_age: u64,
+    /// How often each list is fetched again, in seconds. Sooner when the
+    /// held list would otherwise go stale first.
+    #[serde(default = "default_status_refresh")]
+    pub refresh: u64,
+    /// The timeout of one HTTP fetch, in milliseconds.
+    #[serde(default = "default_status_timeout_ms")]
+    pub timeout_ms: u64,
+}
+
+/// One Status List Token.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StatusListConfig {
+    /// The list's URI, as tokens name it in `status_list.uri` and the list
+    /// in `sub`.
+    pub uri: String,
+    /// Read the token from this file, at startup and at each refresh,
+    /// instead of fetching `uri`.
+    #[serde(default)]
+    pub file: Option<PathBuf>,
+}
+
+const fn default_status_max_age() -> u64 {
+    visado_chain_asor::DEFAULT_STATUS_MAX_AGE.unsigned_abs()
+}
+
+const fn default_status_refresh() -> u64 {
+    60
+}
+
+const fn default_status_timeout_ms() -> u64 {
+    2000
+}
+
+/// The longest `max_age` for status lists: a day.
+pub const MAX_STATUS_MAX_AGE: u64 = 86_400;
 
 const fn yes() -> bool {
     true
@@ -337,6 +396,7 @@ pub struct Loaded {
     pub http_listen: SocketAddr,
     pub telemetry: Option<TelemetryConfig>,
     pub chain_view: Option<ChainView>,
+    pub asor_status: Option<StatusRefresh>,
 }
 
 impl Config {
@@ -456,6 +516,9 @@ impl Config {
         .into_iter()
         .flatten()
         .collect();
+        if let Some(status) = self.asor.as_ref().and_then(|a| a.status.as_ref()) {
+            status.validate()?;
+        }
         if required.len() > 1 {
             return Err(
                 "[aat], [asor] and [act] must all set the same required value: whether a request without a chain is denied applies to every format".into(),
@@ -547,7 +610,13 @@ impl Config {
             || self.act.as_ref().is_some_and(|a| a.required);
         let act = self.act.map(ActConfig::verifier);
         let aat = self.aat.map(|c| c.verifier(base)).transpose()?;
-        let asor = self.asor.map(|c| c.verifier(base)).transpose()?;
+        let (asor, asor_status) = match self.asor {
+            Some(c) => {
+                let (verifier, status) = c.verifier(base)?;
+                (Some(verifier), status)
+            }
+            None => (None, None),
+        };
 
         let pdp_bearer = match &self.pdp.bearer_env {
             Some(name) => Some(std::env::var(name).map_err(|_| format!("{name} is not set"))?),
@@ -583,6 +652,7 @@ impl Config {
                 capacity: self.chain_view.capacity,
                 allowed_hosts: self.chain_view.allowed_hosts,
             }),
+            asor_status,
         })
     }
 }
@@ -673,21 +743,107 @@ impl ActConfig {
 }
 
 impl AsorConfig {
-    fn verifier(self, base: &Path) -> Result<visado_chain_asor::Verifier, String> {
-        let mut anchors = Vec::new();
-        for anchor in &self.trust_anchors {
-            let key = anchor_key(base, anchor)?;
-            let mut trusted = visado_chain_asor::TrustAnchor::new(anchor.issuer.clone(), key);
-            if let Some(kid) = &anchor.kid {
-                trusted = trusted.with_kid(kid.clone());
-            }
-            anchors.push(trusted);
-        }
+    fn verifier(
+        self,
+        base: &Path,
+    ) -> Result<(visado_chain_asor::Verifier, Option<StatusRefresh>), String> {
+        let anchors = asor_anchors(base, &self.trust_anchors)?;
         if anchors.is_empty() || self.audiences.is_empty() {
             return Err("asor needs at least one trust anchor and one audience".into());
         }
-        Ok(visado_chain_asor::Verifier::new(anchors, self.audiences))
+        let verifier = visado_chain_asor::Verifier::new(anchors, self.audiences);
+        let Some(status) = self.status else {
+            return Ok((verifier, None));
+        };
+        let refresh = status.refresh(base)?;
+        let verifier = verifier
+            .with_status_lists(refresh.lists.clone())
+            .with_status_max_age(refresh.max_age);
+        Ok((verifier, Some(refresh)))
     }
+}
+
+impl AsorStatusConfig {
+    /// Checked by `Config::validate`, before any file is read.
+    fn validate(&self) -> Result<(), String> {
+        if self.lists.is_empty() {
+            return Err("asor.status.lists is empty".into());
+        }
+        let mut uris = BTreeSet::new();
+        for list in &self.lists {
+            if list.uri.trim().is_empty() || !uris.insert(&list.uri) {
+                return Err(format!(
+                    "asor.status.lists: {:?} is empty or listed twice",
+                    list.uri
+                ));
+            }
+            // A list fetched over plain http could be swapped for an older
+            // one that still verifies.
+            if list.file.is_none() && !is_https_or_loopback(&list.uri) {
+                return Err(format!(
+                    "asor.status.lists: {} needs an https uri (or loopback), or a file",
+                    list.uri
+                ));
+            }
+        }
+        if !(1..=MAX_STATUS_MAX_AGE).contains(&self.max_age) {
+            return Err(format!(
+                "asor.status.max_age must be 1..={MAX_STATUS_MAX_AGE} seconds"
+            ));
+        }
+        if !(1..self.max_age).contains(&self.refresh) {
+            return Err("asor.status.refresh must be at least 1 and less than max_age".into());
+        }
+        if !(1..=self.refresh.saturating_mul(1000)).contains(&self.timeout_ms) {
+            return Err("asor.status.timeout_ms must be positive and at most refresh".into());
+        }
+        Ok(())
+    }
+
+    /// Builds the lists and loads the file ones, so a bad file stops
+    /// startup.
+    fn refresh(self, base: &Path) -> Result<StatusRefresh, String> {
+        let anchors = asor_anchors(base, &self.trust_anchors)?;
+        if anchors.is_empty() {
+            return Err("asor.status needs at least one trust anchor".into());
+        }
+        let refresh = StatusRefresh {
+            lists: Arc::new(visado_chain_asor::MemoryStatusLists::new()),
+            verifier: visado_chain_asor::StatusListVerifier::new(anchors),
+            sources: self
+                .lists
+                .into_iter()
+                .map(|list| {
+                    let source = list
+                        .file
+                        .map_or(Source::Http, |file| Source::File(base.join(file)));
+                    (list.uri, source)
+                })
+                .collect(),
+            max_age: i64::try_from(self.max_age).map_err(|e| e.to_string())?,
+            refresh: Duration::from_secs(self.refresh),
+            timeout: Duration::from_millis(self.timeout_ms),
+        };
+        refresh.load_files()?;
+        Ok(refresh)
+    }
+}
+
+fn asor_anchors(
+    base: &Path,
+    anchors: &[AatAnchorConfig],
+) -> Result<Vec<visado_chain_asor::TrustAnchor>, String> {
+    anchors
+        .iter()
+        .map(|anchor| {
+            let key = anchor_key(base, anchor)?;
+            let trusted = visado_chain_asor::TrustAnchor::new(anchor.issuer.clone(), key);
+            Ok(match &anchor.kid {
+                Some(kid) => trusted.with_kid(kid.clone()),
+                None => trusted,
+            })
+        })
+        .collect()
 }
 
 fn anchor_key(base: &Path, anchor: &AatAnchorConfig) -> Result<VerifyingKey, String> {
@@ -1092,6 +1248,98 @@ jwks_file = "j"
                 .is_ok()
         );
         assert!(parse_tables("[chain_view]\nenabled = true\nport = 1").is_err());
+    }
+
+    fn asor_status(status: &str) -> String {
+        format!(
+            "[asor]\naudiences = [\"a\"]\ntrust_anchors = []\nrequired = true\n\
+             [asor.status]\ntrust_anchors = []\n{status}"
+        )
+    }
+
+    #[test]
+    fn asor_status_settings_are_checked() {
+        let list = "lists = [{ uri = \"https://s.example/1\" }]\n";
+        parse_tables(&asor_status(list)).unwrap();
+        let config: Config = toml::from_str(&format!("{BASE}{}", asor_status(list))).unwrap();
+        let status = config.asor.unwrap().status.unwrap();
+        assert_eq!(
+            (status.max_age, status.refresh, status.timeout_ms),
+            (300, 60, 2000)
+        );
+        parse_tables(&asor_status(
+            "lists = [{ uri = \"http://127.0.0.1:8080/1\" }]\n",
+        ))
+        .unwrap();
+        parse_tables(&asor_status(
+            "lists = [{ uri = \"http://s.example/1\", file = \"l.jwt\" }]\n",
+        ))
+        .unwrap();
+        for bad in [
+            "lists = []\n",
+            "lists = [{ uri = \"\" }]\n",
+            "lists = [{ uri = \"http://s.example/1\" }]\n",
+            "lists = [{ uri = \"https://s.example/1\" }, { uri = \"https://s.example/1\" }]\n",
+            &format!("{list}max_age = 0\n"),
+            &format!("{list}max_age = 86401\n"),
+            &format!("{list}refresh = 300\n"),
+            &format!("{list}refresh = 0\n"),
+            &format!("{list}timeout_ms = 0\n"),
+            &format!("{list}timeout_ms = 60001\n"),
+            &format!("{list}ttl = 1\n"),
+        ] {
+            assert!(parse_tables(&asor_status(bad)).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn asor_status_files_must_verify_at_startup() {
+        use visado_testkit::{
+            ASOR_ISSUER, STATUS_LIST_ISSUER, STATUS_LIST_URI, asor_anchor_key, status_list_key,
+            status_list_lst, status_list_token,
+        };
+        use wimsey_jose::Jwk;
+        let dir = std::env::temp_dir().join(format!("visado-status-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let key = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../deploy/local/keys/txn-signing.private.jwk.json");
+        std::fs::copy(key, dir.join("k.json")).unwrap();
+        let jwk = |key: &wimsey_jose::SigningKey| {
+            serde_json::to_string(&Jwk::from_verifying_key(&key.verifying_key())).unwrap()
+        };
+        std::fs::write(dir.join("asor.json"), jwk(&asor_anchor_key())).unwrap();
+        std::fs::write(dir.join("status.json"), jwk(&status_list_key())).unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let list = |sub: &str| {
+            status_list_token(
+                &serde_json::json!({ "alg": "Ed25519", "typ": "statuslist+jwt" }),
+                &serde_json::json!({
+                    "sub": sub, "iat": now, "exp": now + 3600,
+                    "status_list": { "bits": 1, "lst": status_list_lst(1, &[0, 1]) },
+                }),
+            )
+        };
+        let tables = format!(
+            "[asor]\naudiences = [\"a\"]\nrequired = true\n\
+             trust_anchors = [{{ issuer = \"{ASOR_ISSUER}\", jwk_file = \"asor.json\" }}]\n\
+             [asor.status]\n\
+             trust_anchors = [{{ issuer = \"{STATUS_LIST_ISSUER}\", jwk_file = \"status.json\" }}]\n\
+             lists = [{{ uri = \"{STATUS_LIST_URI}\", file = \"list.jwt\" }}]\n"
+        );
+        let path = dir.join("visado.toml");
+        std::fs::write(&path, format!("{BASE}{tables}")).unwrap();
+        let missing = Config::load(&path).err();
+        std::fs::write(dir.join("list.jwt"), list(STATUS_LIST_URI) + "\n").unwrap();
+        let loaded = Config::load(&path).map(|l| l.asor_status.is_some());
+        std::fs::write(dir.join("list.jwt"), list("https://other.example/1")).unwrap();
+        let other = Config::load(&path).err();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(missing.is_some_and(|e| e.contains("could not be fetched")));
+        assert_eq!(loaded, Ok(true));
+        assert!(other.is_some_and(|e| e.contains("sub is not the uri")));
     }
 
     #[test]

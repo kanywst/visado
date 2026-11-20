@@ -13,6 +13,7 @@
 
 mod chain_view;
 mod config;
+mod status;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -108,6 +109,9 @@ fn init_tracing(
 }
 
 async fn serve(loaded: config::Loaded) -> Result<(), String> {
+    if let Some(status) = loaded.asor_status {
+        status.spawn()?;
+    }
     let mut pdp =
         HttpPdp::new(&loaded.pdp_endpoint, loaded.pdp_timeout).map_err(|e| e.to_string())?;
     if let Some(token) = loaded.pdp_bearer {

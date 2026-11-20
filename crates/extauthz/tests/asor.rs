@@ -5,16 +5,18 @@
 #![allow(clippy::unused_async_trait_impl)]
 
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use serde_json::{Value, json};
 use visado_authzen::{Decision, EvaluationRequest, Pdp, PdpError};
-use visado_chain_asor::{TrustAnchor, Verifier};
+use visado_chain_asor::{MemoryStatusLists, StatusListVerifier, TrustAnchor, Verifier};
 use visado_credentials::{Authenticator, OAuthIssuer, WitIssuer};
 use visado_extauthz::{CheckInput, Gate, GateConfig, Outcome};
 use visado_testkit::{
-    ASOR_ISSUER, NOW, OAUTH_ISSUER, TRUST_DOMAIN, access_token, asor_anchor_key, asor_child_claims,
-    asor_root_claims, asor_sign, dpop_access_token, dpop_proof, oauth_jwks, pop_key, wit,
-    wit_issuer_verifying_key, wpt,
+    ASOR_ISSUER, NOW, OAUTH_ISSUER, STATUS_LIST_ISSUER, STATUS_LIST_URI, TRUST_DOMAIN,
+    access_token, asor_anchor_key, asor_child_claims, asor_root_claims, asor_sign,
+    dpop_access_token, dpop_proof, oauth_jwks, pop_key, status_list_key, status_list_lst,
+    status_list_token, wit, wit_issuer_verifying_key, wpt,
 };
 use visado_txn_token::{KeySet, Scope, Validation, verify};
 use wimsey_jose::SigningKey;
@@ -363,4 +365,102 @@ async fn a_forwarded_transaction_must_be_about_the_chain_principal() {
     assert_eq!(denial(&outcome).1, "allow");
     let outcome = gate.check(&forward("user:bob", 2), NOW, "t").await;
     assert_eq!(denial(&outcome), (403, "chain.principal_mismatch"));
+}
+
+/// Like [`narrow`], with the root's entry at `idx` in the test status list.
+fn with_status(idx: u32) -> Vec<String> {
+    let mut claims = asor_root_claims(
+        "root-1",
+        "spiffe://td.example/agent-a",
+        &pop_key(1),
+        &json!(["crm.*"]),
+        &json!([{ "key": "rows", "max": 1000 }]),
+        AUDIENCE,
+        NOW,
+        3,
+    );
+    claims["status"] = json!({ "status_list": { "idx": idx, "uri": STATUS_LIST_URI } });
+    let root = asor_sign(&claims);
+    let child = asor_sign(&asor_child_claims(
+        "child-1",
+        "spiffe://td.example/agent-b",
+        &root,
+        &pop_key(2),
+        1,
+        &json!(["crm.read"]),
+        &json!([{ "key": "rows", "max": 100 }]),
+        AUDIENCE,
+        NOW,
+    ));
+    vec![root, child]
+}
+
+#[tokio::test]
+async fn a_revoked_delegation_is_denied() {
+    let now = i64::try_from(NOW).unwrap();
+    let list = status_list_token(
+        &json!({ "alg": "Ed25519", "typ": "statuslist+jwt" }),
+        &json!({
+            "sub": STATUS_LIST_URI, "iat": now, "ttl": 60,
+            "status_list": { "bits": 1, "lst": status_list_lst(1, &[0, 1]) },
+        }),
+    );
+    let lists = Arc::new(MemoryStatusLists::new());
+    let held = StatusListVerifier::new(vec![TrustAnchor::new(
+        STATUS_LIST_ISSUER,
+        status_list_key().verifying_key(),
+    )])
+    .verify(&list, STATUS_LIST_URI, now);
+    lists.update(STATUS_LIST_URI, held).unwrap();
+
+    // Without status lists, a token with a status reference is denied.
+    let input = call(
+        &with_status(0),
+        2,
+        Some(2),
+        "crm.read",
+        &json!({ "rows": 1 }),
+        1,
+    );
+    assert_eq!(
+        denial(&gate().check(&input, NOW, "t").await),
+        (403, "asor.status_unknown")
+    );
+
+    let mut config = gate_config();
+    config.asor = config.asor.map(|v| v.with_status_lists(lists));
+    let gate = gate_with(config);
+    let input = call(
+        &with_status(0),
+        2,
+        Some(2),
+        "crm.read",
+        &json!({ "rows": 1 }),
+        2,
+    );
+    assert_eq!(denial(&gate.check(&input, NOW, "t").await).1, "allow");
+    let input = call(
+        &with_status(1),
+        2,
+        Some(2),
+        "crm.read",
+        &json!({ "rows": 1 }),
+        3,
+    );
+    assert_eq!(
+        denial(&gate.check(&input, NOW, "t").await),
+        (403, "asor.revoked")
+    );
+    let input = call(
+        &with_status(9),
+        2,
+        Some(2),
+        "crm.read",
+        &json!({ "rows": 1 }),
+        4,
+    );
+    assert_eq!(
+        denial(&gate.check(&input, NOW, "t").await),
+        (403, "asor.status_unknown")
+    );
 }
