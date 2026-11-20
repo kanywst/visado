@@ -1,6 +1,6 @@
 # Design (draft)
 
-Status: unreleased, after v0.2.0. Steps 1 to 6 are implemented: caller authentication by WIT with WPT or HTTP signatures, mTLS, JWT-SVID and OAuth access tokens, bearer or DPoP-bound; AAT, asor-03 and RFC 8693 `act` chains (decoders and per-format checks; no separate invariant engine or authority algebra); audit events and OpenTelemetry spans. The chain view is not. Items marked Open need a decision before the code that depends on them.
+Status: unreleased, after v0.2.0. Steps 1 to 6 are implemented: caller authentication by WIT with WPT or HTTP signatures, mTLS, JWT-SVID and OAuth access tokens, bearer or DPoP-bound; AAT, asor-03 and RFC 8693 `act` chains (decoders and per-format checks; no separate invariant engine or authority algebra); audit events, OpenTelemetry spans and the chain view. Items marked Open need a decision before the code that depends on them.
 
 ## Request pipeline
 
@@ -137,10 +137,35 @@ Per draft-ietf-oauth-transaction-tokens-11:
   - `chain.scope_escalation`
   - `pdp.unavailable`
 
+### Chain view
+
+Off by default. With `[chain_view] enabled = true` the gate keeps a summary of each recent decision in a bounded in-memory ring buffer (`capacity`, default 256, at most 10000; 0 keeps none; the oldest entry is dropped first, and everything is lost on restart). The HTTP listener serves:
+
+| Route | Returns |
+| --- | --- |
+| `GET /api/requests?limit=N` | `{"capacity": n, "requests": [...]}`, newest first; `limit` defaults to 100 and is capped by the capacity |
+| `GET /api/requests/{id}` | one summary, or 404 `{"error": "not_found"}` |
+| `GET /chain` | a single page (plain HTML, CSS and JS in `crates/server/ui/`, embedded with `include_str!`; no build step, no CDN) that polls the list every 2 s and draws principal → hops → caller → PDP → decision, with verified hops solid, declared hops dashed and the deny reason on the decision |
+
+A summary holds:
+
+- `id`: the check's own identifier (the `txn` the gate would mint with), unique per check
+- `txn`: the transaction, which a forwarded Transaction Token keeps across hops
+- `time`, `method`, `resource` (`scheme://authority/path`, no query)
+- `caller`, `auth_method`, `principal`, each once known
+- `decision`, `status`, `code`
+- `pdp`: `{"result": "allow" | "deny"}` or `{"result": "error", "code": ...}`, or `null` when the PDP was not asked
+- `chain`: `profile`, `issuer`, `principal`, `holder_proof`, and per hop `depth`, `actor_kind` (`key`, `name` or `subject`), `actor`, `actor_issuer`, `assurance` (`verified` or `declared`), `link` (`root`, `par_hash` or `nested`) and the holder key thumbprint; only for a chain that verified
+
+It never holds a token, proof, signature, digest, header value, body or the hop's authority. Strings are cut to 256 characters and chains to 32 hops (`hops_omitted` counts the rest).
+
+> [!WARNING]
+> The chain view shows caller and principal identities, the resources they called and why requests were denied, to anyone who can reach the HTTP listener. It has no authentication. The server refuses to start with it enabled on a non-loopback `http_listen` unless `allow_remote = true`; set that only when the network limits who reaches the port. Requests whose `Host` is not in `allowed_hosts` (default `localhost`, `127.0.0.1`, `[::1]`) get 421, so a page that rebinds its DNS name to the loopback address cannot read the view through a visitor's browser.
+
 ## Deployment modes
 
 1. ext_authz server (v0): `tonic` + `envoy-types` gRPC. One server covers Envoy, Istio (`CUSTOM` action) and agentgateway, which vendors the same proto.
-2. Token endpoint and UI (v0): `axum` for the RFC 8693 endpoint, JWKS, health, `/api/requests/{id}/chain` with SSE, and an embedded single-page chain view.
+2. Token endpoint and UI (v0): `axum` for the RFC 8693 endpoint, JWKS, health, and the chain view (`/api/requests`, `/chain`; see [Chain view](#chain-view)). The token endpoint is not built yet.
 3. agentgateway ExtMcp (later): tool-aware AuthZEN requests at the MCP method layer.
 4. Standalone PEP (later, only if asked): `hyper` 1.x + `tower` + `rustls`. Not `pingora`, which brings its own lifecycle and OpenSSL by default.
 
@@ -159,7 +184,7 @@ crates/
   server        binary: config, token endpoint, JWKS, UI, telemetry
   conformance   vectors, generator and runner (format as in wimsey)
 deploy/aims-lab compose file for the end-to-end lab and the attack demos
-ui/             chain view (React Flow), embedded at build time
+crates/server/ui/  chain view (plain HTML, CSS and JS), embedded with include_str!
 ```
 
 ## Reference lab (aims-lab)

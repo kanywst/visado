@@ -30,6 +30,9 @@ Adds the remaining workload authentication methods, DPoP-bound access tokens and
 - 20 `act` vectors in `conformance/act/`, visado's own except for the claim sets of RFC 8693 Figures 5 and 6.
 - `visado-chain`: `Profile::Rfc8693Act`, `ActorId::Subject` and `Link::Nested`.
 - `visado-credentials`: `AccessToken` has `act`, `id` (`jti`), `issued_at` and `key_thumbprint` (the issuer key that verified it).
+- The chain view, off by default (`[chain_view] enabled = true`): the gate keeps a summary of each recent decision in a bounded in-memory buffer (`capacity`, default 256), and the HTTP listener serves `GET /api/requests`, `GET /api/requests/{id}` and a page at `/chain` that draws principal, hops (verified or declared), caller, PDP decision and deny reason. Summaries hold identifiers and outcomes only, never tokens, proofs, headers or bodies. It shows caller and principal identities: the server refuses to start with it on a non-loopback `http_listen` unless `allow_remote = true`, and answers only the `Host` names in `allowed_hosts`. See `docs/design.md`.
+- `visado-extauthz`: `RequestLog`, the `recent` module and `Gate::with_request_log`.
+- `deploy/lab`: the chain view at `http://127.0.0.1:8080/chain`, published to the host's loopback address only.
 
 ### Changed
 
