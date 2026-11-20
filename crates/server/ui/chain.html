@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>visado chain view</title>
+<link rel="stylesheet" href="/chain/chain.css">
+<script src="/chain/chain.js" defer></script>
+</head>
+<body>
+<header class="bar">
+  <h1>visado <span>chain view</span></h1>
+  <div class="controls">
+    <label>Show
+      <select id="filter">
+        <option value="all">all decisions</option>
+        <option value="deny">denies</option>
+        <option value="allow">allows</option>
+      </select>
+    </label>
+    <button id="live" type="button" aria-pressed="true">Live</button>
+    <span id="status" class="status" role="status"></span>
+  </div>
+</header>
+<main class="layout">
+  <section class="list" aria-label="Recent decisions">
+    <ol id="requests"></ol>
+    <p id="empty" class="empty" hidden>No decisions recorded yet. Send a request through the proxy.</p>
+  </section>
+  <section class="detail" id="detail" aria-live="polite">
+    <p class="empty">Select a decision.</p>
+  </section>
+</main>
+<footer class="legend" aria-label="Legend">
+  <span><i class="swatch verified"></i>verified hop</span>
+  <span><i class="swatch declared"></i>declared hop (carried as data, not checked)</span>
+  <span><i class="swatch deny"></i>deny</span>
+  <span><i class="swatch skipped"></i>not reached</span>
+  <span class="note">Only identifiers are kept: no tokens, proofs, headers or bodies. The list lives in memory and is lost on restart.</span>
+</footer>
+</body>
+</html>

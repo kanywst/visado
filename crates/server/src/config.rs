@@ -58,6 +58,61 @@ pub struct Config {
     pub asor: Option<AsorConfig>,
     #[serde(default)]
     pub act: Option<ActConfig>,
+    #[serde(default)]
+    pub chain_view: ChainViewConfig,
+}
+
+/// The chain view: recent decisions and their delegation chains, served on
+/// the HTTP listener. It shows caller and principal identities, so it is off
+/// by default and refuses a non-loopback `http_listen` unless
+/// `allow_remote` is set.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChainViewConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    /// How many recent decisions to keep in memory. 0 keeps none.
+    #[serde(default = "default_chain_view_capacity")]
+    pub capacity: usize,
+    /// Serve the view on a non-loopback `http_listen`.
+    #[serde(default)]
+    pub allow_remote: bool,
+    /// `Host` values (without the port) the view answers. Others get 421,
+    /// which keeps a DNS-rebound page from reading the view through the
+    /// browser.
+    #[serde(default = "default_chain_view_hosts")]
+    pub allowed_hosts: Vec<String>,
+}
+
+impl Default for ChainViewConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            capacity: default_chain_view_capacity(),
+            allow_remote: false,
+            allowed_hosts: default_chain_view_hosts(),
+        }
+    }
+}
+
+const fn default_chain_view_capacity() -> usize {
+    256
+}
+
+fn default_chain_view_hosts() -> Vec<String> {
+    ["localhost", "127.0.0.1", "[::1]"]
+        .map(str::to_owned)
+        .to_vec()
+}
+
+/// The most decisions the chain view may keep.
+pub const MAX_CHAIN_VIEW_CAPACITY: usize = 10_000;
+
+/// What the server needs to serve the chain view.
+#[derive(Debug)]
+pub struct ChainView {
+    pub capacity: usize,
+    pub allowed_hosts: Vec<String>,
 }
 
 /// RFC 8693 `act` (actor) chains in the caller's access token.
@@ -281,6 +336,7 @@ pub struct Loaded {
     pub grpc_listen: SocketAddr,
     pub http_listen: SocketAddr,
     pub telemetry: Option<TelemetryConfig>,
+    pub chain_view: Option<ChainView>,
 }
 
 impl Config {
@@ -359,6 +415,7 @@ impl Config {
             }
         }
         self.validate_chains()?;
+        self.validate_chain_view()?;
         let mut issuers = BTreeSet::new();
         for issuer in &self.oauth_issuers {
             if !issuers.insert(&issuer.issuer) {
@@ -406,6 +463,39 @@ impl Config {
         }
         Ok(())
     }
+    fn validate_chain_view(&self) -> Result<(), String> {
+        let view = &self.chain_view;
+        if !view.enabled {
+            return Ok(());
+        }
+        if !self.http_listen.ip().is_loopback() && !view.allow_remote {
+            return Err("[chain_view] shows caller and principal identities: it needs a loopback http_listen, or allow_remote = true".into());
+        }
+        if view.capacity > MAX_CHAIN_VIEW_CAPACITY {
+            return Err(format!(
+                "chain_view.capacity must be 0..={MAX_CHAIN_VIEW_CAPACITY}"
+            ));
+        }
+        if view.allowed_hosts.is_empty()
+            || view.allowed_hosts.iter().any(|h| {
+                // The request Host loses its port before the comparison, so an
+                // entry with one could never match. A colon is allowed only
+                // inside a bracketed IPv6 literal such as [::1].
+                let port = if h.starts_with('[') {
+                    !h.ends_with(']')
+                } else {
+                    h.contains(':')
+                };
+                h.is_empty() || port || h.contains(['/', ' ', '@']) || h != &h.to_ascii_lowercase()
+            })
+        {
+            return Err(
+                "chain_view.allowed_hosts needs lowercase host names without a port".into(),
+            );
+        }
+        Ok(())
+    }
+
     fn build(self, base: &Path) -> Result<Loaded, String> {
         let private: PrivateJwk = read_json(&base.join(&self.signing_key.jwk_file))?;
         let signing_key = private
@@ -489,6 +579,10 @@ impl Config {
             grpc_listen: self.grpc_listen,
             http_listen: self.http_listen,
             telemetry: self.telemetry,
+            chain_view: self.chain_view.enabled.then_some(ChainView {
+                capacity: self.chain_view.capacity,
+                allowed_hosts: self.chain_view.allowed_hosts,
+            }),
         })
     }
 }
@@ -945,6 +1039,59 @@ jwks_file = "j"
         assert!(err.contains("same required value"), "{err}");
         assert!(tables(false, Some(true), None).is_err());
         assert!(tables(true, Some(true), Some(false)).is_err());
+    }
+
+    #[test]
+    fn the_chain_view_is_off_by_default() {
+        let config: Config = toml::from_str(BASE).unwrap();
+        assert!(!config.chain_view.enabled);
+        assert_eq!(config.chain_view.capacity, 256);
+        parse_tables("[chain_view]\nenabled = true").unwrap();
+    }
+
+    #[test]
+    fn chain_view_hosts_have_no_port() {
+        let parse = |hosts: &str| {
+            let config: Config = toml::from_str(&format!(
+                "{BASE}\n[chain_view]\nenabled = true\nallowed_hosts = [{hosts}]"
+            ))
+            .map_err(|e| e.to_string())?;
+            config.validate()
+        };
+        parse(r#""localhost", "127.0.0.1", "[::1]""#).unwrap();
+        assert!(parse(r#""localhost:8080""#).is_err());
+        assert!(parse(r#""[::1]:8080""#).is_err());
+        assert!(parse(r#""::1""#).is_err());
+    }
+
+    #[test]
+    fn the_chain_view_stays_on_loopback_unless_allowed() {
+        let remote = "http_listen = \"0.0.0.0:8080\"";
+        let parse_remote = |view: &str| {
+            let config: Config =
+                toml::from_str(&format!("{remote}\n{BASE}\n{view}")).map_err(|e| e.to_string())?;
+            config.validate()
+        };
+        parse_remote("").unwrap();
+        parse_remote("[chain_view]\nenabled = false").unwrap();
+        let err = parse_remote("[chain_view]\nenabled = true").unwrap_err();
+        assert!(err.contains("allow_remote"), "{err}");
+        parse_remote("[chain_view]\nenabled = true\nallow_remote = true").unwrap();
+    }
+
+    #[test]
+    fn chain_view_settings_are_checked() {
+        assert!(parse_tables("[chain_view]\nenabled = true\ncapacity = 0").is_ok());
+        assert!(parse_tables("[chain_view]\nenabled = true\ncapacity = 10001").is_err());
+        assert!(parse_tables("[chain_view]\nenabled = true\nallowed_hosts = []").is_err());
+        assert!(
+            parse_tables("[chain_view]\nenabled = true\nallowed_hosts = [\"Localhost\"]").is_err()
+        );
+        assert!(
+            parse_tables("[chain_view]\nenabled = true\nallowed_hosts = [\"visado.internal\"]")
+                .is_ok()
+        );
+        assert!(parse_tables("[chain_view]\nenabled = true\nport = 1").is_err());
     }
 
     #[test]

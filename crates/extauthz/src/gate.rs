@@ -1,6 +1,7 @@
 //! The decision pipeline, independent of the transport.
 
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use serde_json::{Map, Value, json};
 use tracing::Instrument;
@@ -16,6 +17,8 @@ use visado_txn_token::{
     KeySet, Replacement, Scope, TxnTokenClaims, Validation, VerifiedTxnToken, mint, replace, verify,
 };
 use wimsey_jose::SigningKey;
+
+use crate::recent::{ChainSummary, Decision, PdpResult, RequestLog, RequestSummary, bounded};
 
 /// The header carrying an AAT chain, root first, comma-separated.
 pub const AAT_CHAIN_HEADER: &str = "aat-chain";
@@ -124,6 +127,7 @@ pub struct Gate<P> {
     stripped: Vec<String>,
     aat_replay: MemoryReplayCache,
     dpop_replay: MemoryReplayCache,
+    log: Option<Arc<RequestLog>>,
 }
 
 impl<P: Pdp> Gate<P> {
@@ -150,7 +154,16 @@ impl<P: Pdp> Gate<P> {
             stripped,
             aat_replay: MemoryReplayCache::new(100_000),
             dpop_replay: MemoryReplayCache::new(100_000),
+            log: None,
         }
+    }
+
+    /// Records a summary of every decision in `log`, for the chain view.
+    /// The summaries hold identifiers and outcomes, never tokens.
+    #[must_use]
+    pub fn with_request_log(mut self, log: Arc<RequestLog>) -> Self {
+        self.log = Some(log);
+        self
     }
 
     /// Decides on `input` at `now`. `txn` is the identifier used if a new
@@ -172,13 +185,16 @@ impl<P: Pdp> Gate<P> {
         let result = self.decide(input, now, txn).instrument(span.clone()).await;
         let (trail, decision, reason) = match &result {
             Ok(allowed) => (&allowed.trail, "allow", "ok"),
-            Err(denied) => (&denied.trail, "deny", denied.code),
+            Err(denied) => (&*denied.trail, "deny", denied.code),
         };
         span.record("visado.txn", trail.txn.as_str());
         span.record("visado.agent", trail.agent.as_str());
         span.record("visado.principal", trail.principal.as_str());
         span.record("visado.decision", decision);
         span.record("visado.reason", reason);
+        if let Some(log) = &self.log {
+            log.record(summary(input, now, txn, &result));
+        }
         match result {
             Ok(allowed) => {
                 audit(input, &allowed.trail, "allow", "ok", "");
@@ -210,7 +226,13 @@ impl<P: Pdp> Gate<P> {
         self.check_target(input)?;
         let caller = self.authenticate(input, now)?;
         trail.agent.clone_from(&caller.caller);
+        trail.method = Some(caller.method);
         let chain = self.verify_chain(input, &caller, now, &trail)?;
+        if self.log.is_some() {
+            trail.chain = chain
+                .as_ref()
+                .map(|c| Box::new(ChainSummary::from_chain(c)));
+        }
 
         let inbound = input
             .headers
@@ -252,9 +274,15 @@ impl<P: Pdp> Gate<P> {
             request = request.with_context("chain", chain_context(chain, &caller, Reader::Pdp));
         }
         match self.pdp.evaluate(&request, &trail.txn).await {
-            Ok(decision) if decision.allowed => {}
-            Ok(_) => return Err(Denied::new(403, "pdp.deny", &trail)),
-            Err(e) => return Err(Denied::new(403, e.code(), &trail)),
+            Ok(decision) if decision.allowed => trail.pdp = Some(PdpResult::Allow),
+            Ok(_) => {
+                trail.pdp = Some(PdpResult::Deny);
+                return Err(Denied::new(403, "pdp.deny", &trail));
+            }
+            Err(e) => {
+                trail.pdp = Some(PdpResult::Error(e.code().to_owned()));
+                return Err(Denied::new(403, e.code(), &trail));
+            }
         }
 
         let token = if let (Some(claims), Some(token)) = (forwarded, inbound) {
@@ -633,6 +661,12 @@ struct Trail {
     agent: String,
     principal: String,
     txn: String,
+    /// How the caller authenticated, once it has.
+    method: Option<Method>,
+    /// What the PDP said, once asked.
+    pdp: Option<PdpResult>,
+    /// The verified chain, kept only when there is a request log.
+    chain: Option<Box<ChainSummary>>,
 }
 
 struct Allowed {
@@ -646,7 +680,7 @@ struct Denied {
     challenge: Option<Challenge>,
     /// Why, for the audit record only. Never contains a token.
     detail: Option<Box<str>>,
-    trail: Trail,
+    trail: Box<Trail>,
 }
 
 /// The `WWW-Authenticate` challenge for a 401.
@@ -692,7 +726,7 @@ impl Denied {
             code,
             challenge: None,
             detail: None,
-            trail: trail.clone(),
+            trail: Box::new(trail.clone()),
         }
     }
 }
@@ -915,6 +949,35 @@ fn rctx(input: &CheckInput) -> Map<String, Value> {
     map.insert("method".into(), json!(input.method));
     map.insert("resource".into(), json!(resource_id(input)));
     map
+}
+
+/// The request log entry for one decision: identifiers and outcomes only.
+fn summary(
+    input: &CheckInput,
+    now: u64,
+    id: &str,
+    result: &Result<Allowed, Denied>,
+) -> RequestSummary {
+    let (trail, decision, status, code) = match result {
+        Ok(allowed) => (&allowed.trail, Decision::Allow, 200, "ok"),
+        Err(denied) => (&*denied.trail, Decision::Deny, denied.status, denied.code),
+    };
+    let known = |s: &str| (!s.is_empty()).then(|| bounded(s));
+    RequestSummary {
+        id: bounded(id),
+        txn: known(&trail.txn),
+        time: now,
+        method: bounded(&input.method),
+        resource: bounded(&resource_id(input)),
+        caller: known(&trail.agent),
+        auth_method: trail.method.map(method_name),
+        principal: known(&trail.principal),
+        decision,
+        status,
+        code: code.to_owned(),
+        pdp: trail.pdp.clone(),
+        chain: trail.chain.as_deref().cloned(),
+    }
 }
 
 fn audit(input: &CheckInput, trail: &Trail, decision: &str, reason: &str, detail: &str) {

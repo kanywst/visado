@@ -7,12 +7,16 @@
 //!
 //! Serves Envoy ext_authz v3 over gRPC, and over HTTP `/healthz` and the
 //! Transaction Token signing key at `/.well-known/jwks.json`. Audit events go
-//! to stdout as JSON under the `visado::audit` target.
+//! to stdout as JSON under the `visado::audit` target. With `[chain_view]`
+//! enabled, the HTTP listener also serves recent decisions at
+//! `/api/requests` and a page that draws them at `/chain`.
 
+mod chain_view;
 mod config;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::Arc;
 
 use axum::Router;
 use axum::routing::get;
@@ -23,7 +27,7 @@ use serde_json::json;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use visado_authzen::HttpPdp;
-use visado_extauthz::{ExtAuthz, Gate};
+use visado_extauthz::{ExtAuthz, Gate, RequestLog};
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -114,7 +118,7 @@ async fn serve(loaded: config::Loaded) -> Result<(), String> {
     jwk["kid"] = json!(loaded.gate.kid);
     jwk["use"] = json!("sig");
     let jwks = json!({ "keys": [jwk] });
-    let http = Router::new()
+    let mut http = Router::new()
         .route("/healthz", get(|| async { "ok" }))
         .route(
             "/.well-known/jwks.json",
@@ -132,7 +136,17 @@ async fn serve(loaded: config::Loaded) -> Result<(), String> {
         .await
         .map_err(|e| format!("{}: {e}", loaded.grpc_listen))?;
 
-    let gate = Gate::new(loaded.gate, loaded.authenticator, pdp);
+    let mut gate = Gate::new(loaded.gate, loaded.authenticator, pdp);
+    if let Some(view) = loaded.chain_view {
+        let log = Arc::new(RequestLog::new(view.capacity));
+        gate = gate.with_request_log(Arc::clone(&log));
+        http = http.merge(chain_view::router(log, view.allowed_hosts));
+        tracing::warn!(
+            http = %loaded.http_listen,
+            capacity = view.capacity,
+            "chain view enabled at /chain: it shows caller and principal identities to anyone who can reach the HTTP listener"
+        );
+    }
     let grpc = tonic::transport::Server::builder()
         .add_service(AuthorizationServer::new(ExtAuthz::new(gate)))
         .serve_with_incoming_shutdown(

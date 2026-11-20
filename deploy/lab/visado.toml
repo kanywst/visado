@@ -48,3 +48,13 @@ trust_bundles = [{ trust_domain = "td.example", bundle_file = "spire/spiffe-bund
 
 [telemetry]
 otlp_endpoint = "http://jaeger:4317"
+
+# The chain view at http://127.0.0.1:8080/chain. It shows caller and
+# principal identities. visado listens on all interfaces inside its
+# container, hence allow_remote; compose.yaml publishes the port to the
+# host's loopback address only.
+[chain_view]
+enabled = true
+# visado listens on 0.0.0.0 in its container. Every container on the lab
+# network can read the view; the host sees it on 127.0.0.1 only (compose.yaml).
+allow_remote = true

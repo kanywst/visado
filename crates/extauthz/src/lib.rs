@@ -11,11 +11,17 @@
 //! 5. removes the inbound credentials so they never reach the upstream,
 //! 6. writes an audit event under the `visado::audit` tracing target. Tokens
 //!    are never logged.
+//!
+//! A gate given a [`RequestLog`] also keeps a summary of each recent decision
+//! (identifiers, outcomes and the verified chain, never tokens) for the chain
+//! view.
 
 mod gate;
+pub mod recent;
 mod service;
 
 pub use gate::{
     AAT_CHAIN_HEADER, AAT_POP_HEADER, CheckInput, Gate, GateConfig, Outcome, STRIPPED_HEADERS,
 };
+pub use recent::RequestLog;
 pub use service::ExtAuthz;

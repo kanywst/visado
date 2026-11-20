@@ -60,6 +60,8 @@ Envoy also normalizes `%2e%2e` and `//` before visado sees the path; visado reje
 
 Each decision is also a `visado.authorize` span in Jaeger at <http://127.0.0.1:16686>.
 
+The chain view at <http://127.0.0.1:8080/chain> draws each recent decision: principal, delegation hops (verified or declared), caller, PDP decision and the deny reason. It shows caller and principal identities, so the port is published to the host's loopback address only.
+
 The policy is in `policy/visado.rego`: `/admin/` needs `roles.write`, everything else `tickets.read`.
 
 The demo keys are public. Do not reuse them.
