@@ -4,7 +4,9 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
-Adds the remaining workload authentication methods, DPoP-bound access tokens and RFC 8693 `act` chains. Breaking: the server refuses to start with an empty `allowed_authorities`, and denies access tokens with an `act` claim unless `[act]` is configured. For library users, `RequestView`, `CheckInput`, `GateConfig` and `AccessToken` have new fields, `CheckInput::body` is bytes, and `Method` and `AuthError` have new variants.
+## [0.3.0] - 2026-11-21
+
+Adds the remaining workload authentication methods (HTTP signatures, mTLS, JWT-SVID, DPoP-bound access tokens), asor and RFC 8693 `act` delegation chains, and a chain view; the lab runs on SPIRE-issued SVIDs and exercises every method through Envoy. Breaking: the server refuses to start with an empty `allowed_authorities`, and denies access tokens with an `act` claim unless `[act]` is configured. For library users, `RequestView`, `CheckInput`, `GateConfig` and `AccessToken` have new fields, `CheckInput::body` is bytes, and `Method` and `AuthError` have new variants.
 
 ### Added
 
@@ -103,6 +105,7 @@ First release. Pre-alpha: delegation-chain verification is not implemented yet.
 - OAuth issuers can carry a `subject_prefix`; with more than one issuer, every issuer needs one.
 - Sender-constrained access tokens (`cnf`) are rejected until DPoP and mTLS binding exist. `scp` is read when `scope` is absent, and `nbf` is checked.
 
-[Unreleased]: https://github.com/kanywst/visado/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/kanywst/visado/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/kanywst/visado/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kanywst/visado/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kanywst/visado/releases/tag/v0.1.0

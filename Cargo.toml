@@ -15,7 +15,7 @@ members = [
 exclude = ["fuzz"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.88"
 license = "Apache-2.0"
@@ -25,14 +25,14 @@ keywords = ["transaction-tokens", "wimse", "oauth", "authorization", "agents"]
 categories = ["authentication", "cryptography"]
 
 [workspace.dependencies]
-visado-txn-token = { path = "crates/txn-token", version = "0.2.0" }
-visado-chain = { path = "crates/chain", version = "0.2.0" }
-visado-chain-aat = { path = "crates/chain-aat", version = "0.2.0" }
-visado-chain-asor = { path = "crates/chain-asor", version = "0.2.0" }
-visado-chain-act = { path = "crates/chain-act", version = "0.2.0" }
-visado-authzen = { path = "crates/authzen", version = "0.2.0" }
-visado-credentials = { path = "crates/credentials", version = "0.2.0" }
-visado-extauthz = { path = "crates/extauthz", version = "0.2.0" }
+visado-txn-token = { path = "crates/txn-token", version = "0.3.0" }
+visado-chain = { path = "crates/chain", version = "0.3.0" }
+visado-chain-aat = { path = "crates/chain-aat", version = "0.3.0" }
+visado-chain-asor = { path = "crates/chain-asor", version = "0.3.0" }
+visado-chain-act = { path = "crates/chain-act", version = "0.3.0" }
+visado-authzen = { path = "crates/authzen", version = "0.3.0" }
+visado-credentials = { path = "crates/credentials", version = "0.3.0" }
+visado-extauthz = { path = "crates/extauthz", version = "0.3.0" }
 visado-testkit = { path = "crates/testkit" }
 wimsey-wit = "0.10.1"
 wimsey-wpt = "0.10.1"

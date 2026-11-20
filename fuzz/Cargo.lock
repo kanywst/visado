@@ -1716,7 +1716,7 @@ checksum = "3a3b425286980a367278453f3b6d28cdcb134b574e5a35824a6ff5eebad50bb6"
 
 [[package]]
 name = "visado-authzen"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "reqwest",
  "rustls",
@@ -1727,7 +1727,7 @@ dependencies = [
 
 [[package]]
 name = "visado-chain"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "base64",
  "ryu",
@@ -1737,7 +1737,7 @@ dependencies = [
 
 [[package]]
 name = "visado-chain-aat"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "visado-chain",
  "wimsey-jose",
@@ -1745,7 +1745,7 @@ dependencies = [
 
 [[package]]
 name = "visado-credentials"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "base64",
  "jsonwebtoken",
@@ -1780,7 +1780,7 @@ dependencies = [
 
 [[package]]
 name = "visado-testkit"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "base64",
  "jsonwebtoken",
@@ -1797,7 +1797,7 @@ dependencies = [
 
 [[package]]
 name = "visado-txn-token"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "base64",
  "serde",

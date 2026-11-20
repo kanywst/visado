@@ -1,6 +1,6 @@
 # Design (draft)
 
-Status: unreleased, after v0.2.0. Steps 1 to 6 are implemented: caller authentication by WIT with WPT or HTTP signatures, mTLS, JWT-SVID and OAuth access tokens, bearer or DPoP-bound; AAT, asor-03 and RFC 8693 `act` chains (decoders and per-format checks; no separate invariant engine or authority algebra); audit events, OpenTelemetry spans and the chain view. Items marked Open need a decision before the code that depends on them.
+Status: v0.3.0. Steps 1 to 6 are implemented: caller authentication by WIT with WPT or HTTP signatures, mTLS, JWT-SVID and OAuth access tokens, bearer or DPoP-bound; AAT, asor-03 and RFC 8693 `act` chains (decoders and per-format checks; no separate invariant engine or authority algebra); audit events, OpenTelemetry spans and the chain view. Items marked Open need a decision before the code that depends on them.
 
 ## Request pipeline
 
@@ -157,7 +157,7 @@ A summary holds:
 - `pdp`: `{"result": "allow" | "deny"}` or `{"result": "error", "code": ...}`, or `null` when the PDP was not asked
 - `chain`: `profile`, `issuer`, `principal`, `holder_proof`, and per hop `depth`, `actor_kind` (`key`, `name` or `subject`), `actor`, `actor_issuer`, `assurance` (`verified` or `declared`), `link` (`root`, `par_hash` or `nested`) and the holder key thumbprint; only for a chain that verified
 
-It never holds a token, proof, signature, digest, header value, body or the hop's authority. Strings are cut to 256 characters and chains to 32 hops (`hops_omitted` counts the rest).
+It never holds a token, proof, signature, digest, header value, body or the hop's authority. The request path is shown as received, without the query: an upstream that puts a secret in the path (`/hooks/<secret>`) exposes it here, as it does in access logs. Strings are cut to 256 characters and chains to 32 hops (`hops_omitted` counts the rest).
 
 > [!WARNING]
 > The chain view shows caller and principal identities, the resources they called and why requests were denied, to anyone who can reach the HTTP listener. It has no authentication. The server refuses to start with it enabled on a non-loopback `http_listen` unless `allow_remote = true`; set that only when the network limits who reaches the port. Requests whose `Host` is not in `allowed_hosts` (default `localhost`, `127.0.0.1`, `[::1]`) get 421, so a page that rebinds its DNS name to the loopback address cannot read the view through a visitor's browser.
