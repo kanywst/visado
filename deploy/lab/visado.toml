@@ -55,4 +55,6 @@ otlp_endpoint = "http://jaeger:4317"
 # host's loopback address only.
 [chain_view]
 enabled = true
+# visado listens on 0.0.0.0 in its container. Every container on the lab
+# network can read the view; the host sees it on 127.0.0.1 only (compose.yaml).
 allow_remote = true

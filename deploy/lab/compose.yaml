@@ -26,8 +26,11 @@ services:
       - ./visado.toml:/etc/visado/visado.toml:ro
       - ../local/keys:/etc/visado/keys:ro
       - spire-bundle:/etc/visado/spire:ro
-    # The chain view and JWKS, on the host's loopback address only: the view
-    # shows caller and principal identities.
+    # The chain view and JWKS, published on the host's loopback address only.
+    # Inside the lab, any container on the default network can still read the
+    # view (it shows caller and principal identities): the Host allow-list
+    # stops browser rebinding, not other clients. Do not enable it like this
+    # outside a lab.
     ports:
       - "127.0.0.1:8080:8080"
     # The gRPC port listens only on the authz network, which only Envoy
