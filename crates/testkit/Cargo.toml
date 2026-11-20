@@ -21,6 +21,7 @@ jsonwebtoken = { workspace = true }
 sha2 = { workspace = true }
 serde_json = { workspace = true }
 visado-chain-aat = { workspace = true }
+miniz_oxide = { workspace = true }
 
 [lints]
 workspace = true

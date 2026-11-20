@@ -1,6 +1,7 @@
 //! The offline verification algorithm (§6).
 
 use std::fmt;
+use std::sync::Arc;
 
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::{Digest, Sha256};
@@ -16,6 +17,7 @@ use wimsey_jose::{Algorithm, SIGNATURE_LEN, VerifyingKey};
 use crate::authority::{Authority, DETAIL_TYPE, RunningTotals};
 use crate::dpop::{self, HttpRequest, Window};
 use crate::error::{AsorError, Outcome};
+use crate::status::{self, DEFAULT_STATUS_MAX_AGE, StatusLists, StatusRef};
 
 /// The JOSE `typ` values of a Delegation Token (RFC 9068 §2.1).
 pub const TYPS: [&str; 2] = ["at+jwt", "application/at+jwt"];
@@ -133,7 +135,19 @@ impl TrustAnchor {
         self
     }
 
-    fn verifies(&self, jws: Compact<'_>) -> bool {
+    pub(crate) fn issuer(&self) -> &str {
+        &self.issuer
+    }
+
+    pub(crate) const fn alg(&self) -> Alg {
+        self.alg
+    }
+
+    pub(crate) fn kid(&self) -> Option<&str> {
+        self.kid.as_deref()
+    }
+
+    pub(crate) fn verifies(&self, jws: Compact<'_>) -> bool {
         match &self.key {
             AnchorKey::Public(key) => match jose::b64(jws.signature) {
                 Some(sig) if sig.len() == SIGNATURE_LEN && fits(self.alg, key) => {
@@ -258,6 +272,18 @@ pub struct Verifier {
     algorithms: Vec<Alg>,
     audiences: Vec<String>,
     limits: Limits,
+    status: Option<StatusSource>,
+    status_max_age: i64,
+}
+
+/// The status list source, which has no `Debug` of its own.
+#[derive(Clone)]
+struct StatusSource(Arc<dyn StatusLists>);
+
+impl fmt::Debug for StatusSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("StatusLists")
+    }
 }
 
 /// One token after parsing, before any numbered step.
@@ -278,7 +304,7 @@ struct Token<'a> {
     depth: u32,
     max_depth: Option<u32>,
     par_hash: Option<String>,
-    status: bool,
+    status: Option<StatusRef>,
     authority: Authority,
 }
 
@@ -298,7 +324,27 @@ impl Verifier {
             algorithms: vec![Alg::Ed25519, Alg::Es256],
             audiences,
             limits: Limits::default(),
+            status: None,
+            status_max_age: DEFAULT_STATUS_MAX_AGE,
         }
+    }
+
+    /// Checks `status` claims (step 7) against the lists `lists` holds.
+    /// Without a source, a token with a `status` claim is denied as
+    /// `status_unknown` by [`Verifier::verify`].
+    #[must_use]
+    pub fn with_status_lists(mut self, lists: Arc<dyn StatusLists>) -> Self {
+        self.status = Some(StatusSource(lists));
+        self
+    }
+
+    /// How long, in seconds, a fetched status list is trusted when its own
+    /// `ttl` is longer or absent. The default is
+    /// [`DEFAULT_STATUS_MAX_AGE`](crate::DEFAULT_STATUS_MAX_AGE).
+    #[must_use]
+    pub const fn with_status_max_age(mut self, seconds: i64) -> Self {
+        self.status_max_age = seconds;
+        self
     }
 
     /// Replaces the list of accepted algorithms (step 1).
@@ -319,8 +365,9 @@ impl Verifier {
     /// steps 1 to 5, the DPoP proof (6), status (7), and the audience and
     /// action (8). Pass `replay` to reject a DPoP `jti` seen before.
     ///
-    /// Status lists are not implemented, so a chain with a `status` claim
-    /// is denied as `status_unknown`.
+    /// Step 7 looks every `status` reference up in the configured
+    /// [`StatusLists`]; without one, a chain with a `status` claim is
+    /// denied as `status_unknown`.
     ///
     /// # Errors
     ///
@@ -352,13 +399,7 @@ impl Verifier {
             replay,
         )
         .map_err(|reason| AsorError::new(Outcome::HolderBindingFailed, reason))?;
-        if let Some(i) = chain.tokens.iter().position(|t| t.status) {
-            return Err(AsorError::at(
-                Outcome::StatusUnknown,
-                i,
-                "status lists are not supported",
-            ));
-        }
+        self.status(&chain.tokens, now)?;
         self.audience(leaf, chain.tokens.len() - 1)?;
         if action.params_json.len() > self.limits.max_params_size {
             return Err(AsorError::new(
@@ -383,14 +424,19 @@ impl Verifier {
     }
 
     /// What a verifier with an audience but no request can check: the parse
-    /// rules, steps 1 to 5, and the audience half of step 8. This is what
-    /// the published vectors test. The result has `holder_proof: false`.
+    /// rules, steps 1 to 5, step 7 when status lists are configured, and the
+    /// audience half of step 8 (§6.1). Without status lists, `status`
+    /// claims are not checked. The published vectors test this. The result
+    /// has `holder_proof: false`.
     ///
     /// # Errors
     ///
     /// The first check that failed.
     pub fn check(&self, tokens: &[String], now: i64) -> Result<NormalizedChain, AsorError> {
         let chain = self.chain(tokens, now)?;
+        if self.status.is_some() {
+            self.status(&chain.tokens, now)?;
+        }
         let n = chain.tokens.len() - 1;
         let leaf = chain
             .tokens
@@ -398,6 +444,19 @@ impl Verifier {
             .ok_or(AsorError::new(Outcome::Malformed, "empty chain"))?;
         self.audience(leaf, n)?;
         Ok(normalize(&chain, false))
+    }
+
+    /// Step 7: every token with a `status` reference is `VALID` in a list
+    /// that is neither expired nor stale.
+    fn status(&self, tokens: &[Token<'_>], now: i64) -> Result<(), AsorError> {
+        let lists = self.status.as_ref().map(|s| &*s.0);
+        for (i, token) in tokens.iter().enumerate() {
+            if let Some(reference) = &token.status {
+                status::check(reference, lists, self.status_max_age, now)
+                    .map_err(|(outcome, reason)| AsorError::at(outcome, i, reason))?;
+            }
+        }
+        Ok(())
     }
 
     fn audience(&self, leaf: &Token<'_>, i: usize) -> Result<(), AsorError> {
@@ -651,6 +710,7 @@ fn claims<'a>(index: usize, decoded: &Decoded<'a>) -> Result<Token<'a>, &'static
             Some(hash.to_owned())
         }
     };
+    let status = status::reference(claims.get("status"))?;
     let authority = Authority::parse(claims.get("authorization_details"))
         .ok_or("authorization_details is not one closed agent_delegation detail")?;
     Ok(Token {
@@ -670,7 +730,7 @@ fn claims<'a>(index: usize, decoded: &Decoded<'a>) -> Result<Token<'a>, &'static
         depth,
         max_depth,
         par_hash,
-        status: claims.get("status").is_some(),
+        status,
         authority,
     })
 }

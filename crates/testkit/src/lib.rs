@@ -581,6 +581,39 @@ pub fn asor_child_claims(
     })
 }
 
+/// The key that signs the test Status List Tokens.
+#[must_use]
+pub fn status_list_key() -> SigningKey {
+    SigningKey::from_ed25519_seed(&[0x72; 32])
+}
+
+/// The issuer of the test Status List Tokens.
+pub const STATUS_LIST_ISSUER: &str = "https://status.td.example";
+
+/// The URI of the test Status List Token.
+pub const STATUS_LIST_URI: &str = "https://status.td.example/lists/1";
+
+/// `statuses`, `bits` each, packed from the least significant bit and
+/// compressed with ZLIB, as `lst` carries them (draft-ietf-oauth-status-list
+/// §4.1).
+#[must_use]
+pub fn status_list_lst(bits: u8, statuses: &[u8]) -> String {
+    let per_byte = usize::from(8 / bits);
+    let mut bytes = vec![0u8; statuses.len().div_ceil(per_byte)];
+    for (i, status) in statuses.iter().enumerate() {
+        let shift = (i % per_byte) * usize::from(bits);
+        bytes[i / per_byte] |= status << shift;
+    }
+    URL_SAFE_NO_PAD.encode(miniz_oxide::deflate::compress_to_vec_zlib(&bytes, 9))
+}
+
+/// A Status List Token with exactly `header` and `claims`, signed by
+/// [`status_list_key`].
+#[must_use]
+pub fn status_list_token(header: &Value, claims: &Value) -> String {
+    sign_dpop_proof(header, claims, &status_list_key())
+}
+
 /// A DPoP proof (RFC 9449) by `holder` for `method` on `uri`, presenting the
 /// access token `token`.
 #[must_use]
