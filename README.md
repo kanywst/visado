@@ -6,12 +6,13 @@
 [![ci](https://github.com/kanywst/visado/actions/workflows/ci.yml/badge.svg)](https://github.com/kanywst/visado/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/kanywst/visado/badge)](https://scorecard.dev/viewer/?uri=github.com/kanywst/visado)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16930/badge)](https://www.bestpractices.dev/projects/16930)
+[![crates.io](https://img.shields.io/crates/v/visado.svg)](https://crates.io/crates/visado)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 visado is an ext_authz service for AI agent traffic that runs behind Envoy, Istio or agentgateway. For each request it verifies the caller's workload credential and the delegation chain behind the request, asks an [AuthZEN](https://openid.net/specs/authorization-api-1_0.html) policy decision point, and passes the verified chain downstream as an [OAuth Transaction Token](https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/).
 
 > [!IMPORTANT]
-> visado is pre-alpha and implements Internet-Drafts that are still changing. AAT and asor are the delegation-chain formats so far. See the [roadmap](ROADMAP.md).
+> visado is pre-alpha and implements Internet-Drafts that are still changing. AAT, asor and RFC 8693 `act` are the delegation-chain formats so far. See the [roadmap](ROADMAP.md).
 
 ## How it fits
 
@@ -36,6 +37,14 @@ It follows the composition in [draft-ietf-wimse-aims](https://datatracker.ietf.o
 | [`visado-chain-asor`](crates/chain-asor) | draft-asor-wimse-agent-delegation-chain-03 | alpha: §6 verification with DPoP, 36/36 published vectors, enforced by the gate |
 | [`visado-chain-act`](crates/chain-act) | RFC 8693 `act` claim | alpha: the current actor bound to the caller, prior actors kept out of the PDP, enforced by the gate |
 | Chain view, OpenTelemetry | | alpha: `visado.authorize` spans over OTLP; an opt-in page of recent decisions and their chains at `/chain` ([design](docs/design.md#chain-view)) |
+
+## Install
+
+```bash
+cargo install visado
+```
+
+Signed binaries for Linux and macOS (x86-64 and arm64), with an SPDX SBOM and SLSA provenance, are on the [releases page](https://github.com/kanywst/visado/releases). The library crates are on [crates.io](https://crates.io/search?q=visado).
 
 ## Try it
 
