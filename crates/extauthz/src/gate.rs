@@ -5,11 +5,13 @@ use std::collections::BTreeSet;
 use serde_json::{Map, Value, json};
 use tracing::Instrument;
 use visado_authzen::{Action, Entity, EvaluationRequest, Pdp};
-use visado_chain::NormalizedChain;
-use visado_chain::Principal;
+use visado_chain::{ActorId, Hop, NormalizedChain, Principal, Profile};
 use visado_chain_aat::{Invocation, MemoryReplayCache, Presentation, Verifier, jwk_thumbprint};
+use visado_chain_act::{ActError, ActToken, Caller as ActCaller};
 use visado_chain_asor::{Action as AsorAction, HttpRequest};
-use visado_credentials::{AuthError, Authenticated, Authenticator, DPOP_ALGS, Method, RequestView};
+use visado_credentials::{
+    AccessToken, AuthError, Authenticated, Authenticator, DPOP_ALGS, Method, RequestView,
+};
 use visado_txn_token::{
     KeySet, Replacement, Scope, TxnTokenClaims, Validation, VerifiedTxnToken, mint, replace, verify,
 };
@@ -61,7 +63,10 @@ pub struct GateConfig {
     /// asor delegation-chain verification. `None` rejects requests that
     /// carry an `Agent-Delegation-Chain` header.
     pub asor: Option<visado_chain_asor::Verifier>,
-    /// Deny requests that carry no delegation chain of either format.
+    /// RFC 8693 `act` chains in the caller's access token. `None` rejects
+    /// requests whose access token carries an `act` claim.
+    pub act: Option<visado_chain_act::Verifier>,
+    /// Deny requests that carry no delegation chain of any format.
     pub require_chain: bool,
 }
 
@@ -216,6 +221,23 @@ impl<P: Pdp> Gate<P> {
             Some(token) => Some(self.accept_forwarded(&caller, token, now, &trail)?),
             None => None,
         };
+        // A chain that names its principal must be about the forwarded
+        // transaction's subject; otherwise the replaced token would record
+        // one user's delegation inside another user's transaction.
+        if let (Some(claims), Some(chain)) = (&forwarded, &chain)
+            && let Principal::Subject { subject, .. } = &chain.principal
+            && subject != &claims.sub
+        {
+            let mut denied = Denied::new(403, "chain.principal_mismatch", &trail);
+            denied.detail = Some(
+                format!(
+                    "chain principal {subject:?} is not the transaction subject {:?}",
+                    claims.sub
+                )
+                .into_boxed_str(),
+            );
+            return Err(denied);
+        }
         let (principal, scope) = match &forwarded {
             Some(claims) => (claims.sub.clone(), claims.scope.clone()),
             None => self.principal_and_scope(&caller, &trail)?,
@@ -227,7 +249,7 @@ impl<P: Pdp> Gate<P> {
 
         let mut request = evaluation_request(input, &caller, &principal, &scope, &trail.txn);
         if let Some(chain) = &chain {
-            request = request.with_context("chain", chain_context(chain));
+            request = request.with_context("chain", chain_context(chain, &caller, Reader::Pdp));
         }
         match self.pdp.evaluate(&request, &trail.txn).await {
             Ok(decision) if decision.allowed => {}
@@ -264,9 +286,11 @@ impl<P: Pdp> Gate<P> {
     }
 
     /// Verifies the delegation chain if the request carries one (see
-    /// docs/bindings.md): an AAT chain or an asor chain, never both. Only a
-    /// WIT caller may present a chain, and the chain's holder must be the
-    /// workload that proved possession of the WIT key.
+    /// docs/bindings.md): an AAT chain, an asor chain, or an RFC 8693 `act`
+    /// claim in the caller's access token, never more than one. Only a key
+    /// holding caller may present an AAT or asor chain, and the chain's
+    /// holder must be the workload that proved possession of that key. An
+    /// `act` chain's current actor must be the caller.
     fn verify_chain(
         &self,
         input: &CheckInput,
@@ -276,16 +300,18 @@ impl<P: Pdp> Gate<P> {
     ) -> Result<Option<NormalizedChain>, Denied> {
         let aat = header(input, AAT_CHAIN_HEADER);
         let asor = header(input, ASOR_CHAIN_HEADER);
-        let chain = match (aat, asor) {
-            (None, None) => {
+        let act = caller.user.as_ref().filter(|user| user.act.is_some());
+        let chain = match (aat, asor, act) {
+            (None, None, None) => {
                 if self.config.require_chain {
                     return Err(Denied::new(403, "chain.required", trail));
                 }
                 return Ok(None);
             }
-            (Some(_), Some(_)) => return Err(Denied::new(400, "chain.ambiguous", trail)),
-            (Some(chain), None) => self.verify_aat(input, caller, chain, now, trail)?,
-            (None, Some(chain)) => self.verify_asor(input, caller, chain, now, trail)?,
+            (None, None, Some(user)) => return self.verify_act(caller, user, trail).map(Some),
+            (Some(chain), None, None) => self.verify_aat(input, caller, chain, now, trail)?,
+            (None, Some(chain), None) => self.verify_asor(input, caller, chain, now, trail)?,
+            _ => return Err(Denied::new(400, "chain.ambiguous", trail)),
         };
         // The chain must belong to the caller: its leaf holder key is the
         // key the caller proved possession of with its WIT.
@@ -391,6 +417,58 @@ impl<P: Pdp> Gate<P> {
             .map_err(|e| Denied::new(403, e.code(), trail))
     }
 
+    /// An RFC 8693 `act` chain from the caller's access token, which
+    /// `visado-credentials` already verified. Only a caller that proved
+    /// possession of a key may present one, and the current actor must be
+    /// that caller; prior actors are recorded but not checked against
+    /// anything.
+    fn verify_act(
+        &self,
+        caller: &Authenticated,
+        user: &AccessToken,
+        trail: &Trail,
+    ) -> Result<NormalizedChain, Denied> {
+        let Some(verifier) = &self.config.act else {
+            return Err(Denied::new(403, "chain.unsupported", trail));
+        };
+        // As for AAT and asor, the chain must belong to a caller that proved
+        // possession of a key for this request; a bearer token alone does
+        // not show who presents it.
+        if caller.proof_key.is_none() {
+            return Err(Denied::new(403, "chain.unbound_caller", trail));
+        }
+        let Some(act) = user.act.as_ref() else {
+            return Err(Denied::new(500, "internal.act", trail));
+        };
+        let token = ActToken {
+            issuer: &user.issuer,
+            subject: &user.subject,
+            id: user.id.as_deref(),
+            key_thumbprint: &user.key_thumbprint,
+            issued_at: user.issued_at,
+            expires_at: user.expires_at,
+            act,
+        };
+        let presenter = ActCaller {
+            id: &caller.caller,
+            proved_key: caller.proof_key.is_some(),
+        };
+        verifier.verify(&token, &presenter).map_err(|e| {
+            let mut denied = Denied::new(403, e.as_str(), trail);
+            // Identifiers only, never the token.
+            denied.detail = Some(match (e, act.get("sub").and_then(Value::as_str)) {
+                (ActError::ActorMismatch, Some(actor)) => format!(
+                    "current actor {actor:?} is bound to {:?}, not to the caller {:?}",
+                    verifier.bound_caller(actor),
+                    caller.caller
+                )
+                .into_boxed_str(),
+                _ => e.to_string().into_boxed_str(),
+            });
+            denied
+        })
+    }
+
     fn replace_with_chain(
         &self,
         claims: TxnTokenClaims,
@@ -405,7 +483,10 @@ impl<P: Pdp> Gate<P> {
             kid: Some(self.config.kid.clone()),
         };
         let mut additions = Map::new();
-        additions.insert(format!("chain:{}", caller.caller), chain_context(chain));
+        additions.insert(
+            format!("chain:{}", caller.caller),
+            chain_context(chain, caller, Reader::TxnToken),
+        );
         let next = replace(
             &previous,
             Replacement {
@@ -686,14 +767,30 @@ fn tctx(caller: &Authenticated, chain: Option<&NormalizedChain>) -> Map<String, 
     map.insert("agent".into(), json!(caller.caller));
     map.insert("auth_method".into(), json!(method_name(caller.method)));
     if let Some(chain) = chain {
-        map.insert("chain".into(), chain_context(chain));
+        map.insert(
+            "chain".into(),
+            chain_context(chain, caller, Reader::TxnToken),
+        );
     }
     map
 }
 
+/// Who a chain context is for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Reader {
+    /// The PDP, which makes the access decision.
+    Pdp,
+    /// The Transaction Token, a record for downstream services.
+    TxnToken,
+}
+
 /// The chain as the PDP and the Transaction Token see it: format, depth, the
-/// holders from root to leaf, and the leaf's authority.
-fn chain_context(chain: &NormalizedChain) -> Value {
+/// holders from root to leaf, and the leaf's authority. An RFC 8693 `act`
+/// chain has its own shape (see [`act_context`]).
+fn chain_context(chain: &NormalizedChain, caller: &Authenticated, reader: Reader) -> Value {
+    if chain.profile == Profile::Rfc8693Act {
+        return act_context(chain, caller, reader);
+    }
     let holders: Vec<String> = chain
         .hops
         .iter()
@@ -710,6 +807,49 @@ fn chain_context(chain: &NormalizedChain) -> Value {
         context["principal"] = json!(subject);
     }
     context
+}
+
+/// An RFC 8693 `act` chain: the issuer, the principal, the current actor
+/// and the kind of caller it was bound to (`workload` or `client`). RFC 8693 §4.1 says prior actors "are not to be considered in
+/// access control decisions", so the PDP does not get them; the Transaction
+/// Token records them, least recent first, with the depth.
+fn act_context(chain: &NormalizedChain, caller: &Authenticated, reader: Reader) -> Value {
+    let (current, prior) = chain
+        .hops
+        .split_last()
+        .map_or((None, &[][..]), |(current, prior)| (Some(current), prior));
+    let mut context = json!({
+        "profile": chain.profile.as_str(),
+        "issuer": chain.root.issuer,
+        "actor": current.map(actor_json),
+        "caller_kind": caller_kind(caller.method),
+    });
+    if let Principal::Subject { subject, .. } = &chain.principal {
+        context["principal"] = json!(subject);
+    }
+    if reader == Reader::TxnToken {
+        context["depth"] = json!(prior.len());
+        context["prior_actors"] = prior.iter().map(actor_json).collect();
+    }
+    context
+}
+
+/// What the caller the current actor was bound to is, so a policy can tell a
+/// workload from an OAuth client with the same name.
+const fn caller_kind(method: Method) -> &'static str {
+    match method {
+        Method::Bearer | Method::OAuthDpop => "client",
+        Method::WitWpt | Method::WitHttpSig | Method::Mtls | Method::JwtSvid => "workload",
+    }
+}
+
+fn actor_json(hop: &Hop) -> Value {
+    match &hop.actor {
+        ActorId::Subject { issuer, subject } => json!({ "iss": issuer, "sub": subject }),
+        ActorId::Name(name) => json!({ "sub": name }),
+        ActorId::Key(key) => json!({ "jkt": key.0 }),
+        _ => Value::Null,
+    }
 }
 
 /// The tool and its arguments the chain must authorize.

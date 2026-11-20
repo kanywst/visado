@@ -4,7 +4,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
-Adds the remaining workload authentication methods and DPoP-bound access tokens. Breaking: the server refuses to start with an empty `allowed_authorities`. For library users, `RequestView` and `CheckInput` have new fields, `CheckInput::body` is bytes, and `Method` and `AuthError` have new variants.
+Adds the remaining workload authentication methods, DPoP-bound access tokens and RFC 8693 `act` chains. Breaking: the server refuses to start with an empty `allowed_authorities`, and denies access tokens with an `act` claim unless `[act]` is configured. For library users, `RequestView`, `CheckInput`, `GateConfig` and `AccessToken` have new fields, `CheckInput::body` is bytes, and `Method` and `AuthError` have new variants.
 
 ### Added
 
@@ -26,12 +26,21 @@ Adds the remaining workload authentication methods and DPoP-bound access tokens.
 - `deploy/lab`: SPIRE v1.16.0 issues the workloads' WIT-SVIDs (experimental `enable_wit_svids`). A one-shot `wit-config` service writes visado's `[[wit_issuers]]` from the SPIRE WIT bundle before visado starts, and `demo.sh` signs WPTs and AAT holder proofs with the keys SPIRE issued.
 - `deploy/lab` exercises the other caller methods through Envoy: WIT with an HTTP message signature (allowed, replayed nonce, body changed under the covered `Content-Digest`), mTLS on a second Envoy listener that terminates TLS with the gateway's SPIRE X.509-SVID and passes agent-a's X.509-SVID as `source.certificate` (allowed, unbound user token, certificate from another CA), SPIRE JWT-SVIDs (allowed, wrong audience) and a DPoP-bound access token (allowed, sent as `Bearer`). `spire-setup` writes the X.509 CA and the SPIFFE-format bundle for visado's `[mtls]` and `[jwt_svid]`, a `gateway-svid` one-shot writes Envoy's certificate, and a new `lab_methods` testkit example prints the signed and DPoP requests. `demo.sh` can check visado's error code as well as the status.
 
+- `visado-chain-act`: reads the RFC 8693 `act` claim of a verified access token as a delegation chain (principal `sub`, actors from the least recent to the current one) and requires the current actor to be the authenticated caller, directly or through a mapping. Errors are `act.not_object`, `act.missing_sub`, `act.bad_issuer`, `act.too_deep` and `act.actor_mismatch`.
+- The gate enforces `act` chains in a user token bound to a key-holding caller (see `docs/bindings.md`); a bearer token with an `act` claim is denied (`chain.unbound_caller`), as for AAT and asor. The PDP gets only the current actor and the kind of caller it was bound to (`caller_kind`), as RFC 8693 §4.1 keeps prior actors out of access control; the Transaction Token `tctx` also records the prior actors and the depth. Configured with `[act]` in the server file: `required` (no default), `max_actors` (default 8) and an `[act.actors]` mapping.
+- 20 `act` vectors in `conformance/act/`, visado's own except for the claim sets of RFC 8693 Figures 5 and 6.
+- `visado-chain`: `Profile::Rfc8693Act`, `ActorId::Subject` and `Link::Nested`.
+- `visado-credentials`: `AccessToken` has `act`, `id` (`jti`), `issued_at` and `key_thumbprint` (the issuer key that verified it).
+
 ### Changed
 
 - The server refuses to start when `allowed_authorities` is empty; it used to warn.
 - An access token with `cnf.jkt` sent as `Bearer` or as a user token is denied as `token.dpop_bound` instead of `token.sender_constrained`; any other `cnf` is still `token.sender_constrained`.
 - asor DPoP proofs: the signature is checked before the key is compared with the leaf `cnf.jkt`, and `htu` is compared after lowercasing scheme and host and dropping a default port.
 - The gate denies an asor chain from an OAuth client authenticated with DPoP (`chain.proof_conflict`).
+- A delegation chain that names its principal (asor, `act`) on a forwarded Transaction Token must have the token's `sub` as its principal (`chain.principal_mismatch`), so a replacement token cannot record one user's chain in another user's transaction.
+- The server refuses to start when `[aat]`, `[asor]` and `[act]` set different `required` values; a format with `required = false` used to let requests without any chain through next to one with `required = true`.
+- The gate denies an access token that carries an `act` claim unless `[act]` is configured (`chain.unsupported`); it used to ignore the claim. A token with an `act` claim next to an `AAT-Chain` or `Agent-Delegation-Chain` header is `chain.ambiguous`.
 - An internal caller may forward a `Txn-Token` after a WPT, an HTTP signature that covers it, or mTLS; bearer callers still cannot.
 - The gate removes `Signature` and `Signature-Input` before the request goes upstream.
 - The gate refuses a non-UTF-8 body for an AAT invocation itself; the service no longer replaces such a body with a marker.

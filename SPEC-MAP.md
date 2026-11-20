@@ -11,6 +11,7 @@ Pinned revisions and where the code departs from them. Checked 2026-11-20.
 | [draft-ietf-oauth-identity-assertion-authz-grant](https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/06/) | -06 | (planned) | |
 | [draft-niyikiza-oauth-attenuating-agent-tokens](https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/) | -02 | `visado-chain-aat` | §8 chain and PoP verification; 229/229 published vectors. Enforced by the gate (`docs/bindings.md`) |
 | [draft-asor-wimse-agent-delegation-chain](https://datatracker.ietf.org/doc/draft-asor-wimse-agent-delegation-chain/03/) | -03 | `visado-chain-asor` | §6 steps 1 to 6 and 8; 36/36 published vectors. Enforced by the gate (`docs/bindings.md`) |
+| [RFC 8693](https://www.rfc-editor.org/rfc/rfc8693) OAuth 2.0 Token Exchange | RFC | `visado-chain-act` | §4.1 `act` claim of an access token read as a chain; 20 own vectors (two from the RFC's figures). Enforced by the gate (`docs/bindings.md`). No token endpoint, no `may_act` |
 | [RFC 9449](https://www.rfc-editor.org/rfc/rfc9449.html) (DPoP) | RFC | `visado-chain` (`dpop`), `visado-credentials` | Proof checks of §4.3 and the §7.1 resource server rules for DPoP-bound access tokens; also the asor leaf proof. No server nonces (§8, §9) |
 | [OpenID AuthZEN Authorization API](https://openid.net/specs/authorization-api-1_0.html) | 1.0 Final | `visado-authzen` | Single evaluation and metadata discovery |
 
@@ -78,7 +79,29 @@ No divergences on the vectors: all 36 in [conformance/asor](conformance/asor/) g
 | `check()` and `decode()` | Steps 1 to 5 without a request (§6.1) | `decode()` runs the parse rules and steps 1 to 5; `check()` adds the leaf audience, which is what the vectors test. Both return `holder_proof: false` |
 | HTTP binding | Not defined | `Agent-Delegation-Chain` and `DPoP` headers; the format is chosen by the header, not by `typ`. The MCP tool name is the action's scope and its arguments the parameters (see `docs/bindings.md`) |
 | Who may present a chain | The DPoP key holder | Only a WIT caller, and the leaf `cnf.jkt` must be the WIT key; bearer-only callers are denied (`chain.unbound_caller`) |
+| Principal and a forwarded Txn-Token | Not defined | The chain's `sub` must be the forwarded Transaction Token's `sub` (`chain.principal_mismatch`) |
 | -01 vectors | Do not conform to -03 | Not run: every one lacks `cnf` and `client_id` |
+
+## RFC 8693 act: choices
+
+RFC 8693 publishes no test vectors. [conformance/act](conformance/act/) has visado's own 20 cases, two of them the claim sets of the RFC's Figures 5 and 6.
+
+| Topic | RFC 8693 | visado |
+| --- | --- | --- |
+| Current and prior actors | The outermost `act` is the current actor; nested ones are prior actors, the most deeply nested the least recent (§4.1) | Hops run from the least recent actor to the current one; the current actor is the leaf |
+| Access control | Consider only the top-level claims and the current actor; prior actors "are not to be considered in access control decisions" (§4.1) | The PDP gets the current actor only. Prior actors and the depth go to the Transaction Token `tctx` and are never compared with anything. The current actor's hop is `Verified`; prior actors are `Declared` |
+| Who the current actor is | Not defined for a resource server | The current actor's `sub` must equal the authenticated caller's identifier, or the caller `[act.actors]` maps it to; otherwise `act.actor_mismatch` |
+| Who may present a chain | Not defined | Only a caller that proved possession of a key for the request, as for AAT and asor; a bearer token with `act` is denied (`chain.unbound_caller`) |
+| Actor identity | `act` claims identify the actor; `iss` with `sub` may be needed (§4.1) | `sub` is required and a non-empty string (`act.missing_sub`); `iss`, when present, a non-empty string (`act.bad_issuer`). The actor is named by its `iss`, or the token's issuer without one. Binding compares `sub` only: the token's issuer vouches for the whole claim |
+| Non-identity claims in `act` | Not meaningful and not used (§4.1) | Ignored |
+| Shape of `act` | A JSON object | Anything else, outermost or nested (including `null`), is `act.not_object` |
+| Nesting depth | Not limited | At most `max_actors` actors (default 8, at most 32); more is `act.too_deep` |
+| Authority per actor | Not defined | None is invented: the token's `scope` is what the call may use, and the chain narrows nothing |
+| Token without `[act]` | | A token with an `act` claim is denied (`chain.unsupported`), not read as the subject's own token |
+| `act` next to another chain | | `chain.ambiguous` with `AAT-Chain` or `Agent-Delegation-Chain` |
+| Principal and a forwarded Txn-Token | | The token's `sub` must be the forwarded Transaction Token's `sub` (`chain.principal_mismatch`) |
+| `may_act` (§4.4) | Who may become the actor | Not read |
+| Token exchange endpoint (§2) | Defined | Not implemented |
 
 ## AuthZEN: choices
 

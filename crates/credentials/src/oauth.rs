@@ -1,4 +1,4 @@
-use jsonwebtoken::jwk::JwkSet;
+use jsonwebtoken::jwk::{JwkSet, ThumbprintHash};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::Deserialize;
 
@@ -56,6 +56,16 @@ pub struct AccessToken {
     pub scope: Option<String>,
     /// `exp`.
     pub expires_at: u64,
+    /// `iat`, when present.
+    pub issued_at: Option<u64>,
+    /// `jti`, when present.
+    pub id: Option<String>,
+    /// The RFC 8693 `act` (actor) claim as the issuer signed it, unchecked:
+    /// its shape is checked by whoever uses it.
+    pub act: Option<serde_json::Value>,
+    /// The RFC 7638 SHA-256 thumbprint of the issuer key that verified the
+    /// token.
+    pub key_thumbprint: String,
 }
 
 #[derive(Deserialize)]
@@ -75,6 +85,22 @@ struct Claims {
     nbf: Option<u64>,
     #[serde(default)]
     cnf: Option<serde_json::Value>,
+    #[serde(default)]
+    iat: Option<u64>,
+    #[serde(default)]
+    jti: Option<String>,
+    /// `null` is kept as a present claim, so a chain adapter rejects it
+    /// rather than reading the token as having no actor.
+    #[serde(default, deserialize_with = "present")]
+    act: Option<serde_json::Value>,
+}
+
+/// Any value, `null` included, as `Some`. Absence is `None` through
+/// `#[serde(default)]`.
+fn present<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<serde_json::Value>, D::Error> {
+    serde_json::Value::deserialize(deserializer).map(Some)
 }
 
 #[derive(Deserialize)]
@@ -140,6 +166,7 @@ pub(crate) fn verify_bound(
     }
     .ok_or_else(|| AuthError::AccessToken("no trusted key".into()))?;
     let key = DecodingKey::from_jwk(jwk).map_err(invalid)?;
+    let key_thumbprint = jwk.thumbprint(ThumbprintHash::SHA256).map_err(invalid)?;
 
     let mut validation = Validation::new(header.alg);
     validation.set_issuer(&[&issuer.issuer]);
@@ -181,6 +208,10 @@ pub(crate) fn verify_bound(
             .scope
             .or_else(|| claims.scp.as_ref().and_then(scp_to_scope)),
         expires_at: claims.exp,
+        issued_at: claims.iat,
+        id: claims.jti,
+        act: claims.act,
+        key_thumbprint,
     };
     Ok((token, binding))
 }
