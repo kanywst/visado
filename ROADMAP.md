@@ -20,7 +20,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 
 - `tonic` ext_authz server. Credential verifiers for WIT+WPT, WIT+HTTP-sig and mTLS (via `wimsey`), JWT-SVID, and OAuth access tokens (RS256/ES256, DPoP).
 - **Gate:** Envoy integration test admits valid callers, rejects each negative case with its reason code, and injects a Txn-Token.
-- **Status:** partly met. The ext_authz service and caller authentication by WIT+WPT, WIT+HTTP signature, mTLS with an X.509-SVID, JWT-SVID and OAuth access tokens, bearer or DPoP-bound (RFC 9449, without server nonces), are in, with tests against the gate and the gRPC handler. Runs behind a real Envoy in `deploy/lab`, which CI exercises with WIT+WPT and access tokens. Not yet: the HTTP signature, mTLS, JWT-SVID and DPoP callers in the Envoy lab.
+- **Status:** partly met. The ext_authz service and caller authentication by WIT+WPT, WIT+HTTP signature, mTLS with an X.509-SVID, JWT-SVID and OAuth access tokens, bearer or DPoP-bound (RFC 9449, without server nonces), are in, with tests against the gate and the gRPC handler. Runs behind a real Envoy in `deploy/lab`, which CI exercises with every method: WIT+WPT, WIT+HTTP signature, mTLS and JWT-SVIDs issued by SPIRE, and bearer and DPoP-bound access tokens.
 
 ## Phase 3: Delegation chains
 
@@ -40,7 +40,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 - Chain view UI, OpenTelemetry spans, and the audit record.
 - Four attack demos: three that visado stops and one that it does not.
 - **Gate:** `docker compose up` reproduces every demo from a clean checkout.
-- **Status:** started. `deploy/lab` (Envoy, visado, OPA with the AuthZEN plugin, an echo upstream, SPIRE issuing WIT-SVIDs, Jaeger for the OpenTelemetry spans) runs thirteen checks in CI. The chain view (`[chain_view]`, `/chain`) shows recent decisions and their delegation chains; the lab serves it on the host's loopback address. Not yet: Dex, Keycloak and agentgateway.
+- **Status:** started. `deploy/lab` (Envoy with a plain and an mTLS listener, visado, OPA with the AuthZEN plugin, an echo upstream, SPIRE issuing WIT-SVIDs, X.509-SVIDs and JWT-SVIDs, Jaeger for the OpenTelemetry spans) runs twenty-three checks in CI. The chain view (`[chain_view]`, `/chain`) shows recent decisions and their delegation chains; the lab serves it on the host's loopback address. Not yet: Dex, Keycloak and agentgateway.
 
 ## Phase 6: Interop and launch
 

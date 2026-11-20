@@ -1,15 +1,23 @@
 # A local lab: Envoy calls visado over ext_authz, visado asks an AuthZEN PDP
 # (OPA with the AuthZEN plugin), and allowed requests reach an echo server
-# that shows the headers it received. SPIRE issues the workloads' WITs.
+# that shows the headers it received. SPIRE issues the workloads' WITs,
+# X.509-SVIDs and JWT-SVIDs.
 services:
   envoy:
     image: envoyproxy/envoy:v1.34.1
     command: ["envoy", "-c", "/etc/envoy/envoy.yaml", "--log-level", "warn"]
     volumes:
       - ./envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - gateway-svid:/etc/envoy/spire:ro
     ports:
       - "10000:10000"
-    depends_on: [visado, upstream]
+      # mTLS with X.509-SVIDs.
+      - "10443:10443"
+    networks: [default, authz]
+    depends_on:
+      visado: { condition: service_started }
+      upstream: { condition: service_started }
+      gateway-svid: { condition: service_completed_successfully }
 
   visado:
     build:
@@ -22,6 +30,11 @@ services:
     # shows caller and principal identities.
     ports:
       - "127.0.0.1:8080:8080"
+    # The gRPC port listens only on the authz network, which only Envoy
+    # shares; the other containers reach visado's HTTP port alone.
+    networks:
+      default: {}
+      authz: { ipv4_address: 172.30.91.10 }
     depends_on:
       pdp: { condition: service_started }
       jaeger: { condition: service_started }
@@ -48,6 +61,7 @@ services:
       - ./spire/setup.sh:/lab/setup.sh:ro
       - spire-server-socket:/run/spire/server
       - spire-shared:/run/spire/shared
+      - spire-bundle:/out
     depends_on:
       spire-server: { condition: service_healthy }
 
@@ -71,7 +85,8 @@ services:
     depends_on:
       spire-setup: { condition: service_completed_successfully }
 
-  # Writes visado's configuration, trusting the SPIRE WIT bundle.
+  # Writes the SPIRE WIT bundle that visado trusts. spire-setup writes the
+  # X.509 and JWT bundles next to it.
   wit-config:
     build: ./spire
     command: ["/lab/wit-config.sh"]
@@ -80,6 +95,18 @@ services:
       - ./spire/wit-config.sh:/lab/wit-config.sh:ro
       - spire-agent-socket:/run/spire/agent
       - spire-bundle:/out
+    depends_on:
+      spire-agent: { condition: service_healthy }
+
+  # Writes the gateway's X.509-SVID for Envoy's mTLS listener.
+  gateway-svid:
+    build: ./spire
+    command: ["/lab/gateway-svid.sh"]
+    pid: "service:spire-agent"
+    volumes:
+      - ./spire/gateway-svid.sh:/lab/gateway-svid.sh:ro
+      - spire-agent-socket:/run/spire/agent
+      - gateway-svid:/out
     depends_on:
       spire-agent: { condition: service_healthy }
 
@@ -105,8 +132,15 @@ services:
     environment:
       HTTP_PORT: "8080"
 
+networks:
+  authz:
+    internal: true
+    ipam:
+      config: [{ subnet: 172.30.91.0/24 }]
+
 volumes:
   spire-server-socket:
   spire-shared:
   spire-agent-socket:
   spire-bundle:
+  gateway-svid:

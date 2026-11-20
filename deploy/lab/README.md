@@ -1,6 +1,8 @@
 # Lab
 
-Envoy calls visado through ext_authz. visado asks [OPA with the AuthZEN plugin](https://github.com/kanywst/opa-authzen-plugin), and allowed requests reach an echo server that returns the headers it received. [SPIRE](https://spiffe.io/) v1.16.0 issues the workloads' WITs.
+Envoy calls visado through ext_authz. visado asks [OPA with the AuthZEN plugin](https://github.com/kanywst/opa-authzen-plugin), and allowed requests reach an echo server that returns the headers it received. [SPIRE](https://spiffe.io/) v1.16.0 issues the workloads' WITs, X.509-SVIDs and JWT-SVIDs.
+
+Envoy listens on two ports: `10000` (plain HTTP) and `10443` (mTLS).
 
 ```bash
 docker compose up -d --build
@@ -11,18 +13,19 @@ docker compose up -d --build
 
 SPIRE v1.16.0 issues WIT-SVIDs as an experimental feature, turned on with `experimental { enable_wit_svids = true }` in `spire/server.conf` and `spire/agent.conf`. The server sets the WIT `iss` to `https://spire.td.example` (`wit_issuer`).
 
-- `spire-setup` registers `spiffe://td.example/agent-a`, `agent-b` and `agent-z`, and writes a join token for the agent.
+- `spire-setup` registers `spiffe://td.example/agent-a`, `agent-b`, `agent-z` and `gateway`, and writes a join token for the agent. It also writes the X.509 CA (`x509-bundle.pem`) and the bundle in SPIFFE format (`spiffe-bundle.json`) for visado's `[mtls]` and `[jwt_svid]`. The SPIFFE format marks each key's `use`; the JWT bundle from the Workload API leaves `use` out, and visado takes only keys marked `jwt-svid`.
 - The agent attests with the join token. Each lab workload is a Unix user in the agent container (uid 1001, 1002, 1003), and the `unix` workload attestor tells them apart by uid.
 - `wit-config` runs before visado. It fetches the `td.example` WIT bundle (a JWKS) from the Workload API and writes it to a shared volume. `visado.toml` trusts it with `jwks_file` and expects the SPIRE `iss`. visado reads the bundle at startup, so restart it after SPIRE rotates the WIT key.
-- `demo.sh` runs `spire-agent api fetch wit` as each user and gets the WIT-SVID and its private key. The agent generates the key; the WIT binds it in `cnf.jwk` (ES256). The demo signs each WPT, and the AAT holder proofs, with that key.
+- `gateway-svid` runs before Envoy. It fetches the `gateway` X.509-SVID (with the DNS name `tools.td.example`), its key and the X.509 bundle from the Workload API. Envoy serves the SVID on the mTLS listener and validates client certificates against the bundle. Envoy reads the files once: the SVID expires after an hour and the CA after a day, so restart the lab after that. A deployment would have Envoy fetch them over SDS.
+- `demo.sh` runs `spire-agent api fetch wit` as each user and gets the WIT-SVID and its private key. The agent generates the key; the WIT binds it in `cnf.jwk` (ES256). The demo signs each WPT, the AAT holder proofs and the HTTP message signatures with that key. It also fetches agent-a's X.509-SVID (`fetch x509`) for mTLS and two JWT-SVIDs (`fetch jwt`), one for visado's audience `http://tools.td.example` and one for another.
 
 SPIRE's private key JWK and its bundle keys carry no `alg`. The demo takes it from the WIT's `cnf.jwk`; visado gives a P-256 bundle key `ES256`, the only algorithm that key type allows.
 
-User tokens and the AAT root are still signed with the fixed demo keys in `../local/keys`.
+User tokens, the DPoP-bound access token and the AAT root are still signed with the fixed demo keys in `../local/keys`. The DPoP proof key is a fixed testkit key.
 
 ## Scenarios
 
-`demo.sh` checks each response status:
+`demo.sh` checks each response status and, where the table names one, visado's error code:
 
 | Scenario | Expected |
 | --- | --- |
@@ -38,8 +41,20 @@ User tokens and the AAT root are still signed with the fixed demo keys in `../lo
 | AAT: agent-b reads `/etc/passwd` | 403, outside the delegated constraint |
 | AAT: agent-b calls `delete_file`, which agent-a kept | 403 |
 | AAT: agent-z presents agent-b's chain | 403, the proof is not signed by the holder |
+| agent-a POSTs a ticket with an HTTP message signature instead of a WPT | 200 |
+| The same signed request again | 400 `httpsig.invalid`: the nonce was seen |
+| A signed request whose body differs from the covered `Content-Digest` | 400 `httpsig.invalid` |
+| mTLS: agent-a's X.509-SVID | 200 |
+| mTLS: agent-a's X.509-SVID with an `X-User-Token` | 401 `credential.unbound_user_token`: nothing binds the token to the certificate |
+| mTLS: a certificate for agent-a's SPIFFE ID from another CA | No response: Envoy refuses the handshake (curl reports `000`) |
+| agent-a's JWT-SVID as `Authorization: Bearer` | 200 |
+| A JWT-SVID for another audience | 401 `jwt_svid.invalid` |
+| bob's access token, DPoP-bound, with its proof | 200 |
+| The same token as `Bearer`, without the proof | 401 `token.dpop_bound` |
 
 The AAT chains are bound to the keys SPIRE issued: agent-a's WIT key holds the root and signs the delegation to agent-b's WIT key.
+
+The signed requests need the body: the ext_authz filters set `with_request_body` with `pack_as_bytes: true`. The mTLS listener's filter sets `include_peer_certificate: true`. visado's gRPC port listens only on its address on `authz`, an internal network that only Envoy shares, so `visado.toml` can set `grpc_reachable_only_by_proxy = true`: no other container can send a check request with someone else's certificate.
 
 Envoy also normalizes `%2e%2e` and `//` before visado sees the path; visado rejects any that still arrive.
 
