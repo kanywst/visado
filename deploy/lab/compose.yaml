@@ -1,7 +1,7 @@
-# A local lab: Envoy calls visado over ext_authz, visado asks an AuthZEN PDP
-# (OPA with the AuthZEN plugin), and allowed requests reach an echo server
-# that shows the headers it received. SPIRE issues the workloads' WITs,
-# X.509-SVIDs and JWT-SVIDs.
+# A local lab: Envoy and agentgateway call visado over ext_authz, visado asks
+# an AuthZEN PDP (OPA with the AuthZEN plugin), and allowed requests reach an
+# echo server that shows the headers it received. SPIRE issues the workloads'
+# WITs, X.509-SVIDs and JWT-SVIDs.
 services:
   envoy:
     image: envoyproxy/envoy:v1.34.1
@@ -19,6 +19,20 @@ services:
       upstream: { condition: service_started }
       gateway-svid: { condition: service_completed_successfully }
 
+  # A second front proxy: agentgateway's extAuthz policy calls visado over
+  # gRPC on the authz network, in front of the same upstream.
+  agentgateway:
+    image: cr.agentgateway.dev/agentgateway:v1.7.0
+    command: ["-f", "/etc/agentgateway/config.yaml"]
+    volumes:
+      - ./agentgateway.yaml:/etc/agentgateway/config.yaml:ro
+    ports:
+      - "10001:10001"
+    networks: [default, authz]
+    depends_on:
+      visado: { condition: service_started }
+      upstream: { condition: service_started }
+
   visado:
     build:
       context: ../..
@@ -33,8 +47,9 @@ services:
     # outside a lab.
     ports:
       - "127.0.0.1:8080:8080"
-    # The gRPC port listens only on the authz network, which only Envoy
-    # shares; the other containers reach visado's HTTP port alone.
+    # The gRPC port listens only on the authz network, which only the proxies
+    # (Envoy and agentgateway) share; the other containers reach visado's
+    # HTTP port alone.
     networks:
       default: {}
       authz: { ipv4_address: 172.30.91.10 }

@@ -1,0 +1,25 @@
+# agentgateway in front of the same echo upstream as Envoy. Its extAuthz
+# policy calls visado over gRPC with the same body settings as Envoy's
+# ext_authz filter: the body for MCP arguments and for Content-Digest, as raw
+# bytes.
+binds:
+- port: 10001
+  listeners:
+  - name: tools
+    protocol: HTTP
+    routes:
+    - name: tools
+      hostnames: ["tools.td.example"]
+      backends:
+      - host: upstream:8080
+      policies:
+        extAuthz:
+          # visado's address on the internal authz network (compose.yaml).
+          host: 172.30.91.10:9191
+          protocol:
+            grpc: {}
+          failureMode: deny
+          includeRequestBody:
+            maxRequestBytes: 65536
+            allowPartialMessage: false
+            packAsBytes: true

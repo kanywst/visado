@@ -1,8 +1,8 @@
 # Lab
 
-Envoy calls visado through ext_authz. visado asks [OPA with the AuthZEN plugin](https://github.com/kanywst/opa-authzen-plugin), and allowed requests reach an echo server that returns the headers it received. [SPIRE](https://spiffe.io/) v1.16.0 issues the workloads' WITs, X.509-SVIDs and JWT-SVIDs.
+Envoy and [agentgateway](https://agentgateway.dev/) call visado through ext_authz. visado asks [OPA with the AuthZEN plugin](https://github.com/kanywst/opa-authzen-plugin), and allowed requests reach an echo server that returns the headers it received. [SPIRE](https://spiffe.io/) v1.16.0 issues the workloads' WITs, X.509-SVIDs and JWT-SVIDs.
 
-Envoy listens on two ports: `10000` (plain HTTP) and `10443` (mTLS).
+Envoy listens on two ports: `10000` (plain HTTP) and `10443` (mTLS). agentgateway v1.7.0 listens on `10001` (plain HTTP) in front of the same upstream.
 
 ```bash
 docker compose up -d --build
@@ -52,9 +52,29 @@ User tokens, the DPoP-bound access token and the AAT root are still signed with 
 | bob's access token, DPoP-bound, with its proof | 200 |
 | The same token as `Bearer`, without the proof | 401 `token.dpop_bound` |
 
+## agentgateway
+
+agentgateway's `extAuthz` policy (`agentgateway.yaml`) calls visado over gRPC with the body as raw bytes, like Envoy's filter. It sends the authority as `host`, the path with its query, the method, the scheme and the headers (pseudo-headers included, repeated values joined with commas). It sends no peer certificate, only the verified SPIFFE ID as `source.principal`, which visado does not use, so the mTLS scenarios run through Envoy only. It does not normalize the path either: visado rejects `%2F` itself.
+
+`demo.sh` runs a subset of the scenarios through it:
+
+| Scenario | Expected |
+| --- | --- |
+| No credentials | 401 `credential.missing` |
+| Encoded `/` in the path | 400 `request.unnormalized_path` from visado |
+| agent-a reads tickets for bob | 200; the upstream sees `Txn-Token` and no user token |
+| A user token without `roles.write` on the admin API | 403 |
+| AAT: agent-b reads `/data/report.pdf`, which agent-a delegated to it | 200 |
+| AAT: agent-b reads `/etc/passwd` | 403 |
+| agent-a POSTs a ticket with an HTTP message signature | 200 |
+| A signed request whose body differs from the covered `Content-Digest` | 400 `httpsig.invalid` |
+| bob's access token, DPoP-bound, with its proof | 200 |
+
+The `/mcp` scenarios use a plain HTTP route to the echo server, not agentgateway's MCP backend.
+
 The AAT chains are bound to the keys SPIRE issued: agent-a's WIT key holds the root and signs the delegation to agent-b's WIT key.
 
-The signed requests need the body: the ext_authz filters set `with_request_body` with `pack_as_bytes: true`. The mTLS listener's filter sets `include_peer_certificate: true`. visado's gRPC port listens only on its address on `authz`, an internal network that only Envoy shares, so `visado.toml` can set `grpc_reachable_only_by_proxy = true`: no other container can send a check request with someone else's certificate.
+The signed requests need the body: the ext_authz filters set `with_request_body` with `pack_as_bytes: true`. The mTLS listener's filter sets `include_peer_certificate: true`. visado's gRPC port listens only on its address on `authz`, an internal network that only Envoy and agentgateway share, so `visado.toml` can set `grpc_reachable_only_by_proxy = true`: no other container can send a check request with someone else's certificate. `demo.sh` checks that another container cannot connect to the port.
 
 Envoy also normalizes `%2e%2e` and `//` before visado sees the path; visado rejects any that still arrive.
 
