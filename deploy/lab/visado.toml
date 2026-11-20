@@ -38,3 +38,11 @@ trust_anchors = [{ issuer = "https://aat.td.example", jwk_file = "keys/aat-ancho
 
 [telemetry]
 otlp_endpoint = "http://jaeger:4317"
+
+# The chain view at http://127.0.0.1:8080/chain. It shows caller and
+# principal identities. visado listens on all interfaces inside its
+# container, hence allow_remote; compose.yaml publishes the port to the
+# host's loopback address only.
+[chain_view]
+enabled = true
+allow_remote = true
