@@ -117,6 +117,9 @@ async fn serve(loaded: config::Loaded) -> Result<(), String> {
     if let Some(token) = loaded.pdp_bearer {
         pdp = pdp.with_bearer(token);
     }
+    if loaded.pdp_context_in_subject {
+        pdp = pdp.with_context_in_subject();
+    }
 
     let mut jwk = serde_json::to_value(&loaded.public_jwk).map_err(|e| e.to_string())?;
     jwk["kid"] = json!(loaded.gate.kid);

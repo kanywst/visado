@@ -117,6 +117,25 @@ impl EvaluationRequest {
             .insert(name.into(), value);
         self
     }
+
+    /// Copies each `context` member into `subject.properties`, keeping
+    /// `context`. A subject property with the same name is left as it is.
+    ///
+    /// For PDPs that give a policy only the subject, resource and action:
+    /// Cerbos, for one, passes subject properties to the policy as principal
+    /// attributes and drops `context`.
+    #[must_use]
+    pub fn with_context_in_subject(mut self) -> Self {
+        if let Some(context) = &self.context {
+            let properties = self.subject.properties.get_or_insert_with(Map::new);
+            for (name, value) in context {
+                properties
+                    .entry(name.clone())
+                    .or_insert_with(|| value.clone());
+            }
+        }
+        self
+    }
 }
 
 /// The PDP's answer.
@@ -175,6 +194,7 @@ pub struct HttpPdp {
     client: reqwest::Client,
     endpoint: String,
     bearer: Option<String>,
+    context_in_subject: bool,
 }
 
 impl std::fmt::Debug for HttpPdp {
@@ -182,6 +202,7 @@ impl std::fmt::Debug for HttpPdp {
         f.debug_struct("HttpPdp")
             .field("endpoint", &self.endpoint)
             .field("bearer", &self.bearer.as_ref().map(|_| "<redacted>"))
+            .field("context_in_subject", &self.context_in_subject)
             .finish_non_exhaustive()
     }
 }
@@ -203,6 +224,7 @@ impl HttpPdp {
             client,
             endpoint: endpoint.into(),
             bearer: None,
+            context_in_subject: false,
         })
     }
 
@@ -210,6 +232,15 @@ impl HttpPdp {
     #[must_use]
     pub fn with_bearer(mut self, token: impl Into<String>) -> Self {
         self.bearer = Some(token.into());
+        self
+    }
+
+    /// Sends each request with its `context` members copied into
+    /// `subject.properties` as well (see
+    /// [`EvaluationRequest::with_context_in_subject`]).
+    #[must_use]
+    pub const fn with_context_in_subject(mut self) -> Self {
+        self.context_in_subject = true;
         self
     }
 
@@ -233,6 +264,13 @@ impl Pdp for HttpPdp {
         request: &EvaluationRequest,
         request_id: &str,
     ) -> Result<Decision, PdpError> {
+        let copied;
+        let request = if self.context_in_subject {
+            copied = request.clone().with_context_in_subject();
+            &copied
+        } else {
+            request
+        };
         let mut http = self
             .client
             .post(&self.endpoint)
@@ -409,5 +447,30 @@ mod tests {
         assert_eq!(value["subject"]["type"], "agent");
         assert_eq!(value["context"]["principal"]["id"], "alice");
         assert_eq!(value["context"]["chain_depth"], 2);
+    }
+
+    #[test]
+    fn context_in_subject_copies_context_and_keeps_subject_properties() {
+        let mut request = EvaluationRequest::for_agent(
+            "spiffe://td.example/agent-b",
+            Some(Entity::new("user", "alice")),
+            Entity::new("tool", "send_email"),
+            Action::new("call"),
+        )
+        .with_context("scope", json!("tickets.read"));
+        request.subject.properties = Some(Map::from_iter([("scope".into(), json!("kept"))]));
+        let value = serde_json::to_value(request.with_context_in_subject()).unwrap();
+        assert_eq!(value["subject"]["properties"]["principal"]["id"], "alice");
+        assert_eq!(value["subject"]["properties"]["scope"], "kept");
+        assert_eq!(value["context"]["scope"], "tickets.read");
+
+        let bare = EvaluationRequest::for_agent(
+            "spiffe://td.example/agent-b",
+            None,
+            Entity::new("tool", "send_email"),
+            Action::new("call"),
+        );
+        let value = serde_json::to_value(bare.with_context_in_subject()).unwrap();
+        assert!(value["subject"].get("properties").is_none());
     }
 }
