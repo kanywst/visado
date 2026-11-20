@@ -10,7 +10,8 @@ Pinned revisions and where the code departs from them. Checked 2026-11-20.
 | [draft-ietf-wimse-aims](https://datatracker.ietf.org/doc/draft-ietf-wimse-aims/01/) | -01 | (design) | Reference composition, not yet implemented |
 | [draft-ietf-oauth-identity-assertion-authz-grant](https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/06/) | -06 | (planned) | |
 | [draft-niyikiza-oauth-attenuating-agent-tokens](https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/) | -02 | `visado-chain-aat` | §8 chain and PoP verification; 229/229 published vectors. Enforced by the gate (`docs/bindings.md`) |
-| [draft-asor-wimse-agent-delegation-chain](https://datatracker.ietf.org/doc/draft-asor-wimse-agent-delegation-chain/03/) | -03 | `visado-chain-asor` | §6 steps 1 to 6 and 8; 36/36 published vectors. Enforced by the gate (`docs/bindings.md`) |
+| [draft-asor-wimse-agent-delegation-chain](https://datatracker.ietf.org/doc/draft-asor-wimse-agent-delegation-chain/03/) | -03 | `visado-chain-asor` | §6 steps 1 to 8; 36/36 published vectors and 25 own status list vectors. Enforced by the gate (`docs/bindings.md`) |
+| [draft-ietf-oauth-status-list](https://datatracker.ietf.org/doc/draft-ietf-oauth-status-list/21/) | -21 | `visado-chain-asor`, `visado` | Status List Tokens in JWT format (§5.1) and their validation (§8.3), for asor step 7; HTTP fetch (§8.1, §8.2). No CWT, no aggregation (§9), no historical resolution (§8.4) |
 | [RFC 8693](https://www.rfc-editor.org/rfc/rfc8693) OAuth 2.0 Token Exchange | RFC | `visado-chain-act` | §4.1 `act` claim of an access token read as a chain; 20 own vectors (two from the RFC's figures). Enforced by the gate (`docs/bindings.md`). No token endpoint, no `may_act` |
 | [RFC 9449](https://www.rfc-editor.org/rfc/rfc9449.html) (DPoP) | RFC | `visado-chain` (`dpop`), `visado-credentials` | Proof checks of §4.3 and the §7.1 resource server rules for DPoP-bound access tokens; also the asor leaf proof. No server nonces (§8, §9) |
 | [OpenID AuthZEN Authorization API](https://openid.net/specs/authorization-api-1_0.html) | 1.0 Final | `visado-authzen` | Single evaluation and metadata discovery |
@@ -57,7 +58,7 @@ No divergences: all 229 vectors in [conformance/aat](conformance/aat/) give the 
 
 ## asor: known divergences and choices
 
-No divergences on the vectors: all 36 in [conformance/asor](conformance/asor/) give the expected verdict and the expected Table 2 outcome. The rows below are where visado chose, or where it differs from the reference implementation (attenu-guard 0.22.0) on inputs no vector covers.
+No divergences on the vectors: all 36 in [conformance/asor](conformance/asor/) give the expected verdict and the expected Table 2 outcome. The published set has no `status` claims; step 7 is tested by visado's own vectors in [conformance/asor-status](conformance/asor-status/). The rows below are where visado chose, or where it differs from the reference implementation (attenu-guard 0.22.0) on inputs no vector covers.
 
 | Topic | Draft | visado |
 | --- | --- | --- |
@@ -70,13 +71,16 @@ No divergences on the vectors: all 36 in [conformance/asor](conformance/asor/) g
 | A `par_hash` of the wrong length | Step 2 | `par_hash_mismatch`; one that is not base64url is `malformed` |
 | `NaN` or `Infinity` literals | `non_finite` | Not JSON, so `malformed`. A number that overflows a double, such as `1e400`, is `non_finite` |
 | A child's `del_max_depth` | Rule 5 only; step 3 checks the root's (§6) | Checked for rule 5 against the nearest ancestor that carries one, and not used as a depth cap. `Hop::max_depth` is the root's `del_max_depth - 1` on every hop |
-| Step 7, status lists | Deny when status cannot be established | Not implemented: a token with a `status` claim is denied as `status_unknown`. A token without one is not checked |
+| Step 7, status lists | Deny when status cannot be established; a cached answer is trusted for its time to live | Token Status List (-21) in JWT format, from lists the operator configures; the gate never fetches a URI taken from a token. A cached list is trusted until `fetched_at + min(ttl, max_age)` (default `max_age` 300 s) and never past its `exp`. `INVALID` and `SUSPENDED` are `revoked`; any value but `VALID` is `status_unknown`, as is an index past the end of the list or a `status` claim without `status_list`. A `status` claim of the wrong shape is `malformed`. A token without one is not checked |
+| Status list signer | Not defined; §11.3 of the status list draft suggests the token issuer's key | Separately configured keys (`StatusListVerifier`); `Ed25519` and `ES256`. A list with `iss` must name the key's issuer |
+| Status list `iat`, `exp`, `nbf`, `ttl` | NumericDate; `ttl` a positive number | Integers only. `iat` required; `exp` and `nbf` checked at fetch and `exp` again at each request. A fetched list issued before the one held is refused (rollback) and the held one kept |
+| Revoked parent | By local policy, treat the whole subtree as revoked | Every token in the chain is checked, so a revoked ancestor denies the chain |
 | Cumulative constraints | Checked where the running total is held (step 8) | The library takes a `RunningTotals` source; the gate holds none, so a leaf with `max_lifetime` or `max_subtree` denies every call (`ceiling_exceeded`) |
 | Per-action constraint with no matching parameter | Not defined | Denied (`ceiling_exceeded`), so an upstream default for an omitted argument cannot pass a ceiling. attenu-guard leaves it unbounded. A parameter of the wrong type is also `ceiling_exceeded` |
 | Step 8 order | Audience, then the action against the leaf authority | Audience, scope, then each constraint in the token's order; the first failure is reported (attenu-guard collects every failing constraint) |
 | DPoP proof | RFC 9449 | `typ` `dpop+jwt`, `Ed25519` or `ES256` with a public `jwk` whose thumbprint is the leaf `cnf.jkt`; `htm` and `htu` (without query or fragment, normalized as in the DPoP section below) match the request; `iat` within 60 s; `ath` required, over the leaf token; `jti` at most 256 bytes and accepted once per process. Server nonces are not supported |
 | Size bounds | Not defined | At most 32 tokens, 64 KiB per token, 256 KiB per chain, 8 KiB per proof and 64 KiB of action parameters, checked before decoding |
-| `check()` and `decode()` | Steps 1 to 5 without a request (§6.1) | `decode()` runs the parse rules and steps 1 to 5; `check()` adds the leaf audience, which is what the vectors test. Both return `holder_proof: false` |
+| `check()` and `decode()` | Steps 1 to 5 and, if a status list is available, step 7 without a request (§6.1) | `decode()` runs the parse rules and steps 1 to 5; `check()` adds step 7 when status lists are configured, and the leaf audience, which is what the vectors test. Both return `holder_proof: false` |
 | HTTP binding | Not defined | `Agent-Delegation-Chain` and `DPoP` headers; the format is chosen by the header, not by `typ`. The MCP tool name is the action's scope and its arguments the parameters (see `docs/bindings.md`) |
 | Who may present a chain | The DPoP key holder | Only a WIT caller, and the leaf `cnf.jkt` must be the WIT key; bearer-only callers are denied (`chain.unbound_caller`) |
 | Principal and a forwarded Txn-Token | Not defined | The chain's `sub` must be the forwarded Transaction Token's `sub` (`chain.principal_mismatch`) |

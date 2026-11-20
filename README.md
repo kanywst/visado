@@ -33,7 +33,7 @@ It follows the composition in [draft-ietf-wimse-aims](https://datatracker.ietf.o
 | [`visado`](crates/server) | | alpha: server binary |
 | [`visado-chain`](crates/chain) | | alpha: normalized chain model and decoder trait |
 | [`visado-chain-aat`](crates/chain-aat) | draft-niyikiza-oauth-attenuating-agent-tokens-02 | alpha: §8 verification, 229/229 published vectors, enforced by the gate |
-| [`visado-chain-asor`](crates/chain-asor) | draft-asor-wimse-agent-delegation-chain-03 | alpha: §6 verification with DPoP, 36/36 published vectors, enforced by the gate |
+| [`visado-chain-asor`](crates/chain-asor) | draft-asor-wimse-agent-delegation-chain-03 | alpha: §6 verification with DPoP and Token Status Lists, 36/36 published vectors, enforced by the gate |
 | [`visado-chain-act`](crates/chain-act) | RFC 8693 `act` claim | alpha: the current actor bound to the caller, prior actors kept out of the PDP, enforced by the gate |
 | Chain view, OpenTelemetry | | alpha: `visado.authorize` spans over OTLP; an opt-in page of recent decisions and their chains at `/chain` ([design](docs/design.md#chain-view)) |
 

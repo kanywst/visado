@@ -4,6 +4,16 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Added
+
+- `visado-chain-asor`: step 7 of draft-asor-wimse-agent-delegation-chain-03 with Token Status Lists (draft-ietf-oauth-status-list-21, JWT format). `StatusListVerifier` checks a Status List Token (`typ`, signature under a configured key, `sub`, `iat`, `exp`, `nbf`, `ttl`, `bits`, ZLIB `lst`, size limits), a `StatusLists` source such as `MemoryStatusLists` holds verified lists, and `Verifier::with_status_lists` and `with_status_max_age` turn the check on. `INVALID` and `SUSPENDED` entries deny as `revoked`; an unknown, unfetched, invalid, expired or stale list, an index out of range, an unknown status value or another status mechanism deny as `status_unknown`. `AsorError::reason` gives the finer reason. `check()` runs step 7 when lists are configured.
+- 25 asor status list vectors in `conformance/asor-status/`, visado's own.
+- `[asor.status]` in the server file: the Status List Tokens the gate holds, from a file (verified at startup) or fetched from an `https` or loopback `uri`, refreshed in the background (`refresh`, `timeout_ms`), trusted for at most `max_age` (default 300 s). See `docs/bindings.md`.
+
+### Changed
+
+- `visado-chain-asor`: a `status` claim of the wrong shape (not a non-empty object, or a `status_list` without a non-negative integer `idx` and a non-empty string `uri`) is now `malformed` at parse, so `check()` and `decode()` reject it too.
+
 ## [0.3.0] - 2026-11-21
 
 Adds the remaining workload authentication methods (HTTP signatures, mTLS, JWT-SVID, DPoP-bound access tokens), asor and RFC 8693 `act` delegation chains, and a chain view; the lab runs on SPIRE-issued SVIDs and exercises every method through Envoy. Breaking: the server refuses to start with an empty `allowed_authorities`, and denies access tokens with an `act` claim unless `[act]` is configured. For library users, `RequestView`, `CheckInput`, `GateConfig` and `AccessToken` have new fields, `CheckInput::body` is bytes, and `Method` and `AuthError` have new variants.
