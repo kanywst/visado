@@ -4,3 +4,5 @@ docs
 fuzz/target
 fuzz/corpus
 fuzz/artifacts
+website
+**/node_modules
