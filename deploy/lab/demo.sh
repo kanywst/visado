@@ -183,6 +183,16 @@ else
   printf 'ok    %-58s %s\n' "gRPC port unreachable from other containers" "refused"
 fi
 
+# The chain view lists the decisions above, and none of it is token material.
+log=$(curl -s 'http://127.0.0.1:8080/api/requests?limit=100' || true)
+count=$(jq '.requests | length' <<<"$log" 2>/dev/null || echo 0)
+if [ "${count:-0}" -gt 0 ] && ! grep -q 'eyJ' <<<"$log"; then
+  printf 'ok    %-58s %s\n' "chain view lists decisions without tokens" "$count"
+else
+  printf 'FAIL  %-58s %s requests, tokens: %s\n' "chain view lists decisions without tokens" "${count:-0}" "$(grep -c 'eyJ' <<<"$log" || true)"
+  failures=$((failures + 1))
+fi
+
 # visado exports one span per decision to Jaeger.
 sleep 6
 spans=$(curl -s 'http://127.0.0.1:16686/api/traces?service=visado&limit=50' | jq '[.data[].spans[] | select(.operationName | startswith("visado.authorize"))] | length')
