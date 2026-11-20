@@ -6,6 +6,7 @@ FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5
 RUN apk add --no-cache jq \
  && adduser -D -u 1001 agent-a \
  && adduser -D -u 1002 agent-b \
- && adduser -D -u 1003 agent-z
+ && adduser -D -u 1003 agent-z \
+ && adduser -D -u 1004 gateway
 COPY --from=server /opt/spire/bin/spire-server /usr/local/bin/spire-server
 COPY --from=agent /opt/spire/bin/spire-agent /usr/local/bin/spire-agent
