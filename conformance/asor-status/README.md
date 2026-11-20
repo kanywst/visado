@@ -8,4 +8,4 @@ Each case gives a chain (`chain`, root first) and the fetches of the status list
 
 The list used by most cases has `bits` 2 and eight entries: index 0 `VALID`, 1 `INVALID`, 2 `SUSPENDED`, 3 the application-specific value `0x03`, and 4 to 7 `VALID`.
 
-`crates/chain-asor/tests/status.rs` generates the file, fails when the committed one is stale, and runs every case: 25 cases, 3 accepted and 22 rejected. Regenerate with `VISADO_REGENERATE=1 cargo test -p visado-chain-asor`.
+`crates/chain-asor/tests/status.rs` generates the file, fails when the committed one is stale, and runs every case: 27 cases, 3 accepted and 24 rejected. Regenerate with `VISADO_REGENERATE=1 cargo test -p visado-chain-asor`.

@@ -173,11 +173,18 @@ impl StatusList {
     }
 
     /// When this cached copy stops being trusted for want of a refresh: its
-    /// fetch time plus the shorter of its `ttl` and `max_age`.
+    /// fetch time plus the shorter of its `ttl` and `max_age`. A list with no
+    /// `exp` is also stale `max_age` after its `iat`, so an old copy fetched
+    /// again (a replay, a stale mirror) is not trusted afresh.
     #[must_use]
     pub fn stale_at(&self, max_age: i64) -> i64 {
         let age = self.ttl.map_or(max_age, |ttl| ttl.min(max_age));
-        self.fetched_at.saturating_add(age)
+        let stale = self.fetched_at.saturating_add(age);
+        if self.expires_at.is_some() {
+            stale
+        } else {
+            stale.min(self.issued_at.saturating_add(max_age))
+        }
     }
 
     /// The status value at `idx`, or `None` if `idx` is out of range (§4.1:
@@ -340,7 +347,10 @@ impl StatusListVerifier {
     }
 }
 
-/// `iat` (required), `exp` and `nbf` (checked against `now`) and `ttl` (a
+/// How far ahead of the clock a list's `iat` may be.
+const IAT_LEEWAY: i64 = 60;
+
+/// `iat` (required, at most [`IAT_LEEWAY`] ahead), `exp` and `nbf` (checked against `now`) and `ttl` (a
 /// positive integer), all integers.
 fn times(claims: &Value, now: i64) -> Result<(i64, Option<i64>, Option<i64>), StatusListError> {
     let int = |name, reason| match claims.get(name) {
@@ -357,6 +367,11 @@ fn times(claims: &Value, now: i64) -> Result<(i64, Option<i64>, Option<i64>), St
     }
     if expires_at.is_some_and(|exp| now >= exp) || not_before.is_some_and(|nbf| now < nbf) {
         return Err(StatusListError::Expired);
+    }
+    // A list from the future would hold off every correct list as a
+    // rollback until the clock caught up.
+    if issued_at > now.saturating_add(IAT_LEEWAY) {
+        return Err(Malformed("status list iat is in the future"));
     }
     Ok((issued_at, expires_at, ttl))
 }
@@ -481,6 +496,30 @@ mod tests {
             ttl: None,
             fetched_at: 0,
         }
+    }
+
+    /// A list without `exp` is stale `max_age` after its `iat`, however
+    /// recently it was fetched; with `exp`, the fetch time counts.
+    #[test]
+    fn staleness() {
+        let mut l = list(1, &[0]);
+        l.issued_at = 100;
+        l.fetched_at = 1_000;
+        assert_eq!(l.stale_at(300), 400);
+        l.ttl = Some(60);
+        assert_eq!(l.stale_at(300), 400);
+        l.issued_at = 990;
+        assert_eq!(l.stale_at(300), 1_060);
+        l.issued_at = 100;
+        l.expires_at = Some(5_000);
+        assert_eq!(l.stale_at(300), 1_060);
+    }
+
+    #[test]
+    fn iat_from_the_future_is_refused() {
+        let claims = |iat: i64| parse(format!(r#"{{"iat":{iat}}}"#).as_bytes()).unwrap();
+        assert!(super::times(&claims(1_060), 1_000).is_ok());
+        assert!(super::times(&claims(1_061), 1_000).is_err());
     }
 
     /// The byte arrays of §4.1.

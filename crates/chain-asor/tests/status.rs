@@ -253,7 +253,7 @@ fn cases() -> Vec<Value> {
                 "stale-ttl",
                 "The list was fetched 121 s ago and its ttl is 120 s.",
                 &root_with(&reference(0)),
-                &[fetched(list().into(), NOW - 121)],
+                &[fetched(signed(&list_claims(NOW - 200)).into(), NOW - 121)],
                 "status_unknown",
             ),
             0,
@@ -272,6 +272,36 @@ fn cases() -> Vec<Value> {
             ),
             0,
             "status list outlived its time to live",
+        ),
+        deny(
+            case(
+                "stale-iat-without-exp",
+                "The list has no exp or ttl and was fetched 5 s ago, but was issued 400 s ago, past max_age.",
+                &root_with(&reference(0)),
+                &[fetched(
+                    signed(&with(
+                        with(list_claims(NOW - 400), &["ttl"], Value::Null),
+                        &["exp"],
+                        Value::Null,
+                    ))
+                    .into(),
+                    NOW - 5,
+                )],
+                "status_unknown",
+            ),
+            0,
+            "status list outlived its time to live",
+        ),
+        deny(
+            case(
+                "iat-in-the-future",
+                "The list's iat was more than 60 s ahead of the clock when it was fetched.",
+                &root_with(&reference(0)),
+                &[fetched(signed(&list_claims(NOW + 120)).into(), NOW - 5)],
+                "status_unknown",
+            ),
+            0,
+            "status list iat is in the future",
         ),
         deny(
             case(
@@ -524,7 +554,7 @@ fn vectors_are_fresh_and_pass() {
             }
         }
     }
-    assert_eq!(cases.len(), 25);
+    assert_eq!(cases.len(), 27);
 }
 
 /// The lists of §4.2 of the status list draft decode to the statuses of

@@ -193,7 +193,7 @@
       "lists": [
         {
           "fetched_at": 1799999879,
-          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.TjUQwiiCWvbaYot9_E0LbhciQTCcxgv2sWKycO_etfkXHyFDnAA-M3LM10wGoZ0MBvZu83SJks1beg3ZE-QJBA",
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTgwMCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.dLqkNLHYw5tDQqX9n7yheN8Wx1rauHxbbHqbqmhmi_jizdp5ibMLGwee81Y6WIjeZWwNh_C45Tjf-adlEx_QBg",
           "uri": "https://status.td.example/lists/1"
         }
       ],
@@ -216,6 +216,40 @@
       ],
       "name": "stale-max-age",
       "reason": "status list outlived its time to live",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "The list has no exp or ttl and was fetched 5 s ago, but was issued 400 s ago, past max_age.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999995,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJpYXQiOjE3OTk5OTk2MDAsImlzcyI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUiLCJzdGF0dXNfbGlzdCI6eyJiaXRzIjoyLCJsc3QiOiJlTnA3d2dBQUFjb0E1USJ9LCJzdWIiOiJodHRwczovL3N0YXR1cy50ZC5leGFtcGxlL2xpc3RzLzEifQ.Vd5zmxzgdj21gaWxbKS5EpSbO9r8AOleNFi50ZbREGiHPa3k4aV7wzIIZlTmQxAAB48FQMGkY21hWOe5e9lKDg",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "stale-iat-without-exp",
+      "reason": "status list outlived its time to live",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "The list's iat was more than 60 s ahead of the clock when it was fetched.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999995,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTgwMDAwMDEyMCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.Pn_kCkzCu3BWfvshVYa_eQKbGsDT149Q2qlr0oSk5QlDvVUZdHrZysokKlrOWqTM9aH2l5JoleGJ7vBbv0QZDQ",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "iat-in-the-future",
+      "reason": "status list iat is in the future",
       "token": 0
     },
     {

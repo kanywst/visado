@@ -424,19 +424,17 @@ impl Verifier {
     }
 
     /// What a verifier with an audience but no request can check: the parse
-    /// rules, steps 1 to 5, step 7 when status lists are configured, and the
-    /// audience half of step 8 (§6.1). Without status lists, `status`
-    /// claims are not checked. The published vectors test this. The result
-    /// has `holder_proof: false`.
+    /// rules, steps 1 to 5, step 7, and the audience half of step 8 (§6.1).
+    /// Without status lists, a chain with a `status` claim fails as
+    /// `status_unknown`, as in [`Verifier::verify`]. The published vectors
+    /// test this. The result has `holder_proof: false`.
     ///
     /// # Errors
     ///
     /// The first check that failed.
     pub fn check(&self, tokens: &[String], now: i64) -> Result<NormalizedChain, AsorError> {
         let chain = self.chain(tokens, now)?;
-        if self.status.is_some() {
-            self.status(&chain.tokens, now)?;
-        }
+        self.status(&chain.tokens, now)?;
         let n = chain.tokens.len() - 1;
         let leaf = chain
             .tokens

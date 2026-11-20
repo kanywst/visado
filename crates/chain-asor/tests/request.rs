@@ -250,6 +250,11 @@ fn a_status_reference_cannot_be_checked() {
         outcome(run(&chain, &p, "crm.read", r#"{"rows":1}"#, None, None)),
         Some(Outcome::StatusUnknown)
     );
+    assert_eq!(
+        check(&chain),
+        Some(Outcome::StatusUnknown),
+        "check() fails closed too"
+    );
 }
 
 /// Step 7 runs after the proof and before the action: a revoked token is
