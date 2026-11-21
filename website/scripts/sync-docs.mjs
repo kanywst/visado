@@ -127,7 +127,9 @@ function firstParagraph(md) {
     if (inFence || !t || /^(#|\||:::|>|-|\*|\d+\.|<|```)/.test(t)) continue;
     const plain = t
       .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-      .replace(/[`*_]/g, '')
+      .replace(/[`*]/g, '')
+      // `_` as emphasis only, so identifiers like ext_authz keep theirs.
+      .replace(/(?<![A-Za-z0-9])_+|_+(?![A-Za-z0-9])/g, '')
       .replace(/\s+/g, ' ')
       .trim();
     return plain.length > 200 ? `${plain.slice(0, 197).replace(/\s+\S*$/, '')}…` : plain;
