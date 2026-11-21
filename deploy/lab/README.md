@@ -4,10 +4,21 @@ Envoy and [agentgateway](https://agentgateway.dev/) call visado through ext_auth
 
 Envoy listens on two ports: `10000` (plain HTTP) and `10443` (mTLS). agentgateway v1.7.0 listens on `10001` (plain HTTP) in front of the same upstream.
 
+## Running it
+
+From a clean checkout, with Docker and the Compose plugin and nothing else:
+
 ```bash
+cd deploy/lab
 docker compose up -d --build
-./demo.sh
+docker compose run --rm demo
 ```
+
+`docker compose run --rm demo` builds the `demo` image (the testkit examples that make the requests, `curl`, `jq`, `openssl` and the SPIRE agent CLI), runs every scenario below, and exits non-zero if any outcome differs. The container shares the SPIRE agent's PID namespace and socket, so each workload fetches its own SVIDs as its own Unix user, and it reads the lab's logs through the Docker socket (`/var/run/docker.sock`, mounted read-only). CI runs the same two commands.
+
+`./demo.sh` also runs from the host if it has `cargo`, `curl`, `jq`, `openssl` and `docker`.
+
+`docker compose down -v` removes the lab, its SPIRE state included.
 
 ## A second PDP: Cerbos
 
@@ -15,7 +26,7 @@ docker compose up -d --build
 
 ```bash
 docker compose -f compose.yaml -f compose.cerbos.yaml up -d --build
-./demo.sh
+docker compose -f compose.yaml -f compose.cerbos.yaml run --rm demo
 ```
 
 visado then reads `visado.cerbos.toml`, which is `visado.toml` with another `[pdp]` table. Cerbos maps the AuthZEN subject to the principal (`subject.type` becomes the role, `subject.properties` the attributes), the resource to a resource of kind `http_resource` and the action name to the action. It does not pass `context` to the policy, so `[pdp] context_in_subject = true` copies the context, the scope and principal included, into `subject.properties`. Both files reach the PDP over plain `http` on the compose network, so both set `[pdp] allow_insecure_http = true`; visado logs a warning for it at startup.

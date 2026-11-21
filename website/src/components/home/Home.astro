@@ -19,7 +19,7 @@ const repo = 'https://github.com/kanywst/visado';
 const quickstart = `git clone https://github.com/kanywst/visado
 cd visado/deploy/lab
 docker compose up -d --build
-./demo.sh`;
+docker compose run --rm demo`;
 
 // One ext_authz Check call runs these in order and stops at the first failure.
 // Source: docs/design.md (pipeline) and CHANGELOG.md / ROADMAP.md (status).

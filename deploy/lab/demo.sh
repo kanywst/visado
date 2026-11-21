@@ -1,10 +1,55 @@
 #!/usr/bin/env bash
 # Runs the lab scenarios against `docker compose up` in this directory.
 # Exits non-zero if any scenario does not get the expected status.
+#
+#   docker compose run --rm demo
+#   ./demo.sh
+#
+# In the `demo` container (LAB_IN_COMPOSE set) it needs nothing but the
+# lab; run from a checkout it needs cargo, curl, jq, openssl and docker.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
-cargo build -q -p visado-testkit --example lab_headers --example lab_aat --example lab_methods
+# Logs and audit records from before this run are not looked at.
+started=$(date +%s)
+
+# Where the lab is, and how to reach the SPIRE agent and the containers'
+# logs, from the demo container or from the host.
+if [ -n "${LAB_IN_COMPOSE:-}" ]; then
+  bin=$LAB_BIN
+  URL=http://envoy:10000
+  MTLS_TARGET=envoy:10443
+  AGW_URL=http://agentgateway:10001
+  VIEW_URL=http://visado:8080
+  JAEGER_URL=http://jaeger:16686
+  # spire_as <user> <spire-agent args...>
+  spire_as() { local u=$1; shift; runuser -u "$u" -- spire-agent "$@"; }
+  # in_lab <command...>: runs it from a container that is not a proxy.
+  in_lab() { sh -c "$*"; }
+  docker_api() { curl -s --unix-socket /var/run/docker.sock "http://docker$1"; }
+  project=$(docker_api "/containers/$(hostname)/json" | jq -r '.Config.Labels["com.docker.compose.project"]')
+  # service_logs <service>: the service's log lines.
+  service_logs() {
+    local id
+    id=$(docker_api "/containers/json?filters=$(jq -rn --arg p "$project" --arg s "$1" \
+      '{label: ["com.docker.compose.project=\($p)", "com.docker.compose.service=\($s)"]} | @json | @uri')" |
+      jq -r '.[0].Id')
+    # The Docker API frames each line with an 8-byte header; keep the JSON.
+    docker_api "/containers/$id/logs?stdout=1&stderr=1&since=$started" | tr -d '\000' | grep -a -o '{".*'
+  }
+else
+  cargo build -q -p visado-testkit --examples
+  bin=./target/debug/examples
+  URL=http://127.0.0.1:10000
+  MTLS_TARGET=127.0.0.1:10443
+  AGW_URL=http://127.0.0.1:10001
+  VIEW_URL=http://127.0.0.1:8080
+  JAEGER_URL=http://127.0.0.1:16686
+  lab() { docker compose -f deploy/lab/compose.yaml "$@"; }
+  spire_as() { local u=$1; shift; lab exec -T -u "$u" spire-agent spire-agent "$@"; }
+  in_lab() { lab exec -T spire-agent sh -c "$*"; }
+  service_logs() { lab logs --no-log-prefix --since "$started" "$1"; }
+fi
 
 tmp=$(mktemp)
 hdrs=$(mktemp)
@@ -15,8 +60,7 @@ trap 'rm -rf "$tmp" "$hdrs" "$svids"' EXIT
 # Workload API, as the Unix user the agent attests it by.
 for workload in agent-a agent-b agent-z; do
   for i in $(seq 60); do
-    if docker compose -f deploy/lab/compose.yaml exec -T -u "$workload" spire-agent \
-      spire-agent api fetch wit -socketPath /run/spire/agent/api.sock -output json \
+    if spire_as "$workload" api fetch wit -socketPath /run/spire/agent/api.sock -output json \
       > "$svids/$workload.json" 2>/dev/null; then
       break
     fi
@@ -31,11 +75,16 @@ done
 
 # agent-a's X.509-SVID, its key and the td.example X.509 bundle, written by
 # `spire-agent api fetch x509 -write`.
-mkdir "$svids/x509-agent-a"
-docker compose -f deploy/lab/compose.yaml exec -T -u agent-a spire-agent sh -c '
-  d=$(mktemp -d) &&
-  spire-agent api fetch x509 -socketPath /run/spire/agent/api.sock -write "$d" >/dev/null &&
-  tar -C "$d" -cf - . && rm -rf "$d"' | tar -C "$svids/x509-agent-a" -xf -
+mkdir -m 777 "$svids/x509-agent-a"
+if [ -n "${LAB_IN_COMPOSE:-}" ]; then
+  chmod 755 "$svids"
+  spire_as agent-a api fetch x509 -socketPath /run/spire/agent/api.sock -write "$svids/x509-agent-a" >/dev/null
+else
+  lab exec -T -u agent-a spire-agent sh -c '
+    d=$(mktemp -d) &&
+    spire-agent api fetch x509 -socketPath /run/spire/agent/api.sock -write "$d" >/dev/null &&
+    tar -C "$d" -cf - . && rm -rf "$d"' | tar -C "$svids/x509-agent-a" -xf -
+fi
 echo "      SPIRE issued an X.509-SVID for spiffe://td.example/agent-a"
 
 # A certificate for agent-a's SPIFFE ID from a CA SPIRE does not know.
@@ -45,25 +94,23 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 
 
 # agent-a's JWT-SVIDs: one for visado's audience, one for another service.
 jwt_svid() {
-  docker compose -f deploy/lab/compose.yaml exec -T -u agent-a spire-agent \
-    spire-agent api fetch jwt -audience "$1" -socketPath /run/spire/agent/api.sock -output json |
+  spire_as agent-a api fetch jwt -audience "$1" -socketPath /run/spire/agent/api.sock -output json |
     jq -r '[.[] | .svids? // empty | .[0].svid][0]'
 }
 jwt_tools=$(jwt_svid http://tools.td.example)
 jwt_other=$(jwt_svid http://other.td.example)
 echo "      SPIRE issued JWT-SVIDs for spiffe://td.example/agent-a"
 
-headers() { ./target/debug/examples/lab_headers "$svids" "$@"; }
-aat() { ./target/debug/examples/lab_aat "$svids" "$@"; }
-signed() { ./target/debug/examples/lab_methods sig "$svids" "$@"; }
-dpop() { ./target/debug/examples/lab_methods dpop "$@"; }
-lab_bearer() { ./target/debug/examples/lab_methods bearer "$@"; }
-dpop_with() { ./target/debug/examples/lab_methods dpop-with "$@"; }
+headers() { "$bin/lab_headers" "$svids" "$@"; }
+aat() { "$bin/lab_aat" "$svids" "$@"; }
+signed() { "$bin/lab_methods" sig "$svids" "$@"; }
+dpop() { "$bin/lab_methods" dpop "$@"; }
+lab_bearer() { "$bin/lab_methods" bearer "$@"; }
+dpop_with() { "$bin/lab_methods" dpop-with "$@"; }
 bearer() { echo "Authorization: Bearer $1"; }
 replay() { cat "$1"; }
 user_token() { headers agent-a "$1" --user bob tickets.read | grep '^X-User-Token: '; }
 
-URL=http://127.0.0.1:10000
 MTLS_URL=https://tools.td.example:10443
 failures=0
 # Extra curl options and the URL for the next call; mtls() sets them.
@@ -89,10 +136,12 @@ call() {
   if status=$(curl ${conn[@]+"${conn[@]}"} "${args[@]}" "$base$path"); then rc=0; else rc=$?; fi
   got=$status
   # A refused TLS handshake: no HTTP status, and curl fails in the handshake
-  # (35) or while reading the alert (56), not with any other connection error.
+  # (35), or, as the TLS 1.3 alert arrives after the client's last flight,
+  # while reading it (56) or sending the request (55, the demo image's curl),
+  # not with any other connection error.
   if [ "$expect" = tls-refused ]; then
     case "$status:$rc" in
-      000:35 | 000:56) got=tls-refused ;;
+      000:35 | 000:55 | 000:56) got=tls-refused ;;
       *) got="$status (curl exit $rc)" ;;
     esac
   elif [ "${expect#*/}" != "$expect" ]; then
@@ -148,7 +197,7 @@ dpop_with_nonce() {
 # with that client certificate.
 mtls() {
   conn=(--cacert "$svids/x509-agent-a/bundle.0.pem" --cert "$1" --key "$2"
-    --resolve tools.td.example:10443:127.0.0.1)
+    --connect-to "tools.td.example:10443:$MTLS_TARGET")
   base=$MTLS_URL
   shift 2
   call "$@"
@@ -172,6 +221,7 @@ for _ in $(seq 60); do
 done
 
 none() { :; }
+
 
 call 401/credential.missing "no credentials" /tickets none
 call 400 "encoded slash in the path (rejected by Envoy)" /tickets/..%2Fadmin/roles none
@@ -290,7 +340,6 @@ call 401/token.dpop_bound "ID-JAG: bob's token sent as Bearer" /tickets dpop_wit
 # agentgateway: the same visado behind the other front proxy. Its extAuthz
 # policy sends the host, path, method, headers and raw body over gRPC; a
 # subset of the scenarios above runs through it.
-AGW_URL=http://127.0.0.1:10001
 agw() {
   base=$AGW_URL
   call "$@"
@@ -325,9 +374,7 @@ dpop_with_nonce agw "agentgateway: "
 # lab network cannot connect to it, by name or by its authz address. The
 # probe must first reach visado's HTTP port, so a probe that cannot run at
 # all does not count as refused.
-probe() {
-  docker compose -f deploy/lab/compose.yaml exec -T spire-agent nc -z -w 2 "$1" "$2" 2>/dev/null
-}
+probe() { in_lab "nc -z -w 2 $1 $2" 2>/dev/null; }
 if ! probe visado 8080; then
   printf 'FAIL  %-58s %s\n' "gRPC port unreachable from other containers" "probe cannot reach visado:8080"
   failures=$((failures + 1))
@@ -339,7 +386,7 @@ else
 fi
 
 # The chain view lists the decisions above, and none of it is token material.
-log=$(curl -s 'http://127.0.0.1:8080/api/requests?limit=100' || true)
+log=$(curl -s -H 'Host: localhost' "$VIEW_URL/api/requests?limit=100" || true)
 count=$(jq '.requests | length' <<<"$log" 2>/dev/null || echo 0)
 if [ "${count:-0}" -gt 0 ] && ! grep -q 'eyJ' <<<"$log"; then
   printf 'ok    %-58s %s\n' "chain view lists decisions without tokens" "$count"
@@ -350,7 +397,7 @@ fi
 
 # visado exports one span per decision to Jaeger.
 sleep 6
-spans=$(curl -s 'http://127.0.0.1:16686/api/traces?service=visado&limit=50' | jq '[.data[].spans[] | select(.operationName | startswith("visado.authorize"))] | length')
+spans=$(curl -s "$JAEGER_URL/api/traces?service=visado&limit=50" | jq '[.data[].spans[] | select(.operationName | startswith("visado.authorize"))] | length')
 if [ "${spans:-0}" -gt 0 ]; then
   printf 'ok    %-58s %s\n' "authorization spans in Jaeger" "$spans"
 else

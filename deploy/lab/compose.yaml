@@ -212,6 +212,25 @@ services:
     environment:
       HTTP_PORT: "8080"
 
+  # The demo runner: `docker compose run --rm demo` runs demo.sh with
+  # nothing on the host but Docker. It shares the SPIRE agent's PID
+  # namespace and socket so each workload fetches its own SVID, and reads
+  # the lab's logs through the Docker socket.
+  demo:
+    profiles: [demo]
+    build:
+      context: ../..
+      dockerfile: deploy/lab/demo/Dockerfile
+    pid: "service:spire-agent"
+    volumes:
+      - spire-agent-socket:/run/spire/agent
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      envoy: { condition: service_started }
+      agentgateway: { condition: service_started }
+      jaeger: { condition: service_started }
+      spire-agent: { condition: service_healthy }
+
 networks:
   authz:
     internal: true
