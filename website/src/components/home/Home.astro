@@ -92,13 +92,12 @@ const phases = [
   { n: 1, name: 'Transaction Tokens', state: 'done', status: 'Met' },
   { n: 2, name: 'ext_authz and caller authentication', state: 'wip', status: 'Partly met' },
   { n: 3, name: 'Delegation chains', state: 'wip', status: 'Partly met' },
-  { n: 4, name: 'AuthZEN', state: 'wip', status: 'Partly met' },
+  { n: 4, name: 'AuthZEN', state: 'done', status: 'Met' },
   { n: 5, name: 'Lab, visibility and demos', state: 'wip', status: 'Started' },
   { n: 6, name: 'Interop and launch', state: 'todo', status: 'Not started' },
 ];
 
 const help = [
-  'Running the AuthZEN profile against a second PDP besides OPA',
   'Dex, Keycloak and agentgateway in the lab',
   'Transaction Token interop with other implementations, using the conformance vectors',
 ];
@@ -109,7 +108,7 @@ const help = [
     <h2 id="quick">Quick start</h2>
     <p class="lead">
       The lab puts visado behind Envoy with OPA as the policy decision point and runs the
-      scenarios above. You need Docker with Compose.
+      scenarios above. The same scenarios run with Cerbos as the PDP. You need Docker with Compose.
     </p>
     <div class="code"><Code code={quickstart} lang="sh" frame="terminal" title="Terminal" /></div>
     <p class="aside">
@@ -200,8 +199,8 @@ const help = [
         <p>
           It is not a policy decision point, not an identity provider and not a gateway. It has no
           policy language: decisions come from an AuthZEN 1.0 PDP. The lab uses OPA with the AuthZEN
-          plugin; a Cedar or OpenFGA deployment reaches visado through an AuthZEN endpoint in front of
-          it.
+          plugin or Cerbos; a Cedar or OpenFGA deployment reaches visado through an AuthZEN endpoint in
+          front of it.
         </p>
         <p>
           SPIRE issues the workload identities visado verifies. Envoy, Istio and agentgateway route the
@@ -254,7 +253,7 @@ const help = [
             <Logo name="cedar" href={site.cedar} />
             <Logo name="openfga" href={site.openfga} />
           </dd>
-          <dd class="fine">OPA with the AuthZEN plugin runs in the lab. Cedar and OpenFGA need an AuthZEN endpoint in front of them and are untested.</dd>
+          <dd class="fine">OPA with the AuthZEN plugin and Cerbos run in the lab, with the same policy. Cedar and OpenFGA need an AuthZEN endpoint in front of them and are untested.</dd>
         </div>
       </dl>
     </div>
