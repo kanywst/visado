@@ -3,6 +3,7 @@
 use std::fmt;
 
 use visado_chain::ChainError;
+use visado_chain::dpop::NonceError;
 
 /// Why a chain or an action was denied: the outcome names of Table 2
 /// (§6.2). The algorithm denies on the first failure, so one denial carries
@@ -138,6 +139,7 @@ pub struct AsorError {
     outcome: Outcome,
     token: Option<usize>,
     reason: &'static str,
+    nonce: Option<NonceError>,
 }
 
 impl AsorError {
@@ -146,7 +148,13 @@ impl AsorError {
             outcome,
             token: None,
             reason,
+            nonce: None,
         }
+    }
+
+    pub(crate) const fn with_dpop_nonce(mut self, nonce: NonceError) -> Self {
+        self.nonce = Some(nonce);
+        self
     }
 
     pub(crate) const fn at(outcome: Outcome, token: usize, reason: &'static str) -> Self {
@@ -154,6 +162,7 @@ impl AsorError {
             outcome,
             token: Some(token),
             reason,
+            nonce: None,
         }
     }
 
@@ -180,6 +189,14 @@ impl AsorError {
     #[must_use]
     pub const fn reason(&self) -> &'static str {
         self.reason
+    }
+
+    /// For a `holder_binding_failed` whose proof was valid except for its
+    /// server nonce (RFC 9449 §9), why the nonce was refused. The holder
+    /// can retry with a fresh nonce.
+    #[must_use]
+    pub const fn dpop_nonce(&self) -> Option<NonceError> {
+        self.nonce
     }
 }
 
