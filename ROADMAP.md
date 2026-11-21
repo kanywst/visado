@@ -32,7 +32,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 
 - AuthZEN 1.0 client, the agent-and-principal profile, discovery, fail-closed handling.
 - **Gate:** end to end against OPA with the AuthZEN plugin and one other PDP.
-- **Status:** partly met. The client and the agent profile are in and run against OPA with the AuthZEN plugin in `deploy/lab`. Not yet run against a second PDP.
+- **Status:** met. The client and the agent profile run end to end in `deploy/lab` against OPA with the AuthZEN plugin and against Cerbos, which serves AuthZEN 1.0 itself; CI runs the lab's checks against both. Cerbos does not pass `context` to the policy, so the Cerbos lab sets `[pdp] context_in_subject`.
 
 ## Phase 5: Lab, visibility and demos
 
@@ -40,7 +40,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 - Chain view UI, OpenTelemetry spans, and the audit record.
 - Four attack demos: three that visado stops and one that it does not.
 - **Gate:** `docker compose up` reproduces every demo from a clean checkout.
-- **Status:** started. `deploy/lab` (Envoy with a plain and an mTLS listener, agentgateway, visado, OPA with the AuthZEN plugin, an echo upstream, SPIRE issuing WIT-SVIDs, X.509-SVIDs and JWT-SVIDs, Jaeger for the OpenTelemetry spans) runs thirty-five checks in CI. agentgateway v1.7.0 is a second front proxy that calls visado over ext_authz gRPC; a subset of the scenarios runs through it, over a plain HTTP route rather than its MCP backend. The chain view (`[chain_view]`, `/chain`) shows recent decisions and their delegation chains; the lab serves it on the host's loopback address. Not yet: Dex, Keycloak, and an agentgateway MCP backend route.
+- **Status:** started. `deploy/lab` (Envoy with a plain and an mTLS listener, agentgateway, visado, OPA with the AuthZEN plugin or Cerbos as the PDP, an echo upstream, SPIRE issuing WIT-SVIDs, X.509-SVIDs and JWT-SVIDs, Jaeger for the OpenTelemetry spans) runs thirty-five checks in CI. agentgateway v1.7.0 is a second front proxy that calls visado over ext_authz gRPC; a subset of the scenarios runs through it, over a plain HTTP route rather than its MCP backend. The chain view (`[chain_view]`, `/chain`) shows recent decisions and their delegation chains; the lab serves it on the host's loopback address. Not yet: Dex, Keycloak, and an agentgateway MCP backend route.
 
 ## Phase 6: Interop and launch
 

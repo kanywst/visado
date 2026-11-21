@@ -67,11 +67,22 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - name: start the lab
         run: docker compose -f deploy/lab/compose.yaml up -d --build
-      - name: run the scenarios
+      - name: run the scenarios (OPA with the AuthZEN plugin)
+        run: deploy/lab/demo.sh
+      # The same scenarios with Cerbos as the PDP. visado.cerbos.toml must
+      # differ from visado.toml only in [pdp], and the ported policy must pass
+      # its own tests, before visado is restarted against Cerbos.
+      - name: check the Cerbos configuration and policy
+        run: |
+          diff <(sed '/^\[pdp\]/,/^$/d' deploy/lab/visado.toml) <(sed '/^\[pdp\]/,/^$/d' deploy/lab/visado.cerbos.toml)
+          docker compose -f deploy/lab/compose.yaml -f deploy/lab/compose.cerbos.yaml run --rm --no-deps cerbos compile /policies
+      - name: switch the lab to Cerbos
+        run: docker compose -f deploy/lab/compose.yaml -f deploy/lab/compose.cerbos.yaml up -d cerbos visado
+      - name: run the scenarios (Cerbos)
         run: deploy/lab/demo.sh
       - name: logs
         if: failure()
-        run: docker compose -f deploy/lab/compose.yaml logs
+        run: docker compose -f deploy/lab/compose.yaml -f deploy/lab/compose.cerbos.yaml logs
 
   fuzz:
     name: fuzz the parsers

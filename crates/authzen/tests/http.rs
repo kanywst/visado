@@ -52,6 +52,26 @@ async fn allows_and_denies() {
     assert!(!pdp.evaluate(&other, "r2").await.unwrap().allowed);
 }
 
+/// Allows only when the principal arrives as a subject property, as Cerbos
+/// would see it.
+async fn subject_decision(body: axum::Json<Value>) -> impl IntoResponse {
+    let allowed = body["subject"]["properties"]["principal"]["id"] == "alice"
+        && body["context"]["principal"]["id"] == "alice";
+    axum::Json(json!({ "decision": allowed }))
+}
+
+#[tokio::test]
+async fn copies_context_into_the_subject_when_asked() {
+    let base = serve(Router::new().route("/access/v1/evaluation", post(subject_decision))).await;
+    let endpoint = format!("{base}/access/v1/evaluation");
+    let plain = HttpPdp::new(&endpoint, Duration::from_secs(2)).unwrap();
+    assert!(!plain.evaluate(&request(), "r1").await.unwrap().allowed);
+    let copying = HttpPdp::new(&endpoint, Duration::from_secs(2))
+        .unwrap()
+        .with_context_in_subject();
+    assert!(copying.evaluate(&request(), "r2").await.unwrap().allowed);
+}
+
 #[tokio::test]
 async fn every_failure_is_an_error() {
     let base = serve(

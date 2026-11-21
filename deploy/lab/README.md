@@ -1,6 +1,6 @@
 # Lab
 
-Envoy and [agentgateway](https://agentgateway.dev/) call visado through ext_authz. visado asks [OPA with the AuthZEN plugin](https://github.com/kanywst/opa-authzen-plugin), and allowed requests reach an echo server that returns the headers it received. [SPIRE](https://spiffe.io/) v1.16.0 issues the workloads' WITs, X.509-SVIDs and JWT-SVIDs.
+Envoy and [agentgateway](https://agentgateway.dev/) call visado through ext_authz. visado asks [OPA with the AuthZEN plugin](https://github.com/kanywst/opa-authzen-plugin) (or [Cerbos](#a-second-pdp-cerbos)), and allowed requests reach an echo server that returns the headers it received. [SPIRE](https://spiffe.io/) v1.16.0 issues the workloads' WITs, X.509-SVIDs and JWT-SVIDs.
 
 Envoy listens on two ports: `10000` (plain HTTP) and `10443` (mTLS). agentgateway v1.7.0 listens on `10001` (plain HTTP) in front of the same upstream.
 
@@ -8,6 +8,25 @@ Envoy listens on two ports: `10000` (plain HTTP) and `10443` (mTLS). agentgatewa
 docker compose up -d --build
 ./demo.sh
 ```
+
+## A second PDP: Cerbos
+
+`compose.cerbos.yaml` swaps the PDP for [Cerbos](https://www.cerbos.dev/) 0.57.0, which serves AuthZEN 1.0 itself. `demo.sh` runs unchanged and expects the same results:
+
+```bash
+docker compose -f compose.yaml -f compose.cerbos.yaml up -d --build
+./demo.sh
+```
+
+visado then reads `visado.cerbos.toml`, which is `visado.toml` with another `[pdp]` table. Cerbos maps the AuthZEN subject to the principal (`subject.type` becomes the role, `subject.properties` the attributes), the resource to a resource of kind `http_resource` and the action name to the action. It does not pass `context` to the policy, so `[pdp] context_in_subject = true` copies the context, the scope and principal included, into `subject.properties`.
+
+The policy is ported to `cerbos/http_resource.yaml`, with the same rule as the Rego. `cerbos/http_resource_test.yaml` holds its tests; run them with:
+
+```bash
+docker compose -f compose.yaml -f compose.cerbos.yaml run --rm --no-deps cerbos compile /policies
+```
+
+CI runs `demo.sh` against OPA, then restarts visado against Cerbos and runs it again.
 
 ## SPIRE
 
@@ -82,6 +101,6 @@ Each decision is also a `visado.authorize` span in Jaeger at <http://127.0.0.1:1
 
 The chain view at <http://127.0.0.1:8080/chain> draws each recent decision: principal, delegation hops (verified or declared), caller, PDP decision and the deny reason. It shows caller and principal identities, so the port is published to the host's loopback address only.
 
-The policy is in `policy/visado.rego`: `/admin/` needs `roles.write`, everything else `tickets.read`.
+The policy is in `policy/visado.rego` (and `cerbos/http_resource.yaml` for Cerbos): `/admin/` needs `roles.write`, everything else `tickets.read`.
 
 The demo keys are public. Do not reuse them.

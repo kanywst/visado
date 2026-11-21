@@ -314,6 +314,10 @@ pub struct PdpConfig {
     /// Name of an environment variable holding a bearer token for the PDP.
     #[serde(default)]
     pub bearer_env: Option<String>,
+    /// Also send the `context` members as `subject.properties`, for PDPs
+    /// that do not pass `context` to the policy (Cerbos).
+    #[serde(default)]
+    pub context_in_subject: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -391,6 +395,7 @@ pub struct Loaded {
     pub pdp_endpoint: String,
     pub pdp_timeout: Duration,
     pub pdp_bearer: Option<String>,
+    pub pdp_context_in_subject: bool,
     pub public_jwk: Jwk,
     pub grpc_listen: SocketAddr,
     pub http_listen: SocketAddr,
@@ -644,6 +649,7 @@ impl Config {
             pdp_endpoint: self.pdp.endpoint,
             pdp_timeout: Duration::from_millis(self.pdp.timeout_ms),
             pdp_bearer,
+            pdp_context_in_subject: self.pdp.context_in_subject,
             public_jwk,
             grpc_listen: self.grpc_listen,
             http_listen: self.http_listen,
@@ -966,6 +972,10 @@ endpoint = "http://127.0.0.1:8181/access/v1/evaluation"
         assert!(config.grpc_listen.ip().is_loopback());
         assert!(config.http_listen.ip().is_loopback());
         assert_eq!(config.pdp.timeout_ms, 150);
+        assert!(!config.pdp.context_in_subject);
+        let copying: Config =
+            toml::from_str(&format!("{BASE}context_in_subject = true\n")).unwrap();
+        assert!(copying.pdp.context_in_subject);
     }
 
     #[test]
