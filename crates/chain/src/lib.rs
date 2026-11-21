@@ -14,6 +14,7 @@
 //! with JCS (RFC 8785), compact JWS parts and JWK thumbprints, DPoP proof
 //! checks (RFC 9449), and a proof `jti` cache.
 
+pub mod algebra;
 pub mod dpop;
 pub mod jose;
 pub mod json;
