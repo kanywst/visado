@@ -20,7 +20,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 
 - `tonic` ext_authz server. Credential verifiers for WIT+WPT, WIT+HTTP-sig and mTLS (via `wimsey`), JWT-SVID, and OAuth access tokens (RS256/ES256, DPoP).
 - **Gate:** Envoy integration test admits valid callers, rejects each negative case with its reason code, and injects a Txn-Token.
-- **Status:** partly met. The ext_authz service and caller authentication by WIT+WPT, WIT+HTTP signature, mTLS with an X.509-SVID, JWT-SVID and OAuth access tokens, bearer or DPoP-bound (RFC 9449, without server nonces), are in, with tests against the gate and the gRPC handler. Runs behind a real Envoy in `deploy/lab`, which CI exercises with every method: WIT+WPT, WIT+HTTP signature, mTLS and JWT-SVIDs issued by SPIRE, and bearer and DPoP-bound access tokens.
+- **Status:** met. The ext_authz service and caller authentication by WIT+WPT, WIT+HTTP signature, mTLS with an X.509-SVID, JWT-SVID and OAuth access tokens (EdDSA, RS256 and ES256), bearer or DPoP-bound (RFC 9449, with optional resource server nonces), are in, with tests against the gate and the gRPC handler. `deploy/lab` runs them behind a real Envoy in CI: it admits a caller of every method (WIT+WPT, WIT+HTTP signature, mTLS and JWT-SVIDs issued by SPIRE, a bearer access token, and a DPoP-bound one after the `use_dpop_nonce` retry), checks visado's reason code on every denial visado decides, and checks that the upstream receives the minted Txn-Token, which the next hop forwards.
 
 ## Phase 3: Delegation chains
 
@@ -40,7 +40,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 - Chain view UI, OpenTelemetry spans, and the audit record.
 - Four attack demos: three that visado stops and one that it does not.
 - **Gate:** `docker compose up` reproduces every demo from a clean checkout.
-- **Status:** started. `deploy/lab` (Envoy with a plain and an mTLS listener, agentgateway, visado, OPA with the AuthZEN plugin or Cerbos as the PDP, an echo upstream, SPIRE issuing WIT-SVIDs, X.509-SVIDs and JWT-SVIDs, Jaeger for the OpenTelemetry spans) runs thirty-five checks in CI. agentgateway v1.7.0 is a second front proxy that calls visado over ext_authz gRPC; a subset of the scenarios runs through it, over a plain HTTP route rather than its MCP backend. The chain view (`[chain_view]`, `/chain`) shows recent decisions and their delegation chains; the lab serves it on the host's loopback address. Not yet: Dex, Keycloak, and an agentgateway MCP backend route.
+- **Status:** started. `deploy/lab` (Envoy with a plain and an mTLS listener, agentgateway, visado, OPA with the AuthZEN plugin or Cerbos as the PDP, an echo upstream, SPIRE issuing WIT-SVIDs, X.509-SVIDs and JWT-SVIDs, Jaeger for the OpenTelemetry spans) runs forty-four checks in CI, once with each PDP. agentgateway v1.7.0 is a second front proxy that calls visado over ext_authz gRPC; a subset of the scenarios runs through it, over a plain HTTP route rather than its MCP backend. The chain view (`[chain_view]`, `/chain`) shows recent decisions and their delegation chains; the lab serves it on the host's loopback address. Not yet: Dex, Keycloak, and an agentgateway MCP backend route.
 
 ## Phase 6: Interop and launch
 
