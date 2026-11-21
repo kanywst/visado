@@ -7,8 +7,13 @@
 //! key.
 //!
 //! ```text
-//! lab_aat <svid-dir> <workload> <tool> <arguments-json>
+//! lab_aat <svid-dir> <workload> <tool> <arguments-json> [--root <grants>] [--child <grants>]
 //! ```
+//!
+//! `--root` replaces what the root grants agent-a and `--child` what agent-a
+//! delegates to agent-b: JSON objects of tool name to argument constraints, as
+//! in `authorization_details`. The attack demos use them to build a child
+//! that grants more than its parent.
 //!
 //! Output: `Name: value` header lines, then `BODY: <json>`.
 
@@ -30,13 +35,37 @@ fn svid(dir: &str, workload: &str) -> SpireWitSvid {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    let usage = || -> ! {
+        eprintln!(
+            "usage: lab_aat <svid-dir> <workload> <tool> <arguments-json> [--root <grants>] [--child <grants>]"
+        );
+        std::process::exit(2);
+    };
     let (Some(dir), Some(workload), Some(tool), Some(arguments)) =
         (args.first(), args.get(1), args.get(2), args.get(3))
     else {
-        eprintln!("usage: lab_aat <svid-dir> <workload> <tool> <arguments-json>");
-        std::process::exit(2);
+        usage();
     };
     let arguments: Value = serde_json::from_str(arguments).expect("arguments are JSON");
+    let mut root_grants = json!({
+        "read_file": { "path": { "constraint_type": "wildcard" } },
+        "delete_file": { "path": { "constraint_type": "wildcard" } },
+    });
+    let mut child_grants = json!({
+        "read_file": { "path": { "constraint_type": "one_of", "values": ["/data/report.pdf"] } },
+    });
+    let mut rest = args[4..].iter();
+    while let Some(flag) = rest.next() {
+        let grants: Value = match rest.next() {
+            Some(text) => serde_json::from_str(text).expect("grants are JSON"),
+            None => usage(),
+        };
+        match flag.as_str() {
+            "--root" => root_grants = grants,
+            "--child" => child_grants = grants,
+            _ => usage(),
+        }
+    }
     let clock = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("clock after 1970");
@@ -48,10 +77,7 @@ fn main() {
     let root = visado_testkit::aat_root(
         &format!("root-{nonce}"),
         &agent_a,
-        &json!({
-            "read_file": { "path": { "constraint_type": "wildcard" } },
-            "delete_file": { "path": { "constraint_type": "wildcard" } },
-        }),
+        &root_grants,
         now,
         3,
         &format!("http://{AUTHORITY}"),
@@ -62,9 +88,7 @@ fn main() {
         &root,
         &agent_a,
         &agent_b,
-        &json!({
-            "read_file": { "path": { "constraint_type": "one_of", "values": ["/data/report.pdf"] } },
-        }),
+        &child_grants,
         1,
         3,
         now,
