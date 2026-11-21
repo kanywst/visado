@@ -348,6 +348,12 @@ impl Verifier {
         self.dpop_nonces.as_ref()
     }
 
+    /// The authority algebra for this verifier's limits.
+    #[must_use]
+    pub const fn algebra(&self) -> crate::Algebra {
+        crate::Algebra::new(self.limits.max_params_size)
+    }
+
     /// Checks `status` claims (step 7) against the lists `lists` holds.
     /// Without a source, a token with a `status` claim is denied as
     /// `status_unknown` by [`Verifier::verify`].
