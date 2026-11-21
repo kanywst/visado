@@ -43,7 +43,8 @@ trust_anchors = [{ issuer = "https://aat.td.example", jwk_file = "keys/aat-ancho
 [mtls]
 trust_bundles = [{ trust_domain = "td.example", ca_file = "spire/x509-bundle.pem" }]
 # grpc_listen is not loopback, but it is visado's address on the internal
-# authz network, which only Envoy shares (compose.yaml).
+# authz network, which only the proxies share (compose.yaml). agentgateway
+# never sends a peer certificate, so only Envoy's mTLS listener passes one.
 grpc_reachable_only_by_proxy = true
 
 [jwt_svid]
