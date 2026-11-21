@@ -16,4 +16,4 @@ via_agw 403/aat.not_attenuated "attack 1: widened chain: agent-b deletes the rep
   mcp agent-b delete_file '{"path":"/data/report.pdf"}' --root "$granted" --child "$widened"
 expect_audit "attack 1: audit records the widened chain" \
   '.agent == "spiffe://td.example/agent-b" and .tool == "delete_file" and .reason == "aat.not_attenuated"'
-check "attack 1: no delete_file reached the MCP server" "$(mcp_calls delete_file)" 0
+expect "attack 1: no delete_file reached the MCP server" "$(mcp_calls delete_file)" 0

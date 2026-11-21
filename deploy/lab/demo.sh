@@ -227,15 +227,6 @@ none() { :; }
 # --- Helpers for the MCP backend, the audit record and the attack demos ---
 
 say() { printf '      %s\n' "$*"; }
-# check <name> <got> <want>: an ok or FAIL line for a value demo.sh computed.
-check() {
-  if [ "$2" = "$3" ]; then
-    printf 'ok    %-58s %s\n' "$1" "$2"
-  else
-    printf 'FAIL  %-58s got %s, want %s\n' "$1" "$2" "$3"
-    failures=$((failures + 1))
-  fi
-}
 # via_agw call-arguments...: like call, through agentgateway.
 via_agw() {
   base=$AGW_URL
@@ -469,12 +460,12 @@ dpop_with_nonce agw "agentgateway: "
 mark_audit
 via_agw 200 "MCP: tools/list through agentgateway" /mcp \
   with_body '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' mcp_headers agent-b /mcp
-check "MCP: the server's tools are listed" \
+expect "MCP: the server's tools are listed" \
   "$(sed -n -e 's/^data: //' -e '/^{/p' "$tmp" | jq -r '[.result.tools[].name] | sort | join(",")' 2>/dev/null)" \
   "delete_file,read_file"
 via_agw 200 "MCP: agent-b calls read_file, which it was delegated" /mcp \
   mcp agent-b read_file '{"path":"/data/report.pdf"}'
-check "MCP: the result comes from the MCP server" "$(mcp_text "$tmp" | cut -c1-9)" "Q3 report"
+expect "MCP: the result comes from the MCP server" "$(mcp_text "$tmp" | cut -c1-9)" "Q3 report"
 via_agw 403/aat.invocation_denied "MCP: agent-b calls delete_file, which agent-a kept" /mcp \
   mcp agent-b delete_file '{"path":"/data/report.pdf"}'
 expect_audit "MCP: audit records the denied tool" \
@@ -498,7 +489,7 @@ records=$(audit_records)
 record_count=$(grep -c . <<<"$records" || true)
 members='["audit_version","seq","prev","id","txn","time","agent","auth_method","sender_constrained","principal","chain_profile","chain_issuer","chain_hops","chain_actors","resource","tool","action","decision","status","reason","detail","pdp","remediation","hash"]'
 complete=$(jq -c --argjson m "$members" 'select((keys | sort) == ($m | sort))' <<<"$records" | grep -c . || true)
-check "audit: every record has every member" "$complete of $record_count" \
+expect "audit: every record has every member" "$complete of $record_count" \
   "$((record_count > 0 ? record_count : 1)) of $record_count"
 # The hash chain: each record hashes to its hash, and follows the one before
 # (its prev and seq), unless visado restarted and began a new chain at 0.
@@ -518,13 +509,13 @@ while IFS= read -r record; do
   prev=$(jq -r .hash <<<"$record")
   prev_seq=$seq
 done <<<"$records"
-check "audit: the records form one hash chain" "$linked of $record_count linked" \
+expect "audit: the records form one hash chain" "$linked of $record_count linked" \
   "$((record_count > 0 ? record_count : 1)) of $record_count linked"
 # The chain view keeps a summary of every decision too: as many as records.
 view=$(curl -s -H 'Host: localhost' "$VIEW_URL/api/requests?limit=10000" || true)
 view_count=$(jq --argjson s "$started" '[.requests[] | select(.time >= $s)] | length' <<<"$view" 2>/dev/null || echo 0)
 if [ "$view_count" -lt "$(jq '.capacity' <<<"$view" 2>/dev/null || echo 0)" ]; then
-  check "audit: one record per decision" "$record_count records" "$view_count records"
+  expect "audit: one record per decision" "$record_count records" "$view_count records"
 fi
 
 # --- Attack demos (deploy/lab/attacks/README.md) ---
