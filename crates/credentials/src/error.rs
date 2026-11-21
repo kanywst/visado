@@ -50,6 +50,10 @@ pub enum AuthError {
     /// `invalid_dpop_proof`).
     #[error("invalid DPoP proof: {0}")]
     DpopProof(String),
+    /// The DPoP proof is valid but lacks a nonce this server issued, when
+    /// nonces are required (RFC 9449 §9 `use_dpop_nonce`).
+    #[error("{}", .0.reason())]
+    DpopNonce(visado_chain::dpop::NonceError),
     /// The DPoP proof's `jti` was already accepted for this key.
     #[error("DPoP proof replayed")]
     DpopReplay,
@@ -112,6 +116,7 @@ impl AuthError {
             Self::SenderConstrained => "token.sender_constrained",
             Self::DpopBound => "token.dpop_bound",
             Self::DpopProof(_) => "dpop.invalid",
+            Self::DpopNonce(e) => e.code(),
             Self::DpopReplay => "dpop.replay",
             Self::DpopBinding(_) => "dpop.binding",
             Self::NoClient => "token.no_client",

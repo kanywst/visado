@@ -59,6 +59,11 @@ async fn run(path: &std::path::Path) -> Result<(), String> {
     let tracer = init_tracing(loaded.telemetry.as_ref())?;
     let chains =
         loaded.gate.aat.is_some() || loaded.gate.asor.is_some() || loaded.gate.act.is_some();
+    if loaded.dpop_nonce_keys == Some(config::NonceKeys::Generated) {
+        tracing::warn!(
+            "DPoP nonces use a key made at startup: each replica has its own key, so another replica or a restart rejects this one's nonces and clients behind a load balancer keep getting use_dpop_nonce; set dpop.nonce_key_files to share a key"
+        );
+    }
     if chains && !loaded.gate.require_chain {
         tracing::warn!(
             "a delegation chain format is configured without required = true: requests without a chain skip the chain checks"

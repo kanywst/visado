@@ -11,7 +11,7 @@ use visado_chain_aat::{Invocation, MemoryReplayCache, Presentation, Verifier, jw
 use visado_chain_act::{ActError, ActToken, Caller as ActCaller};
 use visado_chain_asor::{Action as AsorAction, HttpRequest};
 use visado_credentials::{
-    AccessToken, AuthError, Authenticated, Authenticator, DPOP_ALGS, Method, RequestView,
+    AccessToken, AuthError, Authenticated, Authenticator, DPOP_ALGS, Method, Nonces, RequestView,
 };
 use visado_txn_token::{
     KeySet, Replacement, Scope, TxnTokenClaims, Validation, VerifiedTxnToken, mint, replace, verify,
@@ -29,6 +29,9 @@ pub const ASOR_CHAIN_HEADER: &str = "agent-delegation-chain";
 /// The header carrying a DPoP proof (RFC 9449): for a DPoP-bound access
 /// token, or for the asor leaf key.
 pub const DPOP_HEADER: &str = visado_credentials::DPOP_HEADER;
+/// The response header carrying a server-provided DPoP nonce (RFC 9449
+/// §8), lowercased.
+pub const DPOP_NONCE_HEADER: &str = "dpop-nonce";
 
 /// Headers always removed before the request goes upstream, in addition to the
 /// authenticator's user token header. The upstream gets the Transaction Token
@@ -64,7 +67,10 @@ pub struct GateConfig {
     /// an `AAT-Chain` header.
     pub aat: Option<Verifier>,
     /// asor delegation-chain verification. `None` rejects requests that
-    /// carry an `Agent-Delegation-Chain` header.
+    /// carry an `Agent-Delegation-Chain` header. When the authenticator
+    /// requires DPoP nonces, the gate gives the verifier the same ones, so
+    /// the leaf proof needs a nonce too; a verifier with its own nonces
+    /// keeps them otherwise.
     pub asor: Option<visado_chain_asor::Verifier>,
     /// RFC 8693 `act` chains in the caller's access token. `None` rejects
     /// requests whose access token carries an `act` claim.
@@ -105,6 +111,10 @@ pub enum Outcome {
         set: Vec<(String, String)>,
         /// Headers to remove.
         remove: Vec<String>,
+        /// Headers to add to the response the client gets: a fresh
+        /// `DPoP-Nonce` after a request with a DPoP proof, when nonces are
+        /// required (RFC 9449 §8.2).
+        response_headers: Vec<(String, String)>,
     },
     /// Reject it.
     Deny {
@@ -114,6 +124,10 @@ pub enum Outcome {
         code: String,
         /// `WWW-Authenticate` value for a 401.
         challenge: Option<String>,
+        /// Other response headers: on a 401 when DPoP nonces are required,
+        /// a fresh `DPoP-Nonce` and `Cache-Control: no-store` (RFC 9449 §8,
+        /// §8.2, §9).
+        headers: Vec<(String, String)>,
     },
 }
 
@@ -127,12 +141,27 @@ pub struct Gate<P> {
     stripped: Vec<String>,
     aat_replay: MemoryReplayCache,
     dpop_replay: MemoryReplayCache,
+    /// The nonces handed out: the authenticator's, or else the asor
+    /// verifier's.
+    nonces: Option<Nonces>,
     log: Option<Arc<RequestLog>>,
 }
 
 impl<P: Pdp> Gate<P> {
     /// A gate. Inbound Transaction Tokens are verified with the gate's own key.
-    pub fn new(config: GateConfig, authenticator: Authenticator, pdp: P) -> Self {
+    pub fn new(mut config: GateConfig, authenticator: Authenticator, pdp: P) -> Self {
+        // One set of nonces for both proofs. Never drop the verifier's own:
+        // a leaf proof must not lose its nonce check because the
+        // authenticator has none.
+        if let Some(nonces) = authenticator.dpop_nonces() {
+            config.asor = config
+                .asor
+                .map(|asor| asor.with_dpop_nonces(Some(nonces.clone())));
+        }
+        let nonces = authenticator
+            .dpop_nonces()
+            .or_else(|| config.asor.as_ref().and_then(|a| a.dpop_nonces()))
+            .cloned();
         let txn_keys =
             KeySet::new().with_key(config.kid.clone(), config.signing_key.verifying_key());
         let mut stripped: Vec<String> = STRIPPED_HEADERS.iter().map(|h| (*h).to_owned()).collect();
@@ -154,6 +183,7 @@ impl<P: Pdp> Gate<P> {
             stripped,
             aat_replay: MemoryReplayCache::new(100_000),
             dpop_replay: MemoryReplayCache::new(100_000),
+            nonces,
             log: None,
         }
     }
@@ -195,13 +225,24 @@ impl<P: Pdp> Gate<P> {
         if let Some(log) = &self.log {
             log.record(summary(input, now, txn, &result));
         }
+        let nonces = self.nonces.as_ref();
+        let fresh_nonce = || {
+            let now = i64::try_from(now).unwrap_or(i64::MAX);
+            nonces.map(|n| (DPOP_NONCE_HEADER.to_owned(), n.issue(now)))
+        };
         match result {
             Ok(allowed) => {
                 audit(input, &allowed.trail, "allow", "ok", "");
+                let response_headers = if allowed.dpop_proof {
+                    fresh_nonce().into_iter().collect()
+                } else {
+                    Vec::new()
+                };
                 Outcome::Allow {
                     txn: allowed.trail.txn,
                     set: vec![("txn-token".into(), allowed.token)],
                     remove: self.stripped.clone(),
+                    response_headers,
                 }
             }
             Err(denied) => {
@@ -212,10 +253,19 @@ impl<P: Pdp> Gate<P> {
                     denied.code,
                     denied.detail.as_deref().unwrap_or(""),
                 );
+                // Every 401 hands out a nonce, so a client learns it at the
+                // first challenge whatever went wrong.
+                let headers = match fresh_nonce() {
+                    Some(nonce) if denied.status == 401 => {
+                        vec![nonce, ("cache-control".into(), "no-store".into())]
+                    }
+                    _ => Vec::new(),
+                };
                 Outcome::Deny {
                     status: denied.status,
                     code: denied.code.to_owned(),
                     challenge: denied.challenge.map(Challenge::render),
+                    headers,
                 }
             }
         }
@@ -310,7 +360,20 @@ impl<P: Pdp> Gate<P> {
             mint(&claims, Some(&self.config.kid), &self.config.signing_key)
                 .map_err(|e| Denied::new(403, e.code(), &trail))?
         };
-        Ok(Allowed { token, trail })
+        // A proof checked against nonces gets the next one.
+        let dpop_proof = (caller.method == Method::OAuthDpop
+            && self.authenticator.dpop_nonces().is_some())
+            || (chain.as_ref().is_some_and(|c| c.profile == Profile::Asor03)
+                && self
+                    .config
+                    .asor
+                    .as_ref()
+                    .is_some_and(|a| a.dpop_nonces().is_some()));
+        Ok(Allowed {
+            token,
+            trail,
+            dpop_proof,
+        })
     }
 
     /// Verifies the delegation chain if the request carries one (see
@@ -442,7 +505,18 @@ impl<P: Pdp> Gate<P> {
                 Some(&self.dpop_replay),
             )
             .map(|authorized| authorized.chain)
-            .map_err(|e| Denied::new(403, e.code(), trail))
+            .map_err(|e| match e.dpop_nonce() {
+                // The leaf proof is fine but for its nonce: ask for a retry
+                // with the fresh one the 401 carries (RFC 9449 §9).
+                Some(nonce) => {
+                    let mut denied = Denied::new(401, nonce.code(), trail);
+                    denied.challenge =
+                        Some(Challenge::DpopFor(DpopError::UseNonce, ProofOf::AsorLeaf));
+                    denied.detail = Some(e.to_string().into_boxed_str());
+                    denied
+                }
+                None => Denied::new(403, e.code(), trail),
+            })
     }
 
     /// An RFC 8693 `act` chain from the caller's access token, which
@@ -583,6 +657,7 @@ impl<P: Pdp> Gate<P> {
                 AuthError::DpopBinding(_) | AuthError::DpopBound => {
                     (401, Some(Challenge::Dpop(DpopError::InvalidToken)))
                 }
+                AuthError::DpopNonce(_) => (401, Some(Challenge::Dpop(DpopError::UseNonce))),
                 _ if wimse => (401, Some(Challenge::Wpt)),
                 AuthError::MissingCredentials => (401, Some(Challenge::Bearer)),
                 _ if dpop => (401, Some(Challenge::Dpop(DpopError::InvalidToken))),
@@ -672,6 +747,18 @@ struct Trail {
 struct Allowed {
     token: String,
     trail: Trail,
+    /// The request carried a DPoP proof that was checked: for the caller's
+    /// access token or for an asor leaf key.
+    dpop_proof: bool,
+}
+
+/// Whose `alg` values a `DPoP` challenge advertises.
+#[derive(Debug, Clone, Copy)]
+enum ProofOf {
+    /// A DPoP-bound access token: [`DPOP_ALGS`].
+    AccessToken,
+    /// An asor leaf key: [`visado_chain_asor::DPOP_ALGS`].
+    AsorLeaf,
 }
 
 struct Denied {
@@ -689,8 +776,11 @@ enum Challenge {
     Wpt,
     /// `Bearer`, with `DPoP` alongside so a client can tell DPoP is accepted.
     Bearer,
-    /// `DPoP` with an RFC 9449 §7.1 `error` code.
+    /// `DPoP` with an RFC 9449 §7.1 `error` code, for an access token's
+    /// proof.
     Dpop(DpopError),
+    /// `DPoP` with an `error` code, for an asor leaf proof.
+    DpopFor(DpopError, ProofOf),
 }
 
 /// The `error` of a `DPoP` challenge (RFC 9449 §7.1).
@@ -700,6 +790,8 @@ enum DpopError {
     InvalidProof,
     /// The token is invalid or not bound to the proof key.
     InvalidToken,
+    /// The proof needs a nonce from this server (RFC 9449 §9).
+    UseNonce,
 }
 
 impl Challenge {
@@ -708,10 +800,16 @@ impl Challenge {
         match self {
             Self::Wpt => "WPT".to_owned(),
             Self::Bearer => format!("Bearer, DPoP algs=\"{algs}\""),
-            Self::Dpop(error) => {
+            Self::Dpop(error) => Self::DpopFor(error, ProofOf::AccessToken).render(),
+            Self::DpopFor(error, of) => {
+                let algs = match of {
+                    ProofOf::AccessToken => algs,
+                    ProofOf::AsorLeaf => visado_chain_asor::DPOP_ALGS.join(" "),
+                };
                 let error = match error {
                     DpopError::InvalidProof => "invalid_dpop_proof",
                     DpopError::InvalidToken => "invalid_token",
+                    DpopError::UseNonce => "use_dpop_nonce",
                 };
                 format!("DPoP error=\"{error}\", algs=\"{algs}\"")
             }

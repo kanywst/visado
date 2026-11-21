@@ -42,24 +42,26 @@ SPIRE's private key JWK and its bundle keys carry no `alg`. The demo takes it fr
 
 User tokens, the DPoP-bound access token and the AAT root are still signed with the fixed demo keys in `../local/keys`. The DPoP proof key is a fixed testkit key.
 
+`visado.toml` sets `[dpop] require_nonce = true`, so every DPoP proof must carry a nonce visado issued (RFC 9449 §9). The lab runs one visado, so the nonce key is made at startup.
+
 ## Scenarios
 
 `demo.sh` checks each response status and, where the table names one, visado's error code:
 
 | Scenario | Expected |
 | --- | --- |
-| No credentials | 401 |
+| No credentials | 401 `credential.missing` |
 | Encoded `/` in the path | 400 from Envoy (`path_with_escaped_slashes_action: REJECT_REQUEST`) |
 | agent-a reads tickets for bob (`tickets.read`) | 200; the upstream sees `Txn-Token` and no user token |
-| agent-b forwards bob's transaction to the admin API | 403 from the PDP: the token still carries `tickets.read` |
+| agent-b forwards bob's transaction to the admin API | 403 `pdp.deny`: the token still carries `tickets.read` |
 | agent-b forwards bob's transaction to tickets | 200 with the same `Txn-Token` |
-| A workload not in `internal_callers` forwards the transaction | 403 |
-| A user token without `roles.write` on the admin API | 403 |
+| A workload not in `internal_callers` forwards the transaction | 403 `txn.untrusted_hop` |
+| A user token without `roles.write` on the admin API | 403 `pdp.deny` |
 | carol with `roles.write` through agent-a | 200 |
 | AAT: agent-b reads `/data/report.pdf`, which agent-a delegated to it | 200 |
-| AAT: agent-b reads `/etc/passwd` | 403, outside the delegated constraint |
-| AAT: agent-b calls `delete_file`, which agent-a kept | 403 |
-| AAT: agent-z presents agent-b's chain | 403, the proof is not signed by the holder |
+| AAT: agent-b reads `/etc/passwd` | 403 `aat.invocation_denied`, outside the delegated constraint |
+| AAT: agent-b calls `delete_file`, which agent-a kept | 403 `aat.invocation_denied` |
+| AAT: agent-z presents agent-b's chain | 403 `aat.bad_signature`, the proof is not signed by the holder |
 | agent-a POSTs a ticket with an HTTP message signature instead of a WPT | 200 |
 | The same signed request again | 400 `httpsig.invalid`: the nonce was seen |
 | A signed request whose body differs from the covered `Content-Digest` | 400 `httpsig.invalid` |
@@ -68,7 +70,11 @@ User tokens, the DPoP-bound access token and the AAT root are still signed with 
 | mTLS: a certificate for agent-a's SPIFFE ID from another CA | No response: Envoy refuses the handshake (curl reports `000`) |
 | agent-a's JWT-SVID as `Authorization: Bearer` | 200 |
 | A JWT-SVID for another audience | 401 `jwt_svid.invalid` |
-| bob's access token, DPoP-bound, with its proof | 200 |
+| An OAuth client's access token as `Authorization: Bearer` | 200 |
+| The same kind of token, expired | 401 `token.expired` |
+| bob's access token, DPoP-bound, with a proof without a nonce | 401 `dpop.nonce_missing`, with `WWW-Authenticate: DPoP error="use_dpop_nonce"` and a `DPoP-Nonce` header |
+| The same request with a new proof carrying that nonce | 200, with the next `DPoP-Nonce` |
+| A proof with a nonce visado did not issue | 401 `dpop.nonce_invalid` |
 | The same token as `Bearer`, without the proof | 401 `token.dpop_bound` |
 
 ## agentgateway
@@ -82,12 +88,13 @@ agentgateway's `extAuthz` policy (`agentgateway.yaml`) calls visado over gRPC wi
 | No credentials | 401 `credential.missing` |
 | Encoded `/` in the path | 400 `request.unnormalized_path` from visado |
 | agent-a reads tickets for bob | 200; the upstream sees `Txn-Token` and no user token |
-| A user token without `roles.write` on the admin API | 403 |
+| A user token without `roles.write` on the admin API | 403 `pdp.deny` |
 | AAT: agent-b reads `/data/report.pdf`, which agent-a delegated to it | 200 |
-| AAT: agent-b reads `/etc/passwd` | 403 |
+| AAT: agent-b reads `/etc/passwd` | 403 `aat.invocation_denied` |
 | agent-a POSTs a ticket with an HTTP message signature | 200 |
 | A signed request whose body differs from the covered `Content-Digest` | 400 `httpsig.invalid` |
-| bob's access token, DPoP-bound, with its proof | 200 |
+| bob's access token, DPoP-bound, with a proof without a nonce | 401 `dpop.nonce_missing`, with `use_dpop_nonce` and a `DPoP-Nonce` header |
+| The same request with a new proof carrying that nonce | 200, with the next `DPoP-Nonce` |
 
 The `/mcp` scenarios use a plain HTTP route to the echo server, not agentgateway's MCP backend.
 

@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::{Digest, Sha256};
+use visado_chain::dpop::{Nonces, Rejection};
 use visado_chain::jose::{self, Compact};
 use visado_chain::json::{self, ParseError, Value};
 use visado_chain::replay::ReplayCache;
@@ -15,7 +16,7 @@ use visado_chain::{
 use wimsey_jose::{Algorithm, SIGNATURE_LEN, VerifyingKey};
 
 use crate::authority::{Authority, DETAIL_TYPE, RunningTotals};
-use crate::dpop::{self, HttpRequest, Window};
+use crate::dpop::{self, HttpRequest, ProofChecks};
 use crate::error::{AsorError, Outcome};
 use crate::status::{self, DEFAULT_STATUS_MAX_AGE, StatusLists, StatusRef};
 
@@ -274,6 +275,7 @@ pub struct Verifier {
     limits: Limits,
     status: Option<StatusSource>,
     status_max_age: i64,
+    dpop_nonces: Option<Nonces>,
 }
 
 /// The status list source, which has no `Debug` of its own.
@@ -326,7 +328,24 @@ impl Verifier {
             limits: Limits::default(),
             status: None,
             status_max_age: DEFAULT_STATUS_MAX_AGE,
+            dpop_nonces: None,
         }
+    }
+
+    /// Requires the leaf's DPoP proof (step 6) to carry a nonce `nonces`
+    /// accepts (RFC 9449 §4.3 item 10 and §9), or stops requiring one with
+    /// `None`. A proof refused only for its nonce is `holder_binding_failed`
+    /// with [`AsorError::dpop_nonce`](crate::AsorError::dpop_nonce) set.
+    #[must_use]
+    pub fn with_dpop_nonces(mut self, nonces: Option<Nonces>) -> Self {
+        self.dpop_nonces = nonces;
+        self
+    }
+
+    /// The nonces the leaf proof must carry, when they are required.
+    #[must_use]
+    pub const fn dpop_nonces(&self) -> Option<&Nonces> {
+        self.dpop_nonces.as_ref()
     }
 
     /// Checks `status` claims (step 7) against the lists `lists` holds.
@@ -385,9 +404,10 @@ impl Verifier {
             .tokens
             .last()
             .ok_or(AsorError::new(Outcome::Malformed, "empty chain"))?;
-        let window = Window {
+        let window = ProofChecks {
             max_size: self.limits.max_proof_size,
             iat_window: self.limits.proof_window,
+            nonces: self.dpop_nonces.as_ref(),
         };
         let proof = dpop::verify(
             presentation.dpop,
@@ -398,7 +418,13 @@ impl Verifier {
             now,
             replay,
         )
-        .map_err(|reason| AsorError::new(Outcome::HolderBindingFailed, reason))?;
+        .map_err(|rejection| {
+            let error = AsorError::new(Outcome::HolderBindingFailed, rejection.reason());
+            match rejection {
+                Rejection::Nonce(nonce) => error.with_dpop_nonce(nonce),
+                Rejection::Proof(_) | Rejection::KeyMismatch => error,
+            }
+        })?;
         self.status(&chain.tokens, now)?;
         self.audience(leaf, chain.tokens.len() - 1)?;
         if action.params_json.len() > self.limits.max_params_size {

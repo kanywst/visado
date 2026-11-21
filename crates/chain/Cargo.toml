@@ -15,7 +15,12 @@ categories.workspace = true
 wimsey-jose = { workspace = true }
 base64 = { workspace = true }
 sha2 = { workspace = true }
+hmac = { workspace = true }
 ryu = { workspace = true }
+
+[dev-dependencies]
+visado-testkit = { workspace = true }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

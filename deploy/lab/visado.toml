@@ -47,6 +47,11 @@ grpc_reachable_only_by_proxy = true
 audiences = ["http://tools.td.example"]
 trust_bundles = [{ trust_domain = "td.example", bundle_file = "spire/spiffe-bundle.json" }]
 
+# Every DPoP proof must carry a nonce visado issued (RFC 9449 §9). One
+# replica, so the key is made at startup.
+[dpop]
+require_nonce = true
+
 [telemetry]
 otlp_endpoint = "http://jaeger:4317"
 

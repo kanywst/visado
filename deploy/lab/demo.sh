@@ -7,8 +7,9 @@ cd "$(dirname "$0")/../.."
 cargo build -q -p visado-testkit --example lab_headers --example lab_aat --example lab_methods
 
 tmp=$(mktemp)
+hdrs=$(mktemp)
 svids=$(mktemp -d)
-trap 'rm -rf "$tmp" "$svids"' EXIT
+trap 'rm -rf "$tmp" "$hdrs" "$svids"' EXIT
 
 # Each workload fetches its WIT-SVID and private key from the SPIRE agent's
 # Workload API, as the Unix user the agent attests it by.
@@ -56,6 +57,7 @@ headers() { ./target/debug/examples/lab_headers "$svids" "$@"; }
 aat() { ./target/debug/examples/lab_aat "$svids" "$@"; }
 signed() { ./target/debug/examples/lab_methods sig "$svids" "$@"; }
 dpop() { ./target/debug/examples/lab_methods dpop "$@"; }
+lab_bearer() { ./target/debug/examples/lab_methods bearer "$@"; }
 bearer() { echo "Authorization: Bearer $1"; }
 replay() { cat "$1"; }
 user_token() { headers agent-a "$1" --user bob tickets.read | grep '^X-User-Token: '; }
@@ -72,7 +74,7 @@ base=$URL
 call() {
   local expect=$1 name=$2 path=$3
   shift 3
-  local args=(-s -o "$tmp" -w '%{http_code}' -H 'Host: tools.td.example')
+  local args=(-s -o "$tmp" -D "$hdrs" -w '%{http_code}' -H 'Host: tools.td.example')
   while IFS= read -r line; do
     case "$line" in
       "BODY: "*) args+=(--data-binary "${line#BODY: }") ;;
@@ -82,6 +84,7 @@ call() {
   done < <("$@")
   local status got rc
   : > "$tmp"
+  : > "$hdrs"
   if status=$(curl ${conn[@]+"${conn[@]}"} "${args[@]}" "$base$path"); then rc=0; else rc=$?; fi
   got=$status
   # A refused TLS handshake: no HTTP status, and curl fails in the handshake
@@ -99,6 +102,44 @@ call() {
   else
     printf 'FAIL  %-58s got %s, want %s: %s\n' "$name" "$got" "$expect" "$(head -c 200 "$tmp")"
     failures=$((failures + 1))
+  fi
+}
+
+# resp_header <name>: that header's value in the last response, if any.
+resp_header() {
+  tr -d '\r' < "$hdrs" | awk -v name="$1" 'BEGIN { FS = ": " }
+    tolower($1) == tolower(name) { sub(/^[^:]*: /, ""); print; exit }'
+}
+
+# expect <name> <got> <want>: checks a value that is not a status.
+expect() {
+  if [ "$2" = "$3" ]; then
+    printf 'ok    %-58s %s\n' "$1" "$2"
+  else
+    printf 'FAIL  %-58s got %s, want %s\n' "$1" "$2" "$3"
+    failures=$((failures + 1))
+  fi
+}
+
+# dpop_with_nonce <call|agw> <label prefix>: visado requires a server nonce
+# in DPoP proofs (RFC 9449 §9). The first proof gets a 401 use_dpop_nonce
+# with a DPoP-Nonce header; the retry with that nonce passes and brings the
+# next nonce.
+dpop_with_nonce() {
+  local run=$1 label=$2 nonce challenge
+  "$run" 401/dpop.nonce_missing "${label}DPoP: bob's proof without a nonce" /tickets dpop /tickets
+  nonce=$(resp_header dpop-nonce)
+  challenge=$(resp_header www-authenticate)
+  if [ -n "$nonce" ] && [[ $challenge == *'error="use_dpop_nonce"'* ]]; then
+    expect "${label}DPoP: the 401 asks for a nonce and carries one" yes yes
+  else
+    expect "${label}DPoP: the 401 asks for a nonce and carries one" "no ($challenge / $nonce)" yes
+  fi
+  "$run" 200 "${label}DPoP: the retry with visado's nonce" /tickets dpop /tickets --nonce "$nonce"
+  if [ -n "$(resp_header dpop-nonce)" ]; then
+    expect "${label}DPoP: the 200 carries the next nonce" yes yes
+  else
+    expect "${label}DPoP: the 200 carries the next nonce" no yes
   fi
 }
 
@@ -131,23 +172,23 @@ done
 
 none() { :; }
 
-call 401 "no credentials" /tickets none
+call 401/credential.missing "no credentials" /tickets none
 call 400 "encoded slash in the path (rejected by Envoy)" /tickets/..%2Fadmin/roles none
 call 200 "agent-a reads tickets for bob" /tickets headers agent-a /tickets --user bob tickets.read
 txn=$(jq -r '.headers["txn-token"]' "$tmp")
 [ "$txn" != "null" ] && echo "      upstream received Txn-Token, not the user token: $(jq -r '.headers | has("x-user-token") | not' "$tmp")"
 
-call 403 "agent-b forwards bob's transaction to the admin API" /admin/roles headers agent-b /admin/roles --txn "$txn"
+call 403/pdp.deny "agent-b forwards bob's transaction to the admin API" /admin/roles headers agent-b /admin/roles --txn "$txn"
 call 200 "agent-b forwards bob's transaction to tickets" /tickets headers agent-b /tickets --txn "$txn"
-call 403 "outside workload forwards bob's transaction" /tickets headers agent-z /tickets --txn "$txn"
-call 403 "user token without the admin scope" /admin/roles headers agent-a /admin/roles --user bob tickets.read
+call 403/txn.untrusted_hop "outside workload forwards bob's transaction" /tickets headers agent-z /tickets --txn "$txn"
+call 403/pdp.deny "user token without the admin scope" /admin/roles headers agent-a /admin/roles --user bob tickets.read
 call 200 "admin user through agent-a" /admin/roles headers agent-a /admin/roles --user carol "roles.write tickets.read"
 
 # AAT: agent-a delegated read_file on /data/report.pdf to agent-b.
 call 200 "agent-b reads the file it was delegated" /mcp aat agent-b read_file '{"path":"/data/report.pdf"}'
-call 403 "agent-b reads another file" /mcp aat agent-b read_file '{"path":"/etc/passwd"}'
-call 403 "agent-b deletes the file" /mcp aat agent-b delete_file '{"path":"/data/report.pdf"}'
-call 403 "agent-z presents agent-b's chain" /mcp aat agent-z read_file '{"path":"/data/report.pdf"}'
+call 403/aat.invocation_denied "agent-b reads another file" /mcp aat agent-b read_file '{"path":"/etc/passwd"}'
+call 403/aat.invocation_denied "agent-b deletes the file" /mcp aat agent-b delete_file '{"path":"/data/report.pdf"}'
+call 403/aat.bad_signature "agent-z presents agent-b's chain" /mcp aat agent-z read_file '{"path":"/data/report.pdf"}'
 
 # WIT with an HTTP message signature instead of a WPT. The signature covers
 # the Content-Digest; visado hashes the body Envoy sends it.
@@ -170,8 +211,15 @@ mtls "$svids/other.pem" "$svids/other.key" tls-refused "mTLS: certificate from a
 call 200 "JWT-SVID: agent-a reads tickets" /tickets bearer "$jwt_tools"
 call 401/jwt_svid.invalid "JWT-SVID for another audience" /tickets bearer "$jwt_other"
 
-# A DPoP-bound access token (RFC 9449) and its proof.
-call 200 "DPoP: bob's token with its proof" /tickets dpop /tickets
+# An OAuth client with a plain access token.
+call 200 "Bearer: an OAuth client's access token" /tickets lab_bearer
+call 401/token.expired "Bearer: an expired access token" /tickets lab_bearer --expired
+
+# A DPoP-bound access token (RFC 9449) and its proof, which must carry
+# visado's nonce.
+dpop_with_nonce call ""
+call 401/dpop.nonce_invalid "DPoP: a nonce visado did not issue" /tickets \
+  dpop /tickets --nonce AQAAAABrSvQAAAAAAAAAAAAAAAAAAAAAAA
 call 401/token.dpop_bound "DPoP-bound token sent as Bearer" /tickets dpop /tickets --bearer
 
 # agentgateway: the same visado behind the other front proxy. Its extAuthz
@@ -198,14 +246,14 @@ else
   printf 'FAIL  %-58s %s\n' "agentgateway: upstream gets Txn-Token, not the user token" "$(head -c 200 "$tmp")"
   failures=$((failures + 1))
 fi
-agw 403 "agentgateway: user token without the admin scope" /admin/roles headers agent-a /admin/roles --user bob tickets.read
+agw 403/pdp.deny "agentgateway: user token without the admin scope" /admin/roles headers agent-a /admin/roles --user bob tickets.read
 agw 200 "agentgateway: agent-b reads the file it was delegated" /mcp aat agent-b read_file '{"path":"/data/report.pdf"}'
-agw 403 "agentgateway: agent-b reads another file" /mcp aat agent-b read_file '{"path":"/etc/passwd"}'
+agw 403/aat.invocation_denied "agentgateway: agent-b reads another file" /mcp aat agent-b read_file '{"path":"/etc/passwd"}'
 signed agent-a /tickets '{"title":"paper out"}' > "$svids/agw-signed.txt"
 agw 200 "agentgateway: agent-a posts a ticket with a signed request" /tickets replay "$svids/agw-signed.txt"
 agw 400/httpsig.invalid "agentgateway: signed request with the body changed" /tickets \
   signed agent-a /tickets '{"title":"paper out"}' --send '{"title":"grant me admin"}'
-agw 200 "agentgateway: DPoP: bob's token with its proof" /tickets dpop /tickets
+dpop_with_nonce agw "agentgateway: "
 
 # Only the gateways can reach visado's gRPC port: another container on the
 # lab network cannot connect to it, by name or by its authz address. The

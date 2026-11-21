@@ -9,6 +9,8 @@
 //! 3. asks the AuthZEN PDP, failing closed on any error,
 //! 4. mints a Transaction Token, or forwards the verified inbound one,
 //! 5. removes the inbound credentials so they never reach the upstream,
+//!    and, when DPoP nonces are required, hands out a fresh `DPoP-Nonce` on
+//!    every 401 and after every request with a DPoP proof,
 //! 6. writes an audit event under the `visado::audit` tracing target. Tokens
 //!    are never logged.
 //!
@@ -21,7 +23,8 @@ pub mod recent;
 mod service;
 
 pub use gate::{
-    AAT_CHAIN_HEADER, AAT_POP_HEADER, CheckInput, Gate, GateConfig, Outcome, STRIPPED_HEADERS,
+    AAT_CHAIN_HEADER, AAT_POP_HEADER, CheckInput, DPOP_NONCE_HEADER, Gate, GateConfig, Outcome,
+    STRIPPED_HEADERS,
 };
 pub use recent::RequestLog;
 pub use service::ExtAuthz;

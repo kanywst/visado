@@ -152,6 +152,7 @@ fn denied(outcome: &Outcome) -> (u16, &str, Option<&str>) {
             status,
             code,
             challenge,
+            ..
         } => (*status, code.as_str(), challenge.as_deref()),
         Outcome::Allow { .. } => panic!("expected deny"),
     }

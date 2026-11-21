@@ -2431,7 +2431,9 @@ name = "visado"
 version = "0.3.0"
 dependencies = [
  "axum",
+ "base64 0.23.1",
  "envoy-types",
+ "getrandom 0.4.3",
  "jsonwebtoken",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -2475,8 +2477,11 @@ name = "visado-chain"
 version = "0.3.0"
 dependencies = [
  "base64 0.23.1",
+ "hmac",
  "ryu",
+ "serde_json",
  "sha2",
+ "visado-testkit",
  "wimsey-jose",
 ]
 

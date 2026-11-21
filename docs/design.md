@@ -39,7 +39,8 @@ Trust rules:
 - Trust anchors and JWKS locations are configured per trust domain. Keys are never fetched from URLs found inside a token.
 - Audience is an exact string match.
 - Clock leeway is configurable with a 60 s ceiling.
-- WPT `jti` and HTTP signature `nonce` replay are checked against a bounded cache.
+- WPT `jti`, HTTP signature `nonce` and DPoP `jti` replay are checked against a bounded cache.
+- DPoP proofs can be required to carry a server-provided nonce (RFC 9449 §9). Nonces are stateless (an issue time under an HMAC), so replicas that share the key accept each other's.
 
 Method selection, the Envoy settings each method needs, and their limits are in [bindings.md](bindings.md).
 

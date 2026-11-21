@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 use visado_chain_aat::{Policy, TrustAnchor, Verifier};
-use visado_credentials::{Authenticator, JwtBundle, OAuthIssuer, WitIssuer, X509Bundle};
+use visado_credentials::{Authenticator, JwtBundle, Nonces, OAuthIssuer, WitIssuer, X509Bundle};
 use visado_extauthz::GateConfig;
 use visado_txn_token::Scope;
 use wimsey_jose::{Jwk, PrivateJwk, VerifyingKey};
@@ -43,6 +43,8 @@ pub struct Config {
     /// How far a DPoP proof's `iat` may be from now, either way, in seconds.
     #[serde(default = "default_dpop_iat_window")]
     pub dpop_iat_window: u64,
+    #[serde(default)]
+    pub dpop: DpopConfig,
     pub signing_key: KeyFile,
     pub pdp: PdpConfig,
     #[serde(default)]
@@ -63,6 +65,51 @@ pub struct Config {
     pub act: Option<ActConfig>,
     #[serde(default)]
     pub chain_view: ChainViewConfig,
+}
+
+/// Server-provided DPoP nonces (RFC 9449 §9), for DPoP-bound access tokens
+/// and asor leaf proofs alike.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DpopConfig {
+    /// Every DPoP proof must carry a nonce this server issued.
+    #[serde(default)]
+    pub require_nonce: bool,
+    /// Seconds a nonce is accepted for after it is issued.
+    #[serde(default = "default_dpop_nonce_lifetime")]
+    pub nonce_lifetime: u64,
+    /// Files holding a base64url key of at least 32 bytes each. The first
+    /// issues nonces and every one is accepted, so replicas that share the
+    /// files accept each other's nonces and a key can be rotated. Without
+    /// any, a random key is made at startup.
+    #[serde(default)]
+    pub nonce_key_files: Vec<PathBuf>,
+}
+
+impl Default for DpopConfig {
+    fn default() -> Self {
+        Self {
+            require_nonce: false,
+            nonce_lifetime: default_dpop_nonce_lifetime(),
+            nonce_key_files: Vec::new(),
+        }
+    }
+}
+
+const fn default_dpop_nonce_lifetime() -> u64 {
+    300
+}
+
+/// The longest DPoP nonce lifetime accepted in configuration, in seconds.
+pub const MAX_DPOP_NONCE_LIFETIME: u64 = 3600;
+
+/// Where the DPoP nonce key came from, for the startup log.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NonceKeys {
+    /// Made at startup: only this process accepts its nonces.
+    Generated,
+    /// Read from this many files.
+    Files(usize),
 }
 
 /// The chain view: recent decisions and their delegation chains, served on
@@ -402,6 +449,7 @@ pub struct Loaded {
     pub telemetry: Option<TelemetryConfig>,
     pub chain_view: Option<ChainView>,
     pub asor_status: Option<StatusRefresh>,
+    pub dpop_nonce_keys: Option<NonceKeys>,
 }
 
 impl Config {
@@ -442,6 +490,14 @@ impl Config {
             return Err(format!(
                 "dpop_iat_window must be 1..={MAX_DPOP_IAT_WINDOW} seconds"
             ));
+        }
+        if !(1..=MAX_DPOP_NONCE_LIFETIME).contains(&self.dpop.nonce_lifetime) {
+            return Err(format!(
+                "dpop.nonce_lifetime must be 1..={MAX_DPOP_NONCE_LIFETIME} seconds"
+            ));
+        }
+        if !self.dpop.require_nonce && !self.dpop.nonce_key_files.is_empty() {
+            return Err("dpop.nonce_key_files needs dpop.require_nonce = true".into());
         }
         if self.pdp.bearer_env.is_some() && !is_https_or_loopback(&self.pdp.endpoint) {
             return Err("pdp.bearer_env needs an https endpoint (or loopback)".into());
@@ -607,7 +663,14 @@ impl Config {
             }
             authenticator = authenticator.with_oauth_issuer(oauth);
         }
-        let authenticator = with_svid_bundles(authenticator, self.mtls, self.jwt_svid, base)?;
+        let mut authenticator = with_svid_bundles(authenticator, self.mtls, self.jwt_svid, base)?;
+        let dpop_nonce_keys = if self.dpop.require_nonce {
+            let (nonces, keys) = self.dpop.nonces(base)?;
+            authenticator = authenticator.with_dpop_nonces(nonces);
+            Some(keys)
+        } else {
+            None
+        };
         authenticator.check()?;
 
         let require_chain = self.aat.as_ref().is_some_and(|a| a.required)
@@ -659,8 +722,50 @@ impl Config {
                 allowed_hosts: self.chain_view.allowed_hosts,
             }),
             asor_status,
+            dpop_nonce_keys,
         })
     }
+}
+
+impl DpopConfig {
+    /// The nonces, from the key files or a key made now.
+    fn nonces(&self, base: &Path) -> Result<(Nonces, NonceKeys), String> {
+        let lifetime = i64::try_from(self.nonce_lifetime).map_err(|e| e.to_string())?;
+        let mut keys = Vec::new();
+        for file in &self.nonce_key_files {
+            let path = base.join(file);
+            keys.push(read_nonce_key(&path).map_err(|e| format!("{}: {e}", path.display()))?);
+        }
+        let source = if keys.is_empty() {
+            let mut key = vec![0; 32];
+            getrandom::fill(&mut key).map_err(|e| format!("DPoP nonce key: {e}"))?;
+            keys.push(key);
+            NonceKeys::Generated
+        } else {
+            NonceKeys::Files(keys.len())
+        };
+        let mut nonces = Nonces::new(&keys[0], lifetime)?;
+        for key in &keys[1..] {
+            nonces = nonces.with_previous_key(key)?;
+        }
+        Ok((nonces, source))
+    }
+}
+
+/// A DPoP nonce key: base64url, without padding, of at least 32 bytes.
+fn read_nonce_key(path: &Path) -> Result<Vec<u8>, String> {
+    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+    let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let key = URL_SAFE_NO_PAD
+        .decode(text.trim())
+        .map_err(|_| "not base64url without padding".to_owned())?;
+    if key.len() < visado_credentials::MIN_DPOP_NONCE_KEY_LEN {
+        return Err(format!(
+            "a DPoP nonce key needs at least {} bytes",
+            visado_credentials::MIN_DPOP_NONCE_KEY_LEN
+        ));
+    }
+    Ok(key)
 }
 
 /// Adds the SPIFFE trust bundles: X.509 CAs for mTLS and JWT keys for
@@ -1392,5 +1497,73 @@ jwks_file = "j"
         let remote = BASE.replace("http://127.0.0.1:8181", "http://pdp.example");
         let config: Config = toml::from_str(&format!("{remote}bearer_env = \"T\"\n")).unwrap();
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn dpop_nonce_settings_are_checked() {
+        parse_tables("[dpop]\nrequire_nonce = true\n").unwrap();
+        parse_tables("[dpop]\nrequire_nonce = true\nnonce_lifetime = 3600\n").unwrap();
+        assert!(parse_tables("[dpop]\nrequire_nonce = true\nnonce_lifetime = 0\n").is_err());
+        assert!(parse_tables("[dpop]\nrequire_nonce = true\nnonce_lifetime = 3601\n").is_err());
+        assert!(parse_tables("[dpop]\nnonce_key_files = [\"k\"]\n").is_err());
+        assert!(parse_tables("[dpop]\nrequire_nonces = true\n").is_err());
+        let config: Config = toml::from_str(BASE).unwrap();
+        assert!(!config.dpop.require_nonce);
+        assert_eq!(config.dpop.nonce_lifetime, 300);
+    }
+
+    #[test]
+    fn dpop_nonce_keys_load_from_files_or_are_made_at_startup() {
+        use super::NonceKeys;
+        use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+        use visado_credentials::Nonces;
+        let dir = std::env::temp_dir().join(format!("visado-nonce-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let key = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../deploy/local/keys/txn-signing.private.jwk.json");
+        std::fs::copy(key, dir.join("k.json")).unwrap();
+        std::fs::write(dir.join("new.key"), URL_SAFE_NO_PAD.encode([1; 32]) + "\n").unwrap();
+        std::fs::write(dir.join("old.key"), URL_SAFE_NO_PAD.encode([2; 40])).unwrap();
+        std::fs::write(dir.join("short.key"), URL_SAFE_NO_PAD.encode([3; 31])).unwrap();
+        std::fs::write(
+            dir.join("padded.key"),
+            "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=",
+        )
+        .unwrap();
+        let path = dir.join("visado.toml");
+        let load = |dpop: &str| {
+            std::fs::write(&path, format!("{BASE}[dpop]\nrequire_nonce = true\n{dpop}")).unwrap();
+            Config::load(&path)
+        };
+        let files = load("nonce_key_files = [\"new.key\", \"old.key\"]\nnonce_lifetime = 60\n");
+        let generated = load("");
+        let short = load("nonce_key_files = [\"short.key\"]\n").err();
+        let padded = load("nonce_key_files = [\"padded.key\"]\n").err();
+        let missing = load("nonce_key_files = [\"absent.key\"]\n").err();
+        std::fs::write(&path, BASE).unwrap();
+        let off = Config::load(&path).map(|l| l.authenticator.dpop_nonces().is_some());
+        std::fs::remove_dir_all(&dir).unwrap();
+
+        let files = files.unwrap();
+        assert_eq!(files.dpop_nonce_keys, Some(NonceKeys::Files(2)));
+        let nonces = files.authenticator.dpop_nonces().unwrap();
+        assert_eq!(nonces.lifetime(), 60);
+        let now = 1_800_000_000;
+        // The first file issues; both are accepted.
+        let new = Nonces::new(&[1; 32], 60).unwrap();
+        let old = Nonces::new(&[2; 40], 60).unwrap();
+        assert_eq!(new.check(&nonces.issue(now), now), Ok(now));
+        assert_eq!(nonces.check(&old.issue(now), now), Ok(now));
+
+        let generated = generated.unwrap();
+        assert_eq!(generated.dpop_nonce_keys, Some(NonceKeys::Generated));
+        let made = generated.authenticator.dpop_nonces().unwrap();
+        assert!(made.check(&made.issue(now), now).is_ok());
+        assert!(new.check(&made.issue(now), now).is_err());
+
+        assert!(short.is_some_and(|e| e.contains("at least 32 bytes")));
+        assert!(padded.is_some_and(|e| e.contains("base64url")));
+        assert!(missing.is_some_and(|e| e.contains("absent.key")));
+        assert_eq!(off, Ok(false));
     }
 }

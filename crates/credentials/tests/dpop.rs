@@ -433,3 +433,143 @@ fn htm_is_the_request_method() {
     let headers: Vec<(&str, &str)> = headers.iter().map(|(n, v)| (*n, v.as_str())).collect();
     assert!(run_as(&auth, "GET", &headers).is_ok());
 }
+
+// Server-provided nonces (RFC 9449 §9).
+
+fn nonces() -> visado_credentials::Nonces {
+    visado_credentials::Nonces::new(&[0x4e; 32], 120).unwrap()
+}
+
+fn with_nonces() -> Authenticator {
+    authenticator().with_dpop_nonces(nonces())
+}
+
+/// A proof with `jti` carrying `nonce`.
+fn nonce_proof(token: &str, jti: &str, nonce: &str) -> String {
+    proof_with(&holder(), "Ed25519", token, |c| {
+        c["jti"] = json!(jti);
+        c["nonce"] = json!(nonce);
+    })
+}
+
+const NOW_I: i64 = 1_800_000_000;
+
+#[test]
+fn a_proof_with_a_nonce_from_this_server_is_accepted() {
+    let auth = with_nonces();
+    assert!(auth.dpop_nonces().is_some());
+    assert!(authenticator().dpop_nonces().is_none());
+    let at = token();
+    let nonce = auth.dpop_nonces().unwrap().issue(NOW_I - 30);
+    let ok = send(&auth, &at, &nonce_proof(&at, "n-1", &nonce)).unwrap();
+    assert_eq!(ok.method, Method::OAuthDpop);
+}
+
+#[test]
+fn every_nonce_failure_has_its_code() {
+    let auth = with_nonces();
+    let at = token();
+    let n = nonces();
+    let other = visado_credentials::Nonces::new(&[0x4f; 32], 120).unwrap();
+    let missing = proof_with(&holder(), "Ed25519", &at, |c| c["jti"] = json!("m-0"));
+    assert_eq!(
+        send(&auth, &at, &missing).unwrap_err(),
+        "dpop.nonce_missing"
+    );
+    let not_a_string = proof_with(&holder(), "Ed25519", &at, |c| {
+        c["jti"] = json!("m-1");
+        c["nonce"] = json!(7);
+    });
+    assert_eq!(
+        send(&auth, &at, &not_a_string).unwrap_err(),
+        "dpop.nonce_invalid"
+    );
+    for (i, (nonce, code)) in [
+        ("garbage".to_owned(), "dpop.nonce_invalid"),
+        (other.issue(NOW_I), "dpop.nonce_invalid"),
+        (n.issue(NOW_I + 60), "dpop.nonce_invalid"),
+        (n.issue(NOW_I - 120), "dpop.nonce_expired"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let proof = nonce_proof(&at, &format!("m-{}", i + 2), &nonce);
+        assert_eq!(send(&auth, &at, &proof).unwrap_err(), code, "case {i}");
+    }
+}
+
+#[test]
+fn nonce_errors_say_why() {
+    let auth = with_nonces();
+    let at = token();
+    let missing = proof_with(&holder(), "Ed25519", &at, |_| {});
+    let view_headers = [
+        ("authorization".to_owned(), format!("DPoP {at}")),
+        ("dpop".to_owned(), missing),
+    ];
+    let view = RequestView {
+        method: "POST",
+        scheme: "https",
+        authority: "tools.td.example",
+        path: "/mcp",
+        headers: &view_headers,
+        body: None,
+        peer_certificate: None,
+    };
+    let err = auth.authenticate(&view, NOW).unwrap_err();
+    assert!(matches!(
+        err,
+        visado_credentials::AuthError::DpopNonce(visado_credentials::NonceError::Missing)
+    ));
+    assert_eq!(err.to_string(), "DPoP nonce missing");
+}
+
+#[test]
+fn a_proof_refused_for_its_nonce_does_not_use_up_its_jti() {
+    let auth = with_nonces();
+    let at = token();
+    let missing = proof_with(&holder(), "Ed25519", &at, |c| c["jti"] = json!("r-1"));
+    assert_eq!(
+        send(&auth, &at, &missing).unwrap_err(),
+        "dpop.nonce_missing"
+    );
+    let nonce = nonces().issue(NOW_I);
+    let retry = nonce_proof(&at, "r-1", &nonce);
+    assert!(send(&auth, &at, &retry).is_ok());
+    // A replay of the accepted proof is still caught, nonce and all.
+    assert_eq!(send(&auth, &at, &retry).unwrap_err(), "dpop.replay");
+}
+
+#[test]
+fn other_failures_are_reported_before_the_nonce() {
+    let auth = with_nonces();
+    let at = token();
+    // Wrong method, no nonce: the proof is invalid whatever the nonce.
+    let get = proof_with(&holder(), "Ed25519", &at, |c| c["htm"] = json!("GET"));
+    assert_eq!(send(&auth, &at, &get).unwrap_err(), "dpop.invalid");
+    // Another key, no nonce: the token is not bound to it.
+    let other = pop_key(8);
+    let foreign = proof_with(&other, "Ed25519", &at, |_| {});
+    assert_eq!(send(&auth, &at, &foreign).unwrap_err(), "dpop.binding");
+    // An expired token with a good nonce is still expired.
+    let expired = dpop_access_token(
+        "alice",
+        "mcp-client",
+        "files.read",
+        AUDIENCE,
+        NOW - 100,
+        &holder(),
+    );
+    let nonce = nonces().issue(NOW_I);
+    assert_eq!(
+        send(&auth, &expired, &nonce_proof(&expired, "e-1", &nonce)).unwrap_err(),
+        "token.expired"
+    );
+}
+
+#[test]
+fn without_nonces_a_nonce_claim_is_ignored() {
+    let auth = authenticator();
+    let at = token();
+    assert!(send(&auth, &at, &nonce_proof(&at, "i-1", "whatever")).is_ok());
+}
