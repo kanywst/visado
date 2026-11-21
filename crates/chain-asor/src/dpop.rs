@@ -5,8 +5,9 @@ use visado_chain::replay::ReplayCache;
 
 pub use visado_chain::dpop::{HttpRequest, TYP as DPOP_TYP};
 
-/// The `alg` values a proof may use: fully specified, as for the tokens.
-const ALGS: &[&str] = &["Ed25519", "ES256"];
+/// The `alg` values a leaf proof may use: fully specified, as for the
+/// tokens. A `DPoP` challenge for a leaf proof advertises these.
+pub const DPOP_ALGS: &[&str] = &["Ed25519", "ES256"];
 
 /// What a valid proof established.
 pub(crate) struct Proof {
@@ -38,7 +39,7 @@ pub(crate) fn verify(
     let expected = Expected {
         jkt,
         access_token: leaf_token,
-        algs: ALGS,
+        algs: DPOP_ALGS,
         max_size: window.max_size,
         iat_window: window.iat_window,
         nonces: window.nonces,

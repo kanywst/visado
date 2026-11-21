@@ -37,7 +37,7 @@ mod status;
 mod verify;
 
 pub use authority::{Cumulative, DETAIL_TYPE, RunningTotals};
-pub use dpop::{DPOP_TYP, HttpRequest};
+pub use dpop::{DPOP_ALGS, DPOP_TYP, HttpRequest};
 pub use error::{AsorError, Outcome};
 pub use status::{
     DEFAULT_STATUS_MAX_AGE, MemoryStatusLists, STATUS_LIST_TYPS, StatusList, StatusListError,

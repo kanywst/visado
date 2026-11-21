@@ -361,7 +361,8 @@ async fn an_asor_leaf_proof_needs_the_nonce_too() {
     let first = gate.check(&asor_call(None, 1), NOW, "t").await;
     let (status, code, challenge, headers) = denied(&first);
     assert_eq!((status, code), (401, "dpop.nonce_missing"));
-    assert_eq!(challenge, Some(use_nonce().as_str()));
+    // The leaf proof accepts Ed25519 and ES256 only, and says so.
+    assert_eq!(challenge, Some(leaf_use_nonce()));
     let nonce = nonce_of(headers);
 
     let retry = gate.check(&asor_call(Some(&nonce), 2), NOW, "t").await;
@@ -370,13 +371,33 @@ async fn an_asor_leaf_proof_needs_the_nonce_too() {
     let forged = Nonces::new(&[1; 32], 120).unwrap().issue(NOW_I);
     let bad = gate.check(&asor_call(Some(&forged), 3), NOW, "t").await;
     assert_eq!(denied(&bad).1, "dpop.nonce_invalid");
+}
 
-    // Without nonces on the authenticator, the gate turns them off for the
-    // asor verifier as well, even if it had its own.
+#[tokio::test]
+async fn an_asor_verifier_keeps_its_own_nonces() {
+    // Nonces on the asor verifier only: the authenticator's absence does
+    // not turn the leaf check off, and the gate hands out the verifier's.
     let mut cfg = config();
     cfg.asor = cfg.asor.map(|v| v.with_dpop_nonces(Some(nonces())));
-    let off = Gate::new(cfg, authenticator(), Pdp1);
-    assert_eq!(allowed(&off.check(&asor_call(None, 4), NOW, "t").await), []);
+    let gate = Gate::new(cfg, authenticator(), Pdp1);
+    let first = gate.check(&asor_call(None, 1), NOW, "t").await;
+    let (status, code, challenge, headers) = denied(&first);
+    assert_eq!((status, code), (401, "dpop.nonce_missing"));
+    assert_eq!(challenge, Some(leaf_use_nonce()));
+    let nonce = nonce_of(headers);
+    let retry = gate.check(&asor_call(Some(&nonce), 2), NOW, "t").await;
+    nonce_of(allowed(&retry));
+
+    // A DPoP-bound access token needs no nonce there, and gets none.
+    let at = token();
+    let ok = gate
+        .check(&dpop_call(&at, proof(&at, "o-1", None, NOW)), NOW, "t")
+        .await;
+    assert_eq!(allowed(&ok), []);
+}
+
+fn leaf_use_nonce() -> &'static str {
+    r#"DPoP error="use_dpop_nonce", algs="Ed25519 ES256""#
 }
 
 fn check_request(headers: HashMap<String, String>) -> CheckRequest {

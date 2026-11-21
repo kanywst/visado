@@ -342,6 +342,12 @@ impl Verifier {
         self
     }
 
+    /// The nonces the leaf proof must carry, when they are required.
+    #[must_use]
+    pub const fn dpop_nonces(&self) -> Option<&Nonces> {
+        self.dpop_nonces.as_ref()
+    }
+
     /// Checks `status` claims (step 7) against the lists `lists` holds.
     /// Without a source, a token with a `status` claim is denied as
     /// `status_unknown` by [`Verifier::verify`].
