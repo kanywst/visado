@@ -95,6 +95,19 @@ fn the_nonce_is_checked_after_every_other_check() {
     // on the nonce: a fresh nonce would not help.
     let p = proof(|c| c["htm"] = json!("GET"));
     assert!(matches!(check(&p, Some(&n)), Err(Rejection::Proof(_))));
+    // The same for each later check: `htu`, `iat` and `ath`, the last one
+    // before the nonce.
+    for (claim, value) in [
+        ("htu", json!("https://elsewhere.example/mcp")),
+        ("iat", json!(NOW - 3600)),
+        ("ath", json!("not-the-token-hash")),
+    ] {
+        let p = proof(|c| c[claim] = value);
+        assert!(
+            matches!(check(&p, Some(&n)), Err(Rejection::Proof(_))),
+            "{claim}"
+        );
+    }
     // Another key is still a key mismatch.
     let key = pop_key(10);
     let header = json!({ "alg": "Ed25519", "typ": "dpop+jwt", "jwk": dpop_jwk(&key) });
