@@ -1,6 +1,6 @@
 header:
   schema-version: 2.0.0
-  last-updated: "2026-11-19"
+  last-updated: "2026-11-22"
   last-reviewed: "2026-11-19"
   url: https://raw.githubusercontent.com/kanywst/visado/main/SECURITY-INSIGHTS.yml
 project:
@@ -24,6 +24,11 @@ repository:
   accepts-change-request: true
   accepts-automated-change-request: true
   no-third-party-packages: false
+  documentation:
+    contributing-guide: https://github.com/kanywst/visado/blob/main/CONTRIBUTING.md
+    dependency-management-policy: https://github.com/kanywst/visado/blob/main/docs/dependencies.md
+    governance: https://github.com/kanywst/visado/blob/main/GOVERNANCE.md
+    security-policy: https://github.com/kanywst/visado/blob/main/SECURITY.md
   core-team:
     - name: kanywst
       primary: true
