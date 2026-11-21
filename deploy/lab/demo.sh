@@ -207,9 +207,17 @@ agw 400/httpsig.invalid "agentgateway: signed request with the body changed" /ti
   signed agent-a /tickets '{"title":"paper out"}' --send '{"title":"grant me admin"}'
 agw 200 "agentgateway: DPoP: bob's token with its proof" /tickets dpop /tickets
 
-# Only the proxies can reach visado's gRPC port: another container on the
-# lab network cannot connect to it, by name or by its authz address.
-if docker compose exec -T spire-agent sh -c 'nc -z -w 2 visado 9191 || nc -z -w 2 172.30.91.10 9191' 2>/dev/null; then
+# Only the gateways can reach visado's gRPC port: another container on the
+# lab network cannot connect to it, by name or by its authz address. The
+# probe must first reach visado's HTTP port, so a probe that cannot run at
+# all does not count as refused.
+probe() {
+  docker compose -f deploy/lab/compose.yaml exec -T spire-agent nc -z -w 2 "$1" "$2" 2>/dev/null
+}
+if ! probe visado 8080; then
+  printf 'FAIL  %-58s %s\n' "gRPC port unreachable from other containers" "probe cannot reach visado:8080"
+  failures=$((failures + 1))
+elif probe visado 9191 || probe 172.30.91.10 9191; then
   printf 'FAIL  %-58s reachable\n' "gRPC port unreachable from other containers"
   failures=$((failures + 1))
 else
