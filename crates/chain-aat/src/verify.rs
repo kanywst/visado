@@ -722,6 +722,7 @@ fn normalize(chain: &Verified<'_>, holder_proof: bool) -> NormalizedChain {
             depth: token.depth,
             max_depth: Some(token.max_depth),
             actor,
+            principal: Principal::Unspecified,
             delegator,
             signer,
             signer_binding,
@@ -738,6 +739,7 @@ fn normalize(chain: &Verified<'_>, holder_proof: bool) -> NormalizedChain {
             cnf: Some(Cnf {
                 thumbprint: KeyThumbprint(token.holder.thumbprint.clone()),
             }),
+            status: None,
             assurance: Assurance::Verified,
         });
     }

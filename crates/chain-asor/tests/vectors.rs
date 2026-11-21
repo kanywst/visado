@@ -110,6 +110,12 @@ fn decoded_chain_is_normalized() {
             subject: "acct:finance-ops@example.com".into(),
         }
     );
+    assert!(
+        chain
+            .hops
+            .iter()
+            .all(|h| h.principal == chain.principal && h.status.is_none())
+    );
     let depths: Vec<u32> = chain.hops.iter().map(|h| h.depth).collect();
     assert_eq!(depths, [0, 1, 2]);
     assert!(chain.hops.iter().all(|h| h.max_depth == Some(6)));

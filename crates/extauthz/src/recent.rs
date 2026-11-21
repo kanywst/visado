@@ -309,6 +309,7 @@ mod tests {
             depth,
             max_depth: None,
             actor: ActorId::Name(format!("agent-{depth}")),
+            principal: Principal::Unspecified,
             delegator: None,
             signer: KeyThumbprint("signer".into()),
             signer_binding: SignerBinding::ParentCnf,
@@ -329,6 +330,7 @@ mod tests {
             cnf: Some(Cnf {
                 thumbprint: KeyThumbprint(format!("jkt-{depth}")),
             }),
+            status: None,
             assurance,
         }
     }

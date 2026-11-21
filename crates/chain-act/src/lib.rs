@@ -197,6 +197,10 @@ impl Verifier {
             issued_at: token.issued_at.map_or(0, saturate),
             expires_at: saturate(token.expires_at),
         };
+        let principal = Principal::Subject {
+            issuer: token.issuer.to_owned(),
+            subject: token.subject.to_owned(),
+        };
         let mut hops: Vec<Hop> = Vec::with_capacity(actors.len());
         for (depth, actor) in actors.into_iter().enumerate() {
             let actor = ActorId::Subject {
@@ -209,6 +213,7 @@ impl Verifier {
                 depth: u32::try_from(depth).unwrap_or(u32::MAX),
                 max_depth: None,
                 actor,
+                principal: principal.clone(),
                 link: if delegator.is_some() {
                     Link::Nested
                 } else {
@@ -224,15 +229,13 @@ impl Verifier {
                 validity,
                 audience: None,
                 cnf: None,
+                status: None,
                 assurance: Assurance::Declared,
             });
         }
         Ok(NormalizedChain {
             profile: Profile::Rfc8693Act,
-            principal: Principal::Subject {
-                issuer: token.issuer.to_owned(),
-                subject: token.subject.to_owned(),
-            },
+            principal,
             root: TrustRef {
                 issuer: token.issuer.to_owned(),
                 key: signer,
