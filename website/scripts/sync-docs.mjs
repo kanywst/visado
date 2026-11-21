@@ -37,6 +37,7 @@ const pages = [
   { src: 'docs/scope.md', slug: 'concepts/scope' },
   { src: 'docs/design.md', slug: 'concepts/design', title: 'Design' },
   { src: 'docs/bindings.md', slug: 'concepts/bindings', optional: true },
+  { src: 'docs/audit.md', slug: 'concepts/audit', title: 'Audit record' },
   { src: 'SPEC-MAP.md', slug: 'spec-map' },
   { src: 'docs/interop.md', slug: 'interop', title: 'Interop results' },
   { src: 'SECURITY.md', slug: 'security/policy' },

@@ -21,6 +21,7 @@ use visado_txn_token::{
     mint_with, replace, verify,
 };
 
+use crate::audit::{AUDIT_VERSION, AuditChain, AuditRecord};
 use crate::recent::{ChainSummary, Decision, PdpResult, RequestLog, RequestSummary, bounded};
 
 /// The header carrying an AAT chain, root first, comma-separated.
@@ -169,6 +170,7 @@ pub struct Gate<P> {
     log: Option<Arc<RequestLog>>,
     /// Runs on every chain after its format's checks.
     engine: Engine,
+    audit: AuditChain,
 }
 
 /// The tool and its arguments a chain is asked to authorize.
@@ -215,6 +217,7 @@ impl<P: Pdp> Gate<P> {
             nonces,
             log: None,
             engine,
+            audit: AuditChain::default(),
         }
     }
 
@@ -271,9 +274,9 @@ impl<P: Pdp> Gate<P> {
             let now = i64::try_from(now).unwrap_or(i64::MAX);
             nonces.map(|n| (DPOP_NONCE_HEADER.to_owned(), n.issue(now)))
         };
+        self.audit.append(audit_record(input, now, txn, &result));
         match result {
             Ok(allowed) => {
-                audit(input, &allowed.trail, "allow", "ok", "");
                 let response_headers = if allowed.dpop_proof {
                     fresh_nonce().into_iter().collect()
                 } else {
@@ -287,13 +290,6 @@ impl<P: Pdp> Gate<P> {
                 }
             }
             Err(denied) => {
-                audit(
-                    input,
-                    &denied.trail,
-                    "deny",
-                    denied.code,
-                    denied.detail.as_deref().unwrap_or(""),
-                );
                 // Every 401 hands out a nonce, so a client learns it at the
                 // first challenge whatever went wrong.
                 let headers = match fresh_nonce() {
@@ -325,11 +321,9 @@ impl<P: Pdp> Gate<P> {
             }
             None => None,
         };
-        if self.log.is_some() {
-            trail.chain = chain
-                .as_ref()
-                .map(|c| Box::new(ChainSummary::from_chain(c)));
-        }
+        trail.chain = chain
+            .as_ref()
+            .map(|c| Box::new(ChainSummary::from_chain(c)));
 
         let inbound = input
             .headers
@@ -897,7 +891,7 @@ fn split_chain(value: &str) -> Vec<String> {
     value.split(',').map(|t| t.trim().to_owned()).collect()
 }
 
-/// What is known about the request so far, for the audit event.
+/// What is known about the request so far, for the audit record.
 #[derive(Debug, Default, Clone)]
 struct Trail {
     agent: String,
@@ -907,7 +901,7 @@ struct Trail {
     method: Option<Method>,
     /// What the PDP said, once asked.
     pdp: Option<PdpResult>,
-    /// The verified chain, kept only when there is a request log.
+    /// The verified chain, without its tokens.
     chain: Option<Box<ChainSummary>>,
     /// How the chain's depth bound was read (`del_max_depth`), once the
     /// invariant engine accepted it.
@@ -1339,17 +1333,85 @@ fn summary(
     }
 }
 
-fn audit(input: &CheckInput, trail: &Trail, decision: &str, reason: &str, detail: &str) {
-    tracing::info!(
-        target: "visado::audit",
-        txn = %trail.txn,
-        agent = %trail.agent,
-        principal = %trail.principal,
-        resource = %resource_id(input),
-        action = %input.method,
-        decision,
-        reason,
-        detail,
-        depth_semantics = trail.depth_semantics.unwrap_or(""),
-    );
+/// The audit record of one decision, before it is linked into the chain.
+fn audit_record(
+    input: &CheckInput,
+    now: u64,
+    id: &str,
+    result: &Result<Allowed, Denied>,
+) -> AuditRecord {
+    let (trail, decision, status, reason, detail) = match result {
+        Ok(allowed) => (&allowed.trail, "allow", 200, "ok", ""),
+        Err(denied) => (
+            &*denied.trail,
+            "deny",
+            denied.status,
+            denied.code,
+            denied.detail.as_deref().unwrap_or(""),
+        ),
+    };
+    let chain = trail.chain.as_deref();
+    let actors: Vec<&str> = chain
+        .map(|c| c.hops.iter().map(|h| h.actor.as_str()).collect())
+        .unwrap_or_default();
+    let remediation = match (decision, status) {
+        ("allow", _) => "none",
+        (_, 401) => "reauthenticate",
+        (_, 503) => "retry_later",
+        _ => "refused",
+    };
+    AuditRecord {
+        audit_version: AUDIT_VERSION,
+        seq: 0,
+        prev: String::new(),
+        id: id.to_owned(),
+        txn: trail.txn.clone(),
+        time: now,
+        agent: trail.agent.clone(),
+        auth_method: trail.method.map(method_name).unwrap_or_default().to_owned(),
+        sender_constrained: trail.method.is_some_and(sender_constrained),
+        principal: trail.principal.clone(),
+        chain_profile: chain.map(|c| c.profile).unwrap_or_default().to_owned(),
+        chain_issuer: chain.map(|c| c.issuer.clone()).unwrap_or_default(),
+        chain_hops: chain.map_or(0, |c| {
+            u32::try_from(c.hops.len() + c.hops_omitted).unwrap_or(u32::MAX)
+        }),
+        chain_actors: serde_json::to_string(&actors).unwrap_or_else(|_| "[]".into()),
+        resource: resource_id(input),
+        tool: mcp_tool(input).unwrap_or_default(),
+        action: input.method.clone(),
+        decision: decision.to_owned(),
+        status,
+        reason: reason.to_owned(),
+        detail: detail.to_owned(),
+        pdp: match &trail.pdp {
+            None => "not_asked".to_owned(),
+            Some(PdpResult::Allow) => "allow".to_owned(),
+            Some(PdpResult::Deny) => "deny".to_owned(),
+            Some(PdpResult::Error(code)) => format!("error:{code}"),
+        },
+        remediation: remediation.to_owned(),
+        hash: String::new(),
+    }
+}
+
+/// Whether the caller proved possession of a key for the request: a WIT
+/// with a WPT or a signature, a client certificate, or a DPoP proof.
+const fn sender_constrained(method: Method) -> bool {
+    match method {
+        Method::WitWpt | Method::WitHttpSig | Method::Mtls | Method::OAuthDpop => true,
+        Method::JwtSvid | Method::Bearer => false,
+    }
+}
+
+/// The tool of a JSON-RPC `tools/call` body, cut to the summary length.
+fn mcp_tool(input: &CheckInput) -> Option<String> {
+    if input
+        .body
+        .as_deref()
+        .is_none_or(|b| b.trim_ascii().is_empty())
+    {
+        return None;
+    }
+    invocation(input).map(|(tool, _)| bounded(&tool))
 }
