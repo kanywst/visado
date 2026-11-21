@@ -70,7 +70,8 @@ pub struct AuditRecord {
     pub status: u16,
     /// The stable reason code: `ok` for an allow.
     pub reason: String,
-    /// Why, in words, for a denial; never a token.
+    /// Why, in words, for a denial. Bounded in length, and any JWS-looking
+    /// text is replaced by `[token]`.
     pub detail: String,
     /// What the PDP said: `allow`, `deny`, `error:<code>`, or `not_asked`.
     pub pdp: String,
@@ -128,6 +129,25 @@ impl Serialize for Ordered<'_> {
     }
 }
 
+/// `text` with every JWS-looking run (`eyJ` followed by base64url and dots,
+/// as a JOSE header starts) replaced by `[token]`, so an error message that
+/// quotes a credential does not put it in the log.
+pub(crate) fn scrub_tokens(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("eyJ") {
+        out.push_str(&rest[..start]);
+        let tail = &rest[start..];
+        let end = tail
+            .find(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.')))
+            .unwrap_or(tail.len());
+        out.push_str("[token]");
+        rest = &tail[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
 fn hex(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
     for b in bytes {
@@ -176,6 +196,8 @@ pub(crate) struct AuditChain {
 impl AuditChain {
     /// Links `record` to the chain, sets its `seq`, `prev` and `hash`, and
     /// writes it, all under one lock so the log order is the chain order.
+    /// The write happens under the lock for that reason: a slow log sink
+    /// slows every decision, which the per-line size bound keeps small.
     pub(crate) fn append(&self, mut record: AuditRecord) -> AuditRecord {
         let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
         record.seq = state.0;
@@ -187,7 +209,7 @@ impl AuditChain {
             String::new()
         });
         emit(&record);
-        state.0 += 1;
+        state.0 = state.0.saturating_add(1);
         state.1.clone_from(&record.hash);
         record
     }
@@ -282,6 +304,16 @@ mod tests {
             .collect();
         records[1].decision = "deny".into();
         assert_eq!(verify_chain(&records), Err(ChainBreak::Altered(1)));
+    }
+
+    #[test]
+    fn tokens_are_scrubbed() {
+        assert_eq!(
+            super::scrub_tokens("bad aud in eyJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJib2IifQ.c2ln, again"),
+            "bad aud in [token], again"
+        );
+        assert_eq!(super::scrub_tokens("no token here"), "no token here");
+        assert_eq!(super::scrub_tokens("eyJ"), "[token]");
     }
 
     /// A `seq` of `u64::MAX` followed by `seq: 0` is a gap, not a wrap.
