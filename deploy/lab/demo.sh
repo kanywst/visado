@@ -57,6 +57,7 @@ headers() { ./target/debug/examples/lab_headers "$svids" "$@"; }
 aat() { ./target/debug/examples/lab_aat "$svids" "$@"; }
 signed() { ./target/debug/examples/lab_methods sig "$svids" "$@"; }
 dpop() { ./target/debug/examples/lab_methods dpop "$@"; }
+lab_bearer() { ./target/debug/examples/lab_methods bearer "$@"; }
 bearer() { echo "Authorization: Bearer $1"; }
 replay() { cat "$1"; }
 user_token() { headers agent-a "$1" --user bob tickets.read | grep '^X-User-Token: '; }
@@ -171,23 +172,23 @@ done
 
 none() { :; }
 
-call 401 "no credentials" /tickets none
+call 401/credential.missing "no credentials" /tickets none
 call 400 "encoded slash in the path (rejected by Envoy)" /tickets/..%2Fadmin/roles none
 call 200 "agent-a reads tickets for bob" /tickets headers agent-a /tickets --user bob tickets.read
 txn=$(jq -r '.headers["txn-token"]' "$tmp")
 [ "$txn" != "null" ] && echo "      upstream received Txn-Token, not the user token: $(jq -r '.headers | has("x-user-token") | not' "$tmp")"
 
-call 403 "agent-b forwards bob's transaction to the admin API" /admin/roles headers agent-b /admin/roles --txn "$txn"
+call 403/pdp.deny "agent-b forwards bob's transaction to the admin API" /admin/roles headers agent-b /admin/roles --txn "$txn"
 call 200 "agent-b forwards bob's transaction to tickets" /tickets headers agent-b /tickets --txn "$txn"
-call 403 "outside workload forwards bob's transaction" /tickets headers agent-z /tickets --txn "$txn"
-call 403 "user token without the admin scope" /admin/roles headers agent-a /admin/roles --user bob tickets.read
+call 403/txn.untrusted_hop "outside workload forwards bob's transaction" /tickets headers agent-z /tickets --txn "$txn"
+call 403/pdp.deny "user token without the admin scope" /admin/roles headers agent-a /admin/roles --user bob tickets.read
 call 200 "admin user through agent-a" /admin/roles headers agent-a /admin/roles --user carol "roles.write tickets.read"
 
 # AAT: agent-a delegated read_file on /data/report.pdf to agent-b.
 call 200 "agent-b reads the file it was delegated" /mcp aat agent-b read_file '{"path":"/data/report.pdf"}'
-call 403 "agent-b reads another file" /mcp aat agent-b read_file '{"path":"/etc/passwd"}'
-call 403 "agent-b deletes the file" /mcp aat agent-b delete_file '{"path":"/data/report.pdf"}'
-call 403 "agent-z presents agent-b's chain" /mcp aat agent-z read_file '{"path":"/data/report.pdf"}'
+call 403/aat.invocation_denied "agent-b reads another file" /mcp aat agent-b read_file '{"path":"/etc/passwd"}'
+call 403/aat.invocation_denied "agent-b deletes the file" /mcp aat agent-b delete_file '{"path":"/data/report.pdf"}'
+call 403/aat.bad_signature "agent-z presents agent-b's chain" /mcp aat agent-z read_file '{"path":"/data/report.pdf"}'
 
 # WIT with an HTTP message signature instead of a WPT. The signature covers
 # the Content-Digest; visado hashes the body Envoy sends it.
@@ -209,6 +210,10 @@ mtls "$svids/other.pem" "$svids/other.key" tls-refused "mTLS: certificate from a
 # JWT-SVIDs from SPIRE as bearer tokens.
 call 200 "JWT-SVID: agent-a reads tickets" /tickets bearer "$jwt_tools"
 call 401/jwt_svid.invalid "JWT-SVID for another audience" /tickets bearer "$jwt_other"
+
+# An OAuth client with a plain access token.
+call 200 "Bearer: an OAuth client's access token" /tickets lab_bearer
+call 401/token.expired "Bearer: an expired access token" /tickets lab_bearer --expired
 
 # A DPoP-bound access token (RFC 9449) and its proof, which must carry
 # visado's nonce.
@@ -241,9 +246,9 @@ else
   printf 'FAIL  %-58s %s\n' "agentgateway: upstream gets Txn-Token, not the user token" "$(head -c 200 "$tmp")"
   failures=$((failures + 1))
 fi
-agw 403 "agentgateway: user token without the admin scope" /admin/roles headers agent-a /admin/roles --user bob tickets.read
+agw 403/pdp.deny "agentgateway: user token without the admin scope" /admin/roles headers agent-a /admin/roles --user bob tickets.read
 agw 200 "agentgateway: agent-b reads the file it was delegated" /mcp aat agent-b read_file '{"path":"/data/report.pdf"}'
-agw 403 "agentgateway: agent-b reads another file" /mcp aat agent-b read_file '{"path":"/etc/passwd"}'
+agw 403/aat.invocation_denied "agentgateway: agent-b reads another file" /mcp aat agent-b read_file '{"path":"/etc/passwd"}'
 signed agent-a /tickets '{"title":"paper out"}' > "$svids/agw-signed.txt"
 agw 200 "agentgateway: agent-a posts a ticket with a signed request" /tickets replay "$svids/agw-signed.txt"
 agw 400/httpsig.invalid "agentgateway: signed request with the body changed" /tickets \

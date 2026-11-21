@@ -5,6 +5,7 @@
 //! ```text
 //! lab_methods sig <svid-dir> <workload> <path> <body> [--send <body>]
 //! lab_methods dpop <path> [--bearer | --nonce <nonce>]
+//! lab_methods bearer [--expired]
 //! ```
 //!
 //! `sig`: a POST of `body` as JSON, signed with an HTTP message signature
@@ -17,6 +18,10 @@
 //! demo key and signed with the fixed OAuth demo key, and a DPoP proof by that
 //! key. `--bearer` sends the token as `Bearer` without the proof; `--nonce`
 //! puts a server-provided nonce (RFC 9449 §9) in the proof.
+//!
+//! `bearer`: an access token for bob with no `cnf`, signed with the fixed
+//! OAuth demo key, as `Authorization: Bearer`. `--expired` makes it one that
+//! expired two minutes ago.
 
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -27,7 +32,7 @@ const AUTHORITY: &str = "tools.td.example";
 
 fn usage() -> ! {
     eprintln!(
-        "usage: lab_methods sig <svid-dir> <workload> <path> <body> [--send <body>]\n       lab_methods dpop <path> [--bearer | --nonce <nonce>]"
+        "usage: lab_methods sig <svid-dir> <workload> <path> <body> [--send <body>]\n       lab_methods dpop <path> [--bearer | --nonce <nonce>]\n       lab_methods bearer [--expired]"
     );
     std::process::exit(2);
 }
@@ -62,6 +67,14 @@ fn main() {
                 _ => usage(),
             };
             dpop(path, &mode, now, &nonce);
+        }
+        Some("bearer") => {
+            let expired = match args.get(1).map(String::as_str) {
+                None => false,
+                Some("--expired") if args.len() == 2 => true,
+                _ => usage(),
+            };
+            bearer(expired, now, &nonce);
         }
         _ => usage(),
     }
@@ -98,6 +111,25 @@ fn signed(dir: &str, workload: &str, path: &str, body: &str, sent: &str, now: u6
     println!("Signature-Input: {input}");
     println!("Signature: {signature}");
     println!("BODY: {sent}");
+}
+
+fn bearer(expired: bool, now: u64, nonce: &str) {
+    let (iat, exp) = if expired {
+        (now - 420, now - 120)
+    } else {
+        (now, now + 300)
+    };
+    let token = visado_testkit::signed_access_token(&json!({
+        "iss": visado_testkit::OAUTH_ISSUER,
+        "sub": "bob",
+        "aud": format!("http://{AUTHORITY}"),
+        "client_id": "bearer-client",
+        "scope": "tickets.read",
+        "iat": iat,
+        "exp": exp,
+        "jti": format!("at-{nonce}"),
+    }));
+    println!("Authorization: Bearer {token}");
 }
 
 /// What `lab_methods dpop` sends.
