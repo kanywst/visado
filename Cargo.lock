@@ -2475,8 +2475,11 @@ name = "visado-chain"
 version = "0.3.0"
 dependencies = [
  "base64 0.23.1",
+ "hmac",
  "ryu",
+ "serde_json",
  "sha2",
+ "visado-testkit",
  "wimsey-jose",
 ]
 

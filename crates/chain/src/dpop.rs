@@ -2,9 +2,14 @@
 //! client present them.
 //!
 //! [`verify`] runs the proof checks of RFC 9449 §4.3 that need no state:
-//! the JWS and its header, the key thumbprint, `htm`, `htu`, `iat` and
-//! `ath`. Recording `jti` is the caller's, so each caller keeps its own
-//! replay cache and key.
+//! the JWS and its header, the key thumbprint, `htm`, `htu`, `iat`, `ath`
+//! and, when the server requires one, the server-provided `nonce`
+//! ([`Nonces`], §8 and §9). Recording `jti` is the caller's, so each caller
+//! keeps its own replay cache and key.
+
+mod nonce;
+
+pub use nonce::{MIN_KEY_LEN as MIN_NONCE_KEY_LEN, NonceError, Nonces};
 
 use crate::jose::{self, HolderKey};
 use crate::json::{self, Value};
@@ -40,6 +45,9 @@ pub struct Expected<'a> {
     pub max_size: usize,
     /// Seconds either side of now within which `iat` must fall.
     pub iat_window: i64,
+    /// When set, the proof must carry a `nonce` these nonces accept
+    /// (RFC 9449 §4.3 item 10, §11.3).
+    pub nonces: Option<&'a Nonces>,
 }
 
 /// What a valid proof established.
@@ -61,6 +69,9 @@ pub enum Rejection {
     /// The proof is valid but made with a key other than the token's
     /// `cnf.jkt` (RFC 9449 §7.1 `invalid_token`).
     KeyMismatch,
+    /// The proof is otherwise valid but its `nonce` is missing or not one
+    /// this server accepts (RFC 9449 `use_dpop_nonce`).
+    Nonce(NonceError),
 }
 
 impl Rejection {
@@ -70,13 +81,16 @@ impl Rejection {
         match self {
             Self::Proof(reason) => reason,
             Self::KeyMismatch => "DPoP key is not the token's cnf.jkt",
+            Self::Nonce(error) => error.reason(),
         }
     }
 }
 
 /// Checks `proof` against `expected` and `request` at `now`. The signature
 /// is checked before the key is compared with `cnf.jkt`, so an unsigned
-/// proof is never reported as a key mismatch.
+/// proof is never reported as a key mismatch. The nonce is checked last,
+/// so [`Rejection::Nonce`] means every other check passed and a retry with
+/// a fresh nonce can succeed.
 ///
 /// # Errors
 ///
@@ -130,6 +144,15 @@ pub fn verify(
     // required (RFC 9449 §4.2) and binds the proof to the token presented.
     if text("ath") != Some(jose::hash(expected.access_token).as_str()) {
         return Err(bad("DPoP ath does not match the access token"));
+    }
+    if let Some(nonces) = expected.nonces {
+        let nonce = match claims.get("nonce") {
+            None => Err(NonceError::Missing),
+            Some(nonce) => nonce.as_str().ok_or(NonceError::Malformed),
+        };
+        nonce
+            .and_then(|nonce| nonces.check(nonce, now))
+            .map_err(Rejection::Nonce)?;
     }
     Ok(Proof {
         jti: jti.to_owned(),

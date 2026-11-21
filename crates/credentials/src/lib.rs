@@ -496,6 +496,7 @@ impl Authenticator {
             algs: DPOP_ALGS,
             max_size: MAX_CREDENTIAL_LEN,
             iat_window: window,
+            nonces: None,
         };
         let uri = request.audience();
         let target = HttpRequest {
@@ -505,6 +506,7 @@ impl Authenticator {
         let proof = dpop_proof::verify(proof, &expected, &target, now_i).map_err(|e| match e {
             Rejection::KeyMismatch => AuthError::DpopBinding(e.reason().into()),
             Rejection::Proof(reason) => AuthError::DpopProof(reason.into()),
+            Rejection::Nonce(nonce) => AuthError::DpopProof(nonce.reason().into()),
         })?;
         let caller = token_claims.client_id.clone().ok_or(AuthError::NoClient)?;
         let expires = u64::try_from(proof.iat.saturating_add(window)).unwrap_or(0);

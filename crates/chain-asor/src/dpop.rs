@@ -38,6 +38,7 @@ pub(crate) fn verify(
         algs: ALGS,
         max_size: window.max_size,
         iat_window: window.iat_window,
+        nonces: None,
     };
     let proof = dpop::verify(proof, &expected, request, now).map_err(dpop::Rejection::reason)?;
     if let Some(cache) = replay {
