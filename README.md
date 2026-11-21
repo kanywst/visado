@@ -55,7 +55,7 @@ cargo test --workspace
 cargo run -p visado -- deploy/local/visado.toml
 ```
 
-To see it behind Envoy with a real PDP, run the [lab](deploy/lab/): `docker compose up -d --build && ./demo.sh` in `deploy/lab`. The Transaction Token conformance vectors in [conformance/](conformance/) can be used to test other implementations; the AAT vectors there are a copy of the suite from [tenuo-ai/tenuo](https://github.com/tenuo-ai/tenuo), and the asor vectors a copy of the set from [attenu-io/attenu-guard](https://github.com/attenu-io/attenu-guard).
+To see it behind Envoy and agentgateway with a real PDP, run the [lab](deploy/lab/): `docker compose up -d --build && ./demo.sh` in `deploy/lab`. The Transaction Token conformance vectors in [conformance/](conformance/) can be used to test other implementations; the AAT vectors there are a copy of the suite from [tenuo-ai/tenuo](https://github.com/tenuo-ai/tenuo), and the asor vectors a copy of the set from [attenu-io/attenu-guard](https://github.com/attenu-io/attenu-guard).
 
 ## Documentation
 

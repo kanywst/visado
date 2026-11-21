@@ -223,6 +223,54 @@ mod tests {
         assert_eq!(input.body.as_deref(), Some(raw.as_slice()));
     }
 
+    // agentgateway (v1.7) fills `headers` rather than `header_map`, includes
+    // the pseudo-headers, drops `host` (it moves into the URI authority) and
+    // sends the authority as `host`.
+    #[test]
+    fn an_agentgateway_check_request_maps_like_envoys() {
+        let headers = [
+            (":method", "POST"),
+            (":scheme", "http"),
+            (":authority", "tools.td.example"),
+            (":path", "/mcp?x=1"),
+            ("Workload-Identity-Token", "wit"),
+            ("content-type", "application/json"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .collect();
+        let request = CheckRequest {
+            attributes: Some(AttributeContext {
+                request: Some(Request {
+                    http: Some(HttpRequest {
+                        method: "POST".into(),
+                        scheme: "http".into(),
+                        host: "tools.td.example".into(),
+                        path: "/mcp?x=1".into(),
+                        headers,
+                        raw_body: b"{}".to_vec(),
+                        ..HttpRequest::default()
+                    }),
+                    ..Request::default()
+                }),
+                ..AttributeContext::default()
+            }),
+        };
+        let input = input_from(&request).unwrap();
+        assert_eq!(input.method, "POST");
+        assert_eq!(input.scheme, "http");
+        assert_eq!(input.authority, "tools.td.example");
+        assert_eq!(input.path, "/mcp?x=1");
+        assert_eq!(input.body.as_deref(), Some(b"{}".as_slice()));
+        assert!(input.peer_certificate.is_none());
+        assert!(
+            input
+                .headers
+                .iter()
+                .any(|(k, v)| k == "workload-identity-token" && v == "wit")
+        );
+    }
+
     #[test]
     fn a_failed_signed_request_is_a_problem_document() {
         let response = denied_response(400, "httpsig.invalid", None);

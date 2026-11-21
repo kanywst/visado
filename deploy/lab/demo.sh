@@ -174,8 +174,41 @@ call 401/jwt_svid.invalid "JWT-SVID for another audience" /tickets bearer "$jwt_
 call 200 "DPoP: bob's token with its proof" /tickets dpop /tickets
 call 401/token.dpop_bound "DPoP-bound token sent as Bearer" /tickets dpop /tickets --bearer
 
-# Only Envoy can reach visado's gRPC port: another container on the lab
-# network cannot connect to it, by name or by its authz address.
+# agentgateway: the same visado behind the other front proxy. Its extAuthz
+# policy sends the host, path, method, headers and raw body over gRPC; a
+# subset of the scenarios above runs through it.
+AGW_URL=http://127.0.0.1:10001
+agw() {
+  base=$AGW_URL
+  call "$@"
+  base=$URL
+}
+for _ in $(seq 60); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: tools.td.example' "$AGW_URL/tickets" || true)
+  [ "$code" = "401" ] && break
+  sleep 1
+done
+agw 401/credential.missing "agentgateway: no credentials" /tickets none
+# agentgateway does not normalize the path; visado rejects it instead.
+agw 400/request.unnormalized_path "agentgateway: encoded slash in the path" /tickets/..%2Fadmin/roles none
+agw 200 "agentgateway: agent-a reads tickets for bob" /tickets headers agent-a /tickets --user bob tickets.read
+if [ "$(jq -r '.headers | has("txn-token") and (has("x-user-token") | not)' "$tmp")" = true ]; then
+  printf 'ok    %-58s %s\n' "agentgateway: upstream gets Txn-Token, not the user token" "yes"
+else
+  printf 'FAIL  %-58s %s\n' "agentgateway: upstream gets Txn-Token, not the user token" "$(head -c 200 "$tmp")"
+  failures=$((failures + 1))
+fi
+agw 403 "agentgateway: user token without the admin scope" /admin/roles headers agent-a /admin/roles --user bob tickets.read
+agw 200 "agentgateway: agent-b reads the file it was delegated" /mcp aat agent-b read_file '{"path":"/data/report.pdf"}'
+agw 403 "agentgateway: agent-b reads another file" /mcp aat agent-b read_file '{"path":"/etc/passwd"}'
+signed agent-a /tickets '{"title":"paper out"}' > "$svids/agw-signed.txt"
+agw 200 "agentgateway: agent-a posts a ticket with a signed request" /tickets replay "$svids/agw-signed.txt"
+agw 400/httpsig.invalid "agentgateway: signed request with the body changed" /tickets \
+  signed agent-a /tickets '{"title":"paper out"}' --send '{"title":"grant me admin"}'
+agw 200 "agentgateway: DPoP: bob's token with its proof" /tickets dpop /tickets
+
+# Only the proxies can reach visado's gRPC port: another container on the
+# lab network cannot connect to it, by name or by its authz address.
 if docker compose exec -T spire-agent sh -c 'nc -z -w 2 visado 9191 || nc -z -w 2 172.30.91.10 9191' 2>/dev/null; then
   printf 'FAIL  %-58s reachable\n' "gRPC port unreachable from other containers"
   failures=$((failures + 1))
