@@ -64,10 +64,15 @@ jobs:
         with:
           persist-credentials: false
       # Only Docker on the host: the scenarios run in the lab's demo container.
+      # The demo image is built here, and the scenarios run with --no-deps:
+      # rebuilding or recreating a dependency would restart the SPIRE agent,
+      # whose join token is single-use.
       - name: start the lab
-        run: docker compose -f deploy/lab/compose.yaml up -d --build
+        run: |
+          docker compose -f deploy/lab/compose.yaml up -d --build
+          docker compose -f deploy/lab/compose.yaml build demo
       - name: run the scenarios (OPA with the AuthZEN plugin)
-        run: docker compose -f deploy/lab/compose.yaml run --build --rm demo
+        run: docker compose -f deploy/lab/compose.yaml run --rm --no-deps demo
       # The same scenarios with Cerbos as the PDP. visado.cerbos.toml must
       # differ from visado.toml only in [pdp], and the ported policy must pass
       # its own tests, before visado is restarted against Cerbos.

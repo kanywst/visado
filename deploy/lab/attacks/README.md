@@ -4,8 +4,8 @@ Four attacks on AI agent traffic, each run through the lab's real gateways (Envo
 
 ```bash
 docker compose up -d --build
-docker compose run --rm demo                          # every scenario, attacks included
-docker compose run --rm demo attacks/2-stolen-chain.sh  # one attack
+docker compose run --rm --no-deps demo                # every scenario, attacks included
+docker compose run --rm --no-deps demo attacks/2-stolen-chain.sh  # one attack
 ```
 
 Each script prints an `ok` or `FAIL` line per step with the status and visado's reason code, then finds the decision's audit record (see [docs/audit.md](../../../docs/audit.md)) in visado's log. The chain view at <http://127.0.0.1:8080/chain> draws each decision. CI runs all four and fails if any outcome changes.

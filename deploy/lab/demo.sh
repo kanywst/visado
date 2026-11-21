@@ -2,7 +2,7 @@
 # Runs the lab scenarios against `docker compose up` in this directory.
 # Exits non-zero if any scenario does not get the expected status.
 #
-#   docker compose run --rm demo [attacks/<n>-<name>.sh ...]
+#   docker compose run --rm --no-deps demo [attacks/<n>-<name>.sh ...]
 #   ./demo.sh [attacks/<n>-<name>.sh ...]
 #
 # In the `demo` container (LAB_IN_COMPOSE set) it needs nothing but the

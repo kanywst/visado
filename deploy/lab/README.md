@@ -11,10 +11,10 @@ From a clean checkout, with Docker and the Compose plugin and nothing else:
 ```bash
 cd deploy/lab
 docker compose up -d --build
-docker compose run --rm demo
+docker compose run --rm --no-deps demo
 ```
 
-`docker compose run --rm demo` builds the `demo` image (the testkit examples that make the requests, `curl`, `jq`, `openssl` and the SPIRE agent CLI), runs every scenario below and the [attack demos](attacks/README.md), and exits non-zero if any outcome differs. `docker compose run --rm demo attacks/3-recruited-admin.sh` runs one attack. The container shares the SPIRE agent's PID namespace and socket, so each workload fetches its own SVIDs as its own Unix user, and it reads the lab's logs through the Docker socket (`/var/run/docker.sock`, mounted read-only). CI runs the same two commands.
+`docker compose run --rm --no-deps demo` builds the `demo` image (the testkit examples that make the requests, `curl`, `jq`, `openssl` and the SPIRE agent CLI), runs every scenario below and the [attack demos](attacks/README.md), and exits non-zero if any outcome differs. `docker compose run --rm --no-deps demo attacks/3-recruited-admin.sh` runs one attack. `--no-deps` keeps the running lab as it is: recreating the SPIRE agent would fail, since its join token is single-use. The container shares the SPIRE agent's PID namespace and socket, so each workload fetches its own SVIDs as its own Unix user, and it reads the lab's logs through the Docker socket (`/var/run/docker.sock`, mounted read-only). CI runs the same two commands.
 
 `./demo.sh` also runs from the host if it has `cargo`, `curl`, `jq`, `openssl` and `docker`.
 
@@ -26,7 +26,7 @@ docker compose run --rm demo
 
 ```bash
 docker compose -f compose.yaml -f compose.cerbos.yaml up -d --build
-docker compose -f compose.yaml -f compose.cerbos.yaml run --rm demo
+docker compose -f compose.yaml -f compose.cerbos.yaml run --rm --no-deps demo
 ```
 
 visado then reads `visado.cerbos.toml`, which is `visado.toml` with another `[pdp]` table. Cerbos maps the AuthZEN subject to the principal (`subject.type` becomes the role, `subject.properties` the attributes), the resource to a resource of kind `http_resource` and the action name to the action. It does not pass `context` to the policy, so `[pdp] context_in_subject = true` copies the context, the scope and principal included, into `subject.properties`. Both files reach the PDP over plain `http` on the compose network, so both set `[pdp] allow_insecure_http = true`; visado logs a warning for it at startup.
