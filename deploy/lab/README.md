@@ -171,3 +171,7 @@ agentgateway routes `/mcp` to its MCP backend (`statefulMode: stateless`, `prefi
 | agent-b calls `delete_file`, which agent-a kept | 403 `aat.invocation_denied`; the call never reaches the MCP server |
 
 The MCP server logs each `tools/call` it receives.
+
+## Audit record
+
+visado writes one audit record per decision to its log (`docker compose logs visado`), in the schema of [docs/audit.md](../../docs/audit.md). `demo.sh` finds the record of the first allowed request by its `txn` and checks each member, checks a 401's record, checks that every record has every member, recomputes the hash chain over the whole log, and checks that there are as many records as decisions in the chain view.

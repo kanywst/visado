@@ -463,6 +463,53 @@ via_agw 403/aat.invocation_denied "MCP: agent-b calls delete_file, which agent-a
 expect_audit "MCP: audit records the denied tool" \
   '.tool == "delete_file" and .agent == "spiffe://td.example/agent-b" and .reason == "aat.invocation_denied"'
 
+# --- The audit record ---
+# One record per decision, every AIMS item present, hash-chained.
+audit_mark=0
+first_txn=$(txn_of "$txn")
+expect_audit "audit: agent-a reading tickets for bob" \
+  '.txn == $t and .agent == "spiffe://td.example/agent-a" and .principal == "bob"
+   and .resource == "http://tools.td.example/tickets" and .action == "GET"
+   and .decision == "allow" and .status == 200 and .reason == "ok" and .pdp == "allow"
+   and .auth_method == "wit-wpt" and .sender_constrained == true and .remediation == "none"
+   and (.time | type) == "number" and (.id | length) > 0 and .audit_version == 1' \
+  --arg t "$first_txn"
+expect_audit "audit: a request without credentials" \
+  '.reason == "credential.missing" and .status == 401 and .agent == "" and .pdp == "not_asked"
+   and .remediation == "reauthenticate"'
+records=$(audit_records)
+record_count=$(grep -c . <<<"$records" || true)
+members='["audit_version","seq","prev","id","txn","time","agent","auth_method","sender_constrained","principal","chain_profile","chain_issuer","chain_hops","chain_actors","resource","tool","action","decision","status","reason","detail","pdp","remediation","hash"]'
+complete=$(jq -c --argjson m "$members" 'select((keys | sort) == ($m | sort))' <<<"$records" | grep -c . || true)
+check "audit: every record has every member" "$complete of $record_count" \
+  "$((record_count > 0 ? record_count : 1)) of $record_count"
+# The hash chain: each record hashes to its hash, and follows the one before
+# (its prev and seq), unless visado restarted and began a new chain at 0.
+linked=0
+prev=""
+prev_seq=""
+while IFS= read -r record; do
+  [ -n "$record" ] || continue
+  canon=$(jq -c --argjson m "$members" '. as $r | reduce ($m[] | select(. != "hash")) as $k ({}; .[$k] = $r[$k])' <<<"$record")
+  hash=$(printf '%s' "$canon" | openssl dgst -sha256 -r | cut -d' ' -f1)
+  seq=$(jq -r .seq <<<"$record")
+  if [ "$hash" = "$(jq -r .hash <<<"$record")" ] &&
+    { [ -z "$prev_seq" ] || [ "$seq" = 0 ] ||
+      { [ "$(jq -r .prev <<<"$record")" = "$prev" ] && [ "$seq" = $((prev_seq + 1)) ]; }; }; then
+    linked=$((linked + 1))
+  fi
+  prev=$(jq -r .hash <<<"$record")
+  prev_seq=$seq
+done <<<"$records"
+check "audit: the records form one hash chain" "$linked of $record_count linked" \
+  "$((record_count > 0 ? record_count : 1)) of $record_count linked"
+# The chain view keeps a summary of every decision too: as many as records.
+view=$(curl -s -H 'Host: localhost' "$VIEW_URL/api/requests?limit=10000" || true)
+view_count=$(jq --argjson s "$started" '[.requests[] | select(.time >= $s)] | length' <<<"$view" 2>/dev/null || echo 0)
+if [ "$view_count" -lt "$(jq '.capacity' <<<"$view" 2>/dev/null || echo 0)" ]; then
+  check "audit: one record per decision" "$record_count records" "$view_count records"
+fi
+
 # Only the gateways can reach visado's gRPC port: another container on the
 # lab network cannot connect to it, by name or by its authz address. The
 # probe must first reach visado's HTTP port, so a probe that cannot run at
