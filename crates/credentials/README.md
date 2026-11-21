@@ -6,7 +6,7 @@ Caller authentication for visado, built on [wimsey](https://github.com/kanywst/w
 - a WIT with an HTTP message signature (draft-ietf-wimse-http-signature-08),
 - mTLS with an X.509-SVID passed by the proxy that terminated TLS,
 - a SPIFFE JWT-SVID,
-- an OAuth access token alone, as a bearer token or DPoP-bound (RFC 9449) with a `DPoP` proof.
+- an OAuth access token alone, as a bearer token or DPoP-bound (RFC 9449) with a `DPoP` proof, optionally carrying a server-provided nonce (`Authenticator::with_dpop_nonces`).
 
 WPT `jti`, signature `nonce` and DPoP `jti` replay are checked in memory. See [docs/bindings.md](../../docs/bindings.md) for how each is carried.
 

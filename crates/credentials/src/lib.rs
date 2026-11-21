@@ -15,7 +15,9 @@
 //!   The client is identified by `client_id` (or `azp`).
 //! - A client presenting a DPoP-bound access token (`cnf.jkt`) as
 //!   `Authorization: DPoP` with a `DPoP` proof (RFC 9449) for the request,
-//!   made with the key the token is bound to.
+//!   made with the key the token is bound to. With
+//!   [`Authenticator::with_dpop_nonces`], the proof must also carry a nonce
+//!   this server issued (RFC 9449 §9).
 //! - A workload presenting a SPIFFE JWT-SVID as `Authorization: Bearer`, told
 //!   apart from an access token by a SPIFFE ID in `sub` and an `iss` that is
 //!   not a configured OAuth issuer.
@@ -42,6 +44,7 @@ pub use mtls::X509Bundle;
 pub use oauth::{AccessToken, OAuthIssuer};
 pub use request::RequestView;
 pub use svid::JwtBundle;
+pub use visado_chain::dpop::{NonceError, Nonces};
 pub use wimse::WitIssuer;
 
 use visado_chain::dpop::{self as dpop_proof, Expected, HttpRequest, Rejection};
@@ -118,6 +121,7 @@ pub struct Authenticator {
     max_wpt_lifetime: u64,
     max_signature_lifetime: u64,
     dpop_iat_window: u64,
+    dpop_nonces: Option<Nonces>,
     replay: Mutex<ReplayCache>,
 }
 
@@ -136,6 +140,7 @@ impl Authenticator {
             max_wpt_lifetime: 60,
             max_signature_lifetime: 60,
             dpop_iat_window: 60,
+            dpop_nonces: None,
             replay: Mutex::new(ReplayCache::new(100_000)),
         }
     }
@@ -218,6 +223,22 @@ impl Authenticator {
     pub const fn with_dpop_iat_window(mut self, seconds: u64) -> Self {
         self.dpop_iat_window = seconds;
         self
+    }
+
+    /// Requires every DPoP proof for an access token to carry a nonce
+    /// `nonces` accepts (RFC 9449 §9). A proof that is valid except for its
+    /// nonce fails with [`AuthError::DpopNonce`]; the caller answers with a
+    /// fresh nonce from [`Authenticator::dpop_nonces`].
+    #[must_use]
+    pub fn with_dpop_nonces(mut self, nonces: Nonces) -> Self {
+        self.dpop_nonces = Some(nonces);
+        self
+    }
+
+    /// The nonces DPoP proofs must carry, when they are required.
+    #[must_use]
+    pub const fn dpop_nonces(&self) -> Option<&Nonces> {
+        self.dpop_nonces.as_ref()
     }
 
     /// Checks that identifiers from different OAuth issuers cannot collide
@@ -461,8 +482,10 @@ impl Authenticator {
     }
 
     /// `Authorization: DPoP` with one `DPoP` proof, per RFC 9449 §4.3 and
-    /// §7.1. The token must be bound to the proof key (`cnf.jkt`), and the
-    /// proof's `jti` is recorded for the proof key.
+    /// §7.1. The token must be bound to the proof key (`cnf.jkt`), the proof
+    /// must carry a server nonce when nonces are required (§9), and the
+    /// proof's `jti` is recorded for the proof key only once every check has
+    /// passed.
     fn authenticate_dpop(
         &self,
         request: &RequestView<'_>,
@@ -496,7 +519,7 @@ impl Authenticator {
             algs: DPOP_ALGS,
             max_size: MAX_CREDENTIAL_LEN,
             iat_window: window,
-            nonces: None,
+            nonces: self.dpop_nonces.as_ref(),
         };
         let uri = request.audience();
         let target = HttpRequest {
@@ -506,7 +529,7 @@ impl Authenticator {
         let proof = dpop_proof::verify(proof, &expected, &target, now_i).map_err(|e| match e {
             Rejection::KeyMismatch => AuthError::DpopBinding(e.reason().into()),
             Rejection::Proof(reason) => AuthError::DpopProof(reason.into()),
-            Rejection::Nonce(nonce) => AuthError::DpopProof(nonce.reason().into()),
+            Rejection::Nonce(nonce) => AuthError::DpopNonce(nonce),
         })?;
         let caller = token_claims.client_id.clone().ok_or(AuthError::NoClient)?;
         let expires = u64::try_from(proof.iat.saturating_add(window)).unwrap_or(0);
