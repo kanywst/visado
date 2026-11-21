@@ -40,6 +40,7 @@ services:
       - ./visado.toml:/etc/visado/visado.toml:ro
       - ../local/keys:/etc/visado/keys:ro
       - spire-bundle:/etc/visado/spire:ro
+      - keycloak-jwks:/etc/visado/keycloak:ro
     # The chain view and JWKS, published on the host's loopback address only.
     # Inside the lab, any container on the default network can still read the
     # view (it shows caller and principal identities): the Host allow-list
@@ -57,6 +58,7 @@ services:
       pdp: { condition: service_started }
       jaeger: { condition: service_started }
       wit-config: { condition: service_completed_successfully }
+      keycloak-jwks: { condition: service_completed_successfully }
 
   # SPIRE v1.16.0 with experimental WIT-SVIDs. The agent attests with a join
   # token; agent-a, agent-b and agent-z are Unix users in the agent container,
@@ -128,6 +130,32 @@ services:
     depends_on:
       spire-agent: { condition: service_healthy }
 
+  # Keycloak as the resource authorization server: it issues the access
+  # tokens for tools.td.example, bearer or DPoP-bound (RFC 9449), to the
+  # agent-a client (client_credentials). Published on the host's loopback
+  # address for demo.sh; the issuer is fixed by KC_HOSTNAME, so clients must
+  # call it as keycloak.td.example:8180.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_HOSTNAME: http://keycloak.td.example:8180
+    volumes:
+      - ./keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
+    ports:
+      - "127.0.0.1:8180:8080"
+
+  # Writes Keycloak's signing keys for visado's [[oauth_issuers]] once the
+  # realm is up.
+  keycloak-jwks:
+    build: ./spire
+    command: ["/lab/jwks.sh"]
+    volumes:
+      - ./keycloak/jwks.sh:/lab/jwks.sh:ro
+      - keycloak-jwks:/out
+    depends_on:
+      keycloak: { condition: service_started }
+
   pdp:
     image: ghcr.io/kanywst/opa-authzen-plugin:0.12.1
     command:
@@ -162,3 +190,4 @@ volumes:
   spire-agent-socket:
   spire-bundle:
   gateway-svid:
+  keycloak-jwks:
