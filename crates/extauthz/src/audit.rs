@@ -84,11 +84,12 @@ pub struct AuditRecord {
 
 impl AuditRecord {
     /// SHA-256, lowercase hex, over the record's JSON serialization (members
-    /// in declaration order, no whitespace) with `hash` left out.
+    /// in declaration order, no whitespace) with `hash` left out, or `None`
+    /// if the record cannot be serialized.
     #[must_use]
-    pub fn digest(&self) -> String {
-        let text = serde_json::to_string(&Ordered(self)).unwrap_or_default();
-        hex(&Sha256::digest(text.as_bytes()))
+    pub fn digest(&self) -> Option<String> {
+        let text = serde_json::to_string(&Ordered(self)).ok()?;
+        Some(hex(&Sha256::digest(text.as_bytes())))
     }
 }
 
@@ -154,11 +155,11 @@ pub enum ChainBreak {
 /// The first [`ChainBreak`] found.
 pub fn verify_chain(records: &[AuditRecord]) -> Result<(), ChainBreak> {
     for (i, record) in records.iter().enumerate() {
-        if record.digest() != record.hash {
+        if record.digest().as_deref() != Some(record.hash.as_str()) {
             return Err(ChainBreak::Altered(i));
         }
         if let Some(before) = i.checked_sub(1).map(|j| &records[j])
-            && (record.prev != before.hash || record.seq != before.seq + 1)
+            && (record.prev != before.hash || before.seq.checked_add(1) != Some(record.seq))
         {
             return Err(ChainBreak::Gap(i));
         }
@@ -179,7 +180,12 @@ impl AuditChain {
         let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
         record.seq = state.0;
         record.prev.clone_from(&state.1);
-        record.hash = record.digest();
+        // A record that cannot be serialized gets an empty hash, which
+        // verify_chain reports as altered: the break shows in the log.
+        record.hash = record.digest().unwrap_or_else(|| {
+            tracing::error!(target: "visado::audit", id = %record.id, "audit record not serializable");
+            String::new()
+        });
         emit(&record);
         state.0 += 1;
         state.1.clone_from(&record.hash);
@@ -278,6 +284,19 @@ mod tests {
         assert_eq!(verify_chain(&records), Err(ChainBreak::Altered(1)));
     }
 
+    /// A `seq` of `u64::MAX` followed by `seq: 0` is a gap, not a wrap.
+    #[test]
+    fn seq_does_not_wrap() {
+        let mut first = record("a");
+        first.seq = u64::MAX;
+        first.hash = first.digest().unwrap();
+        let mut second = record("b");
+        second.seq = 0;
+        second.prev.clone_from(&first.hash);
+        second.hash = second.digest().unwrap();
+        assert_eq!(verify_chain(&[first, second]), Err(ChainBreak::Gap(1)));
+    }
+
     #[test]
     fn a_removed_record_breaks_the_chain() {
         let chain = AuditChain::default();
@@ -292,16 +311,16 @@ mod tests {
     #[test]
     fn the_digest_covers_every_member_but_hash() {
         let base = record("a");
-        let digest = base.digest();
+        let digest = base.digest().unwrap();
         let mut with_hash = base.clone();
         with_hash.hash = "anything".into();
-        assert_eq!(with_hash.digest(), digest);
+        assert_eq!(with_hash.digest().unwrap(), digest);
         let mut other = base.clone();
         other.remediation = "refused".into();
-        assert_ne!(other.digest(), digest);
+        assert_ne!(other.digest().unwrap(), digest);
         let mut other = base;
         other.sender_constrained = false;
-        assert_ne!(other.digest(), digest);
+        assert_ne!(other.digest().unwrap(), digest);
     }
 
     #[test]
@@ -309,7 +328,7 @@ mod tests {
         // Pinned, so a change to member order or encoding is noticed: it
         // would break every chain already written.
         assert_eq!(
-            record("a").digest(),
+            record("a").digest().unwrap(),
             super::hex(&<sha2::Sha256 as sha2::Digest>::digest(
                 br#"{"audit_version":1,"seq":0,"prev":"","id":"a","txn":"t","time":1,"agent":"spiffe://td.example/agent-a","auth_method":"wit-wpt","sender_constrained":true,"principal":"bob","chain_profile":"","chain_issuer":"","chain_hops":0,"chain_actors":"[]","resource":"http://tools.td.example/tickets","tool":"","action":"GET","decision":"allow","status":200,"reason":"ok","detail":"","pdp":"allow","remediation":"none"}"#
             ))
