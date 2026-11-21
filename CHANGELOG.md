@@ -11,6 +11,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `[asor.status]` in the server file: the Status List Tokens the gate holds, from a file (verified at startup) or fetched from an `https` or loopback `uri`, refreshed in the background (`refresh`, `timeout_ms`), trusted for at most `max_age` (default 300 s). See `docs/bindings.md`.
 - `deploy/lab`: agentgateway v1.7.0 as a second front proxy on port 10001. Its `extAuthz` policy calls visado over gRPC with the raw body, from the internal authz network that Envoy also shares. `demo.sh` runs nine scenarios through it (no credentials, encoded slash, WIT+WPT with the Txn-Token check upstream, a PDP deny, AAT allow and deny, a signed request and a changed body, DPoP). agentgateway sends no peer certificate, so the mTLS scenarios stay on Envoy.
 - `[pdp] context_in_subject` (default `false`) also sends the AuthZEN `context` members as `subject.properties`, for PDPs that do not pass `context` to the policy. Cerbos is one: it gives the policy subject properties as principal attributes. `visado-authzen` has `EvaluationRequest::with_context_in_subject` and `HttpPdp::with_context_in_subject`.
+- `deploy/lab` runs with Cerbos 0.57.0 as the PDP too: `compose.cerbos.yaml` swaps OPA for Cerbos, `cerbos/http_resource.yaml` is the lab policy ported from Rego with its own tests, and CI runs `demo.sh` against both PDPs.
 
 ### Changed
 

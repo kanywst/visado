@@ -1,0 +1,26 @@
+# The lab with Cerbos as the PDP instead of OPA with the AuthZEN plugin.
+# Cerbos serves AuthZEN 1.0 itself; cerbos/http_resource.yaml is the lab
+# policy ported from policy/visado.rego. On top of compose.yaml:
+#
+#   docker compose -f compose.yaml -f compose.cerbos.yaml up -d --build
+#   ./demo.sh
+services:
+  visado:
+    command: ["/etc/visado/visado.cerbos.toml"]
+    volumes:
+      - ./visado.cerbos.toml:/etc/visado/visado.cerbos.toml:ro
+    depends_on:
+      cerbos: { condition: service_healthy }
+
+  cerbos:
+    image: ghcr.io/cerbos/cerbos:0.57.0
+    command:
+      - server
+      - --set=storage.driver=disk
+      - --set=storage.disk.directory=/policies
+    volumes:
+      - ./cerbos:/policies:ro
+    healthcheck:
+      test: ["CMD", "/cerbos", "healthcheck"]
+      interval: 1s
+      retries: 60

@@ -1,0 +1,26 @@
+# The lab policy for Cerbos, the second PDP: the same decisions as
+# ../policy/visado.rego. `/admin/` needs roles.write, everything else
+# tickets.read.
+#
+# Cerbos serves AuthZEN 1.0 itself. It maps the resource type to the kind
+# (`http_resource`), the resource id to the id (the request URL), the action
+# name to the action (the HTTP method), the subject id to the principal id
+# and subject.type to the principal's role (`agent` or `client`). It does not
+# pass `context` to the policy, so visado.cerbos.toml sets
+# `context_in_subject` and the scope arrives as `request.principal.attr.scope`.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: http_resource
+  version: default
+  variables:
+    local:
+      needs: >-
+        request.resource.id.contains("/admin/") ? "roles.write" : "tickets.read"
+  rules:
+    - actions: ["*"]
+      roles: [agent, client]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (" " + request.principal.attr.scope + " ").contains(" " + V.needs + " ")

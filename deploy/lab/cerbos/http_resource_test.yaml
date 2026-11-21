@@ -1,0 +1,99 @@
+# `cerbos compile` runs these against http_resource.yaml; the CI lab job does
+# too. The principals are what visado sends with context_in_subject: the
+# subject type as the role and the context's scope as an attribute.
+name: lab decisions
+principals:
+  read:
+    id: spiffe://td.example/agent-a
+    roles: [agent]
+    attr: { scope: tickets.read }
+  admin:
+    id: spiffe://td.example/agent-a
+    roles: [agent]
+    attr: { scope: roles.write tickets.read }
+  lookalike:
+    id: spiffe://td.example/agent-a
+    roles: [agent]
+    attr: { scope: roles.writer tickets.reader }
+  noscope:
+    id: spiffe://td.example/agent-a
+    roles: [agent]
+  client:
+    id: bob
+    roles: [client]
+    attr: { scope: tickets.read }
+  other_role:
+    id: bob
+    roles: [user]
+    attr: { scope: roles.write tickets.read }
+resources:
+  tickets:
+    kind: http_resource
+    id: http://tools.td.example/tickets
+  admin:
+    kind: http_resource
+    id: http://tools.td.example/admin/roles
+  mtls_tickets:
+    kind: http_resource
+    id: https://tools.td.example/tickets
+tests:
+  - name: tickets.read reads tickets, roles.write the admin API
+    input:
+      principals: [read, admin, lookalike, noscope, client, other_role]
+      resources: [tickets, admin, mtls_tickets]
+      actions: [GET, POST]
+    expected:
+      - principal: read
+        resource: tickets
+        actions: { GET: EFFECT_ALLOW, POST: EFFECT_ALLOW }
+      - principal: read
+        resource: mtls_tickets
+        actions: { GET: EFFECT_ALLOW, POST: EFFECT_ALLOW }
+      - principal: read
+        resource: admin
+        actions: { GET: EFFECT_DENY, POST: EFFECT_DENY }
+      - principal: admin
+        resource: tickets
+        actions: { GET: EFFECT_ALLOW, POST: EFFECT_ALLOW }
+      - principal: admin
+        resource: mtls_tickets
+        actions: { GET: EFFECT_ALLOW, POST: EFFECT_ALLOW }
+      - principal: admin
+        resource: admin
+        actions: { GET: EFFECT_ALLOW, POST: EFFECT_ALLOW }
+      - principal: lookalike
+        resource: tickets
+        actions: { GET: EFFECT_DENY, POST: EFFECT_DENY }
+      - principal: lookalike
+        resource: mtls_tickets
+        actions: { GET: EFFECT_DENY, POST: EFFECT_DENY }
+      - principal: lookalike
+        resource: admin
+        actions: { GET: EFFECT_DENY, POST: EFFECT_DENY }
+      - principal: noscope
+        resource: tickets
+        actions: { GET: EFFECT_DENY, POST: EFFECT_DENY }
+      - principal: noscope
+        resource: mtls_tickets
+        actions: { GET: EFFECT_DENY, POST: EFFECT_DENY }
+      - principal: noscope
+        resource: admin
+        actions: { GET: EFFECT_DENY, POST: EFFECT_DENY }
+      - principal: client
+        resource: tickets
+        actions: { GET: EFFECT_ALLOW, POST: EFFECT_ALLOW }
+      - principal: client
+        resource: mtls_tickets
+        actions: { GET: EFFECT_ALLOW, POST: EFFECT_ALLOW }
+      - principal: client
+        resource: admin
+        actions: { GET: EFFECT_DENY, POST: EFFECT_DENY }
+      - principal: other_role
+        resource: tickets
+        actions: { GET: EFFECT_DENY, POST: EFFECT_DENY }
+      - principal: other_role
+        resource: mtls_tickets
+        actions: { GET: EFFECT_DENY, POST: EFFECT_DENY }
+      - principal: other_role
+        resource: admin
+        actions: { GET: EFFECT_DENY, POST: EFFECT_DENY }

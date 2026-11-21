@@ -1,0 +1,64 @@
+# visado's configuration in the lab. The WIT keys, the X.509 CA and the
+# JWT-SVID keys come from SPIRE: wit-config and spire-setup write the bundles
+# to spire/ before visado starts. The keys under ../local/keys are fixed demo keys; anyone can sign
+# with them.
+trust_domain = "td.example"
+grpc_listen = "172.30.91.10:9191"
+http_listen = "0.0.0.0:8080"
+txn_lifetime = 60
+default_scope = "tickets.read"
+allowed_authorities = ["tools.td.example"]
+internal_callers = ["spiffe://td.example/agent-a", "spiffe://td.example/agent-b"]
+
+[[wit_issuers]]
+trust_domain = "td.example"
+issuer = "https://spire.td.example"
+jwks_file = "spire/wit-bundle.json"
+
+[signing_key]
+kid = "txn-1"
+jwk_file = "keys/txn-signing.private.jwk.json"
+
+[pdp]
+# compose.cerbos.yaml: Cerbos instead of OPA. This file is visado.toml with
+# only this table changed. Cerbos does not pass the AuthZEN context to the
+# policy, so the context members go into subject.properties too.
+endpoint = "http://cerbos:3592/access/v1/evaluation"
+timeout_ms = 500
+context_in_subject = true
+
+[[oauth_issuers]]
+issuer = "https://idp.example"
+audience = "http://tools.td.example"
+jwks_file = "keys/oauth-jwks.json"
+
+[aat]
+# The lab also serves callers without a chain, so the chain is optional here.
+# Do not copy this into a deployment: set required = true wherever every
+# caller is an agent that must present a chain.
+required = false
+audiences = ["http://tools.td.example"]
+trust_anchors = [{ issuer = "https://aat.td.example", jwk_file = "keys/aat-anchor.jwk.json" }]
+
+[mtls]
+trust_bundles = [{ trust_domain = "td.example", ca_file = "spire/x509-bundle.pem" }]
+# grpc_listen is not loopback, but it is visado's address on the internal
+# authz network, which only Envoy shares (compose.yaml).
+grpc_reachable_only_by_proxy = true
+
+[jwt_svid]
+audiences = ["http://tools.td.example"]
+trust_bundles = [{ trust_domain = "td.example", bundle_file = "spire/spiffe-bundle.json" }]
+
+[telemetry]
+otlp_endpoint = "http://jaeger:4317"
+
+# The chain view at http://127.0.0.1:8080/chain. It shows caller and
+# principal identities. visado listens on all interfaces inside its
+# container, hence allow_remote; compose.yaml publishes the port to the
+# host's loopback address only.
+[chain_view]
+enabled = true
+# visado listens on 0.0.0.0 in its container. Every container on the lab
+# network can read the view; the host sees it on 127.0.0.1 only (compose.yaml).
+allow_remote = true
