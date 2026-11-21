@@ -42,6 +42,8 @@ SPIRE's private key JWK and its bundle keys carry no `alg`. The demo takes it fr
 
 User tokens, the DPoP-bound access token and the AAT root are still signed with the fixed demo keys in `../local/keys`. The DPoP proof key is a fixed testkit key.
 
+`visado.toml` sets `[dpop] require_nonce = true`, so every DPoP proof must carry a nonce visado issued (RFC 9449 §9). The lab runs one visado, so the nonce key is made at startup.
+
 ## Scenarios
 
 `demo.sh` checks each response status and, where the table names one, visado's error code:
@@ -68,7 +70,9 @@ User tokens, the DPoP-bound access token and the AAT root are still signed with 
 | mTLS: a certificate for agent-a's SPIFFE ID from another CA | No response: Envoy refuses the handshake (curl reports `000`) |
 | agent-a's JWT-SVID as `Authorization: Bearer` | 200 |
 | A JWT-SVID for another audience | 401 `jwt_svid.invalid` |
-| bob's access token, DPoP-bound, with its proof | 200 |
+| bob's access token, DPoP-bound, with a proof without a nonce | 401 `dpop.nonce_missing`, with `WWW-Authenticate: DPoP error="use_dpop_nonce"` and a `DPoP-Nonce` header |
+| The same request with a new proof carrying that nonce | 200, with the next `DPoP-Nonce` |
+| A proof with a nonce visado did not issue | 401 `dpop.nonce_invalid` |
 | The same token as `Bearer`, without the proof | 401 `token.dpop_bound` |
 
 ## agentgateway
@@ -87,7 +91,8 @@ agentgateway's `extAuthz` policy (`agentgateway.yaml`) calls visado over gRPC wi
 | AAT: agent-b reads `/etc/passwd` | 403 |
 | agent-a POSTs a ticket with an HTTP message signature | 200 |
 | A signed request whose body differs from the covered `Content-Digest` | 400 `httpsig.invalid` |
-| bob's access token, DPoP-bound, with its proof | 200 |
+| bob's access token, DPoP-bound, with a proof without a nonce | 401 `dpop.nonce_missing`, with `use_dpop_nonce` and a `DPoP-Nonce` header |
+| The same request with a new proof carrying that nonce | 200, with the next `DPoP-Nonce` |
 
 The `/mcp` scenarios use a plain HTTP route to the echo server, not agentgateway's MCP backend.
 

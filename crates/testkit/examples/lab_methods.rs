@@ -4,7 +4,7 @@
 //!
 //! ```text
 //! lab_methods sig <svid-dir> <workload> <path> <body> [--send <body>]
-//! lab_methods dpop <path> [--bearer]
+//! lab_methods dpop <path> [--bearer | --nonce <nonce>]
 //! ```
 //!
 //! `sig`: a POST of `body` as JSON, signed with an HTTP message signature
@@ -15,7 +15,8 @@
 //!
 //! `dpop`: a GET with an access token for bob, DPoP-bound (RFC 9449) to a fixed
 //! demo key and signed with the fixed OAuth demo key, and a DPoP proof by that
-//! key. `--bearer` sends the token as `Bearer` without the proof.
+//! key. `--bearer` sends the token as `Bearer` without the proof; `--nonce`
+//! puts a server-provided nonce (RFC 9449 §9) in the proof.
 
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -26,7 +27,7 @@ const AUTHORITY: &str = "tools.td.example";
 
 fn usage() -> ! {
     eprintln!(
-        "usage: lab_methods sig <svid-dir> <workload> <path> <body> [--send <body>]\n       lab_methods dpop <path> [--bearer]"
+        "usage: lab_methods sig <svid-dir> <workload> <path> <body> [--send <body>]\n       lab_methods dpop <path> [--bearer | --nonce <nonce>]"
     );
     std::process::exit(2);
 }
@@ -54,12 +55,13 @@ fn main() {
         }
         Some("dpop") => {
             let Some(path) = args.get(1) else { usage() };
-            let bearer = match args.get(2).map(String::as_str) {
-                None => false,
-                Some("--bearer") => true,
+            let mode = match (args.get(2).map(String::as_str), args.get(3), args.get(4)) {
+                (None, _, _) => Dpop::Proof(None),
+                (Some("--bearer"), None, _) => Dpop::Bearer,
+                (Some("--nonce"), Some(server), None) => Dpop::Proof(Some(server)),
                 _ => usage(),
             };
-            dpop(path, bearer, now, &nonce);
+            dpop(path, &mode, now, &nonce);
         }
         _ => usage(),
     }
@@ -98,7 +100,16 @@ fn signed(dir: &str, workload: &str, path: &str, body: &str, sent: &str, now: u6
     println!("BODY: {sent}");
 }
 
-fn dpop(path: &str, bearer: bool, now: u64, nonce: &str) {
+/// What `lab_methods dpop` sends.
+enum Dpop<'a> {
+    /// The token as `Bearer`, without a proof.
+    Bearer,
+    /// The token as `DPoP` with a proof, carrying the server's nonce if
+    /// given.
+    Proof(Option<&'a String>),
+}
+
+fn dpop(path: &str, mode: &Dpop<'_>, now: u64, nonce: &str) {
     let holder = visado_testkit::pop_key(0x61);
     let token = visado_testkit::signed_access_token(&json!({
         "iss": visado_testkit::OAUTH_ISSUER,
@@ -111,18 +122,25 @@ fn dpop(path: &str, bearer: bool, now: u64, nonce: &str) {
         "jti": format!("at-{nonce}"),
         "cnf": { "jkt": visado_chain_aat::jwk_thumbprint(&holder.verifying_key()) },
     }));
-    if bearer {
-        println!("Authorization: Bearer {token}");
-        return;
+    let server_nonce = match mode {
+        Dpop::Bearer => {
+            println!("Authorization: Bearer {token}");
+            return;
+        }
+        Dpop::Proof(server_nonce) => server_nonce,
+    };
+    let uri = format!("http://{AUTHORITY}{path}");
+    let mut claims =
+        visado_testkit::dpop_claims("GET", &uri, &token, &format!("proof-{nonce}"), now);
+    if let Some(server_nonce) = server_nonce {
+        claims["nonce"] = json!(server_nonce);
     }
-    let proof = visado_testkit::dpop_proof(
-        &holder,
-        "GET",
-        &format!("http://{AUTHORITY}{path}"),
-        &token,
-        &format!("proof-{nonce}"),
-        now,
-    );
+    let header = json!({
+        "alg": "Ed25519",
+        "typ": "dpop+jwt",
+        "jwk": visado_testkit::dpop_jwk(&holder),
+    });
+    let proof = visado_testkit::sign_dpop_proof(&header, &claims, &holder);
     println!("Authorization: DPoP {token}");
     println!("DPoP: {proof}");
 }

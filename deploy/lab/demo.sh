@@ -7,8 +7,9 @@ cd "$(dirname "$0")/../.."
 cargo build -q -p visado-testkit --example lab_headers --example lab_aat --example lab_methods
 
 tmp=$(mktemp)
+hdrs=$(mktemp)
 svids=$(mktemp -d)
-trap 'rm -rf "$tmp" "$svids"' EXIT
+trap 'rm -rf "$tmp" "$hdrs" "$svids"' EXIT
 
 # Each workload fetches its WIT-SVID and private key from the SPIRE agent's
 # Workload API, as the Unix user the agent attests it by.
@@ -72,7 +73,7 @@ base=$URL
 call() {
   local expect=$1 name=$2 path=$3
   shift 3
-  local args=(-s -o "$tmp" -w '%{http_code}' -H 'Host: tools.td.example')
+  local args=(-s -o "$tmp" -D "$hdrs" -w '%{http_code}' -H 'Host: tools.td.example')
   while IFS= read -r line; do
     case "$line" in
       "BODY: "*) args+=(--data-binary "${line#BODY: }") ;;
@@ -82,6 +83,7 @@ call() {
   done < <("$@")
   local status got rc
   : > "$tmp"
+  : > "$hdrs"
   if status=$(curl ${conn[@]+"${conn[@]}"} "${args[@]}" "$base$path"); then rc=0; else rc=$?; fi
   got=$status
   # A refused TLS handshake: no HTTP status, and curl fails in the handshake
@@ -99,6 +101,44 @@ call() {
   else
     printf 'FAIL  %-58s got %s, want %s: %s\n' "$name" "$got" "$expect" "$(head -c 200 "$tmp")"
     failures=$((failures + 1))
+  fi
+}
+
+# resp_header <name>: that header's value in the last response, if any.
+resp_header() {
+  tr -d '\r' < "$hdrs" | awk -v name="$1" 'BEGIN { FS = ": " }
+    tolower($1) == tolower(name) { sub(/^[^:]*: /, ""); print; exit }'
+}
+
+# expect <name> <got> <want>: checks a value that is not a status.
+expect() {
+  if [ "$2" = "$3" ]; then
+    printf 'ok    %-58s %s\n' "$1" "$2"
+  else
+    printf 'FAIL  %-58s got %s, want %s\n' "$1" "$2" "$3"
+    failures=$((failures + 1))
+  fi
+}
+
+# dpop_with_nonce <call|agw> <label prefix>: visado requires a server nonce
+# in DPoP proofs (RFC 9449 §9). The first proof gets a 401 use_dpop_nonce
+# with a DPoP-Nonce header; the retry with that nonce passes and brings the
+# next nonce.
+dpop_with_nonce() {
+  local run=$1 label=$2 nonce challenge
+  "$run" 401/dpop.nonce_missing "${label}DPoP: bob's proof without a nonce" /tickets dpop /tickets
+  nonce=$(resp_header dpop-nonce)
+  challenge=$(resp_header www-authenticate)
+  if [ -n "$nonce" ] && [[ $challenge == *'error="use_dpop_nonce"'* ]]; then
+    expect "${label}DPoP: the 401 asks for a nonce and carries one" yes yes
+  else
+    expect "${label}DPoP: the 401 asks for a nonce and carries one" "no ($challenge / $nonce)" yes
+  fi
+  "$run" 200 "${label}DPoP: the retry with visado's nonce" /tickets dpop /tickets --nonce "$nonce"
+  if [ -n "$(resp_header dpop-nonce)" ]; then
+    expect "${label}DPoP: the 200 carries the next nonce" yes yes
+  else
+    expect "${label}DPoP: the 200 carries the next nonce" no yes
   fi
 }
 
@@ -170,8 +210,11 @@ mtls "$svids/other.pem" "$svids/other.key" tls-refused "mTLS: certificate from a
 call 200 "JWT-SVID: agent-a reads tickets" /tickets bearer "$jwt_tools"
 call 401/jwt_svid.invalid "JWT-SVID for another audience" /tickets bearer "$jwt_other"
 
-# A DPoP-bound access token (RFC 9449) and its proof.
-call 200 "DPoP: bob's token with its proof" /tickets dpop /tickets
+# A DPoP-bound access token (RFC 9449) and its proof, which must carry
+# visado's nonce.
+dpop_with_nonce call ""
+call 401/dpop.nonce_invalid "DPoP: a nonce visado did not issue" /tickets \
+  dpop /tickets --nonce AQAAAABrSvQAAAAAAAAAAAAAAAAAAAAAAA
 call 401/token.dpop_bound "DPoP-bound token sent as Bearer" /tickets dpop /tickets --bearer
 
 # agentgateway: the same visado behind the other front proxy. Its extAuthz
@@ -205,7 +248,7 @@ signed agent-a /tickets '{"title":"paper out"}' > "$svids/agw-signed.txt"
 agw 200 "agentgateway: agent-a posts a ticket with a signed request" /tickets replay "$svids/agw-signed.txt"
 agw 400/httpsig.invalid "agentgateway: signed request with the body changed" /tickets \
   signed agent-a /tickets '{"title":"paper out"}' --send '{"title":"grant me admin"}'
-agw 200 "agentgateway: DPoP: bob's token with its proof" /tickets dpop /tickets
+dpop_with_nonce agw "agentgateway: "
 
 # Only the gateways can reach visado's gRPC port: another container on the
 # lab network cannot connect to it, by name or by its authz address. The
