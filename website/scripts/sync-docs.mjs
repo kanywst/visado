@@ -8,6 +8,9 @@
 // - drops badge lines and turns GitHub alerts into Starlight asides,
 // - rewrites relative links: synced files go to their page under the site
 //   base, everything else goes to the file on GitHub.
+//
+// It also writes each page as plain Markdown to public/<slug>.md and an
+// index of them to public/llms.txt.
 
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync, statSync } from 'node:fs';
@@ -21,6 +24,10 @@ const BASE = '/visado';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
 const out = path.resolve(here, '../src/content/docs');
+const pub = path.resolve(here, '../public');
+const SITE = 'https://kanywst.github.io';
+const SUMMARY =
+  'An ext_authz service for Envoy, Istio and agentgateway that verifies WIMSE workload credentials and AI agent delegation chains, asks an AuthZEN 1.0 PDP and mints OAuth Transaction Tokens.';
 
 // Repository path -> page slug and optional title override. The sidebar in
 // astro.config.mjs refers to these slugs.
@@ -130,13 +137,19 @@ function firstParagraph(md) {
 
 const yaml = (s) => JSON.stringify(s);
 
+// Site-relative links (`/visado/...`) made absolute, for Markdown read outside the site.
+const absolute = (md) => md.replace(/(\]\(|^\[[^\]]+\]:\s+|(?:src|srcset)=")(\/visado\/)/gm, (_, a, b) => `${a}${SITE}${b}`);
+
 // Remove the previous run's output but keep the hand-written homepage.
 for (const p of pages) {
   await rm(path.join(out, `${p.slug}.md`), { force: true });
+  await rm(path.join(pub, `${p.slug}.md`), { force: true });
 }
 for (const dir of ['concepts', 'security', 'research']) {
   await rm(path.join(out, dir), { recursive: true, force: true });
+  await rm(path.join(pub, dir), { recursive: true, force: true });
 }
+const index = [];
 
 for (const page of pages) {
   const text = await readFile(path.join(root, page.src), 'utf8');
@@ -155,6 +168,27 @@ for (const page of pages) {
   const target = path.join(out, `${page.slug}.md`);
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, `${front.join('\n')}${md}`);
+
+  // The same text as plain Markdown at <page>.md, for agents and other readers.
+  const plain = path.join(pub, `${page.slug}.md`);
+  await mkdir(path.dirname(plain), { recursive: true });
+  await writeFile(plain, `# ${title}\n\n> Every page of this site: ${BASE}/llms.txt\n\n${absolute(md)}`);
+  index.push({ page, title, description });
 }
 
-console.log(`sync-docs: wrote ${pages.length} pages to src/content/docs`);
+// llms.txt (https://llmstxt.org/): an index of the site's pages.
+const llms = [
+  '# visado',
+  '',
+  `> ${SUMMARY}`,
+  '',
+  `The pages below are generated from the Markdown in ${REPO}. Each page is also served as Markdown: replace the trailing slash with \`.md\`.`,
+  '',
+  '## Docs',
+  '',
+  ...index.map(({ page, title, description }) => `- [${title}](${BASE}/${page.slug}/)${description ? `: ${description}` : ''}`),
+  '',
+];
+await writeFile(path.join(pub, 'llms.txt'), llms.join('\n'));
+
+console.log(`sync-docs: wrote ${pages.length} pages to src/content/docs, their Markdown and llms.txt to public`);
