@@ -119,7 +119,8 @@ impl EvaluationRequest {
     }
 
     /// Copies each `context` member into `subject.properties`, keeping
-    /// `context`. A subject property with the same name is left as it is.
+    /// `context`. The context member replaces a subject property with the
+    /// same name, so a policy reading either sees the values visado computed.
     ///
     /// For PDPs that give a policy only the subject, resource and action:
     /// Cerbos, for one, passes subject properties to the policy as principal
@@ -129,9 +130,7 @@ impl EvaluationRequest {
         if let Some(context) = &self.context {
             let properties = self.subject.properties.get_or_insert_with(Map::new);
             for (name, value) in context {
-                properties
-                    .entry(name.clone())
-                    .or_insert_with(|| value.clone());
+                properties.insert(name.clone(), value.clone());
             }
         }
         self
@@ -450,7 +449,7 @@ mod tests {
     }
 
     #[test]
-    fn context_in_subject_copies_context_and_keeps_subject_properties() {
+    fn context_in_subject_copies_context_over_subject_properties() {
         let mut request = EvaluationRequest::for_agent(
             "spiffe://td.example/agent-b",
             Some(Entity::new("user", "alice")),
@@ -458,10 +457,14 @@ mod tests {
             Action::new("call"),
         )
         .with_context("scope", json!("tickets.read"));
-        request.subject.properties = Some(Map::from_iter([("scope".into(), json!("kept"))]));
+        request.subject.properties = Some(Map::from_iter([
+            ("scope".into(), json!("forged")),
+            ("team".into(), json!("ops")),
+        ]));
         let value = serde_json::to_value(request.with_context_in_subject()).unwrap();
         assert_eq!(value["subject"]["properties"]["principal"]["id"], "alice");
-        assert_eq!(value["subject"]["properties"]["scope"], "kept");
+        assert_eq!(value["subject"]["properties"]["scope"], "tickets.read");
+        assert_eq!(value["subject"]["properties"]["team"], "ops");
         assert_eq!(value["context"]["scope"], "tickets.read");
 
         let bare = EvaluationRequest::for_agent(
