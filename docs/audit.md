@@ -57,8 +57,8 @@ draft-ietf-wimse-aims §11 asks for these items. Each maps to members:
 
 `hash` is SHA-256 over the record serialized as JSON with the members in the order of the table above, `hash` left out, and no whitespace. Each record's `prev` is the previous record's `hash` and its `seq` is one more. A record changed, removed or inserted inside the log breaks the chain. `visado_extauthz::audit::verify_chain` checks a run of records deserialized into `AuditRecord`.
 
-The chain lives in the process: a restart starts a new chain at `seq` 0 with an empty `prev`, which shows in the log. The chain detects edits to a copy of the log; it does not stop someone who can rewrite the whole log from writing a new chain. Ship the records off the host as they are written if that matters.
+The chain lives in the process: a restart starts a new chain at `seq` 0 with an empty `prev`, which shows in the log. The chain detects edits, removals and insertions inside a copy of the log. It does not detect records cut from the end, or everything after a restart dropped, and it does not stop someone who can rewrite the whole log from writing a new chain. Ship the records off the host as they are written if that matters.
 
 ## What is never recorded
 
-No token, proof, signature, digest, header value or body. `detail` names identifiers (an actor, a caller) and never a credential. The resource path is recorded as received, without the query.
+No token, proof, signature, digest, header value or body. `detail` names identifiers (an actor, a caller); as a backstop, any JWS-looking text in it (`eyJ` and what follows) is replaced by `[token]`. The resource path is recorded as received, without the query. Text members (`id`, `txn`, `agent`, `principal`, `chain_issuer`, `resource`, `tool`, `action`, `detail`) are cut to a bounded length, so a request cannot make one record arbitrarily large.

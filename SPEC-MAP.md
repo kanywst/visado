@@ -7,7 +7,7 @@ Pinned revisions and where the code departs from them. Checked 2026-11-22.
 | Spec | Revision | Crate | Status |
 | --- | --- | --- | --- |
 | [draft-ietf-oauth-transaction-tokens](https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/11/) | -11 | `visado-txn-token` | Mint, verify, replace, request parsing; 7 valid and 27 negative own vectors and four rejected keys |
-| [draft-ietf-wimse-aims](https://datatracker.ietf.org/doc/draft-ietf-wimse-aims/01/) | -01 | (design) | Reference composition, not yet implemented |
+| [draft-ietf-wimse-aims](https://datatracker.ietf.org/doc/draft-ietf-wimse-aims/01/) | -01 | `visado-extauthz` (audit) | Reference composition for the pipeline. The §11 minimum audit record is implemented ([docs/audit.md](docs/audit.md)); choices beyond it: records are hash-chained per process (`seq`, `prev`, `hash`), `remediation` names what the caller can do, and `chain_actors` is a JSON array encoded as a string |
 | [draft-ietf-oauth-identity-assertion-authz-grant](https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/06/) | -06 | (planned) | |
 | [draft-niyikiza-oauth-attenuating-agent-tokens](https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/) | -02 | `visado-chain-aat` | §8 chain and PoP verification; 229/229 published vectors. Enforced by the gate (`docs/bindings.md`) |
 | [draft-asor-wimse-agent-delegation-chain](https://datatracker.ietf.org/doc/draft-asor-wimse-agent-delegation-chain/03/) | -03 | `visado-chain-asor` | §6 steps 1 to 8; 36/36 published vectors and 27 own status list vectors. Enforced by the gate (`docs/bindings.md`) |
