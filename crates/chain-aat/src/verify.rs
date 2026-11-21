@@ -504,42 +504,13 @@ impl Verifier {
     }
 
     fn tool_maps(&self, tools: &[(String, Value)]) -> Option<BTreeMap<String, ToolMap>> {
-        let mut nodes = self.limits.max_constraint_nodes;
-        tools
-            .iter()
-            .map(|(name, map)| {
-                let map = ToolMap::parse(
-                    map.as_object()?,
-                    self.limits.max_constraint_depth,
-                    &mut nodes,
-                )?;
-                Some((name.clone(), map))
-            })
-            .collect()
+        tool_maps(tools, &self.limits)
     }
 
     /// §8 step 6b. Returns the parsed arguments for step 7f.
     fn invocation(&self, leaf: &Token<'_>, invocation: &Invocation<'_>) -> Result<Value, AatError> {
-        let deny = |reason| AatError::new(Step::S6b, reason);
-        let map = leaf
-            .tools
-            .get(invocation.tool)
-            .ok_or(deny("tool not granted by the leaf"))?;
-        if invocation.args_json.len() > self.limits.max_token_size {
-            return Err(deny("arguments too large"));
-        }
-        let args = json::parse(invocation.args_json.as_bytes())
-            .map_err(|_| deny("arguments are not a JSON object without duplicate members"))?;
-        let members = args
-            .as_object()
-            .ok_or(deny("arguments are not a JSON object"))?;
-        if !args.numbers_admissible() {
-            return Err(deny("argument number is not admissible"));
-        }
-        if !map.permits(members) {
-            return Err(deny("arguments violate the leaf constraints"));
-        }
-        Ok(args)
+        invocation_args(&leaf.tools, invocation, &self.limits)
+            .map_err(|reason| AatError::new(Step::S6b, reason))
     }
 
     /// §8 step 6c.
@@ -669,11 +640,51 @@ impl ChainDecoder for Verifier {
     }
 }
 
+/// Parses each tool's constraint map (§8 steps 3n and 4o) within the
+/// constraint depth and node limits.
+pub(crate) fn tool_maps(
+    tools: &[(String, Value)],
+    limits: &Limits,
+) -> Option<BTreeMap<String, ToolMap>> {
+    let mut nodes = limits.max_constraint_nodes;
+    tools
+        .iter()
+        .map(|(name, map)| {
+            let map = ToolMap::parse(map.as_object()?, limits.max_constraint_depth, &mut nodes)?;
+            Some((name.clone(), map))
+        })
+        .collect()
+}
+
+/// §8 step 6b against the leaf's `tools`. Returns the parsed arguments.
+pub(crate) fn invocation_args(
+    tools: &BTreeMap<String, ToolMap>,
+    invocation: &Invocation<'_>,
+    limits: &Limits,
+) -> Result<Value, &'static str> {
+    let map = tools
+        .get(invocation.tool)
+        .ok_or("tool not granted by the leaf")?;
+    if invocation.args_json.len() > limits.max_token_size {
+        return Err("arguments too large");
+    }
+    let args = json::parse(invocation.args_json.as_bytes())
+        .map_err(|_| "arguments are not a JSON object without duplicate members")?;
+    let members = args.as_object().ok_or("arguments are not a JSON object")?;
+    if !args.numbers_admissible() {
+        return Err("argument number is not admissible");
+    }
+    if !map.permits(members) {
+        return Err("arguments violate the leaf constraints");
+    }
+    Ok(args)
+}
+
 /// §8 step 4p: every child tool is in the parent (4p1), and each tool's
 /// constraint map attenuates the parent's. Each rule runs over every tool
 /// before the next (4p2, then 4p3, then 4p4), so the earliest failing rule
 /// across tools is reported.
-fn attenuation(
+pub(crate) fn attenuation(
     child: &BTreeMap<String, ToolMap>,
     parent: &BTreeMap<String, ToolMap>,
 ) -> Result<(), Step> {
