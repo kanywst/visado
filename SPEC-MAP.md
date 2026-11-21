@@ -107,6 +107,21 @@ RFC 8693 publishes no test vectors. [conformance/act](conformance/act/) has visa
 | `may_act` (§4.4) | Who may become the actor | Not read |
 | Token exchange endpoint (§2) | Defined | Not implemented |
 
+## Invariant engine and authority algebras: choices
+
+Every chain goes through the format-neutral invariant engine after its format's checks (see `docs/design.md`). It agrees with every AAT, asor-03, asor status and act vector; [conformance/chain-invariants](conformance/chain-invariants/) has its own 39 cases. Where it is stricter than a draft, the engine's rule wins and the request is denied with its `chain.*` code.
+
+| Topic | Draft | visado |
+| --- | --- | --- |
+| Audience narrowing | AAT checks every token's `aud` against the enforcement point (§8 step 6c); asor checks only the leaf's (step 8) | A hop's `aud` must be a non-empty subset of the restriction in force; a hop without `aud` inherits it. An asor child whose `aud` names an audience its parent's does not, or an AAT child that adds an audience, is `chain.audience_widened` |
+| Repeated actors | AAT allows a holder to derive a token for itself and keys to cycle (§6.2); only `jti` must not repeat (step 2c) | The engine refuses a repeated token (`id`), not a repeated holder. Nested `act` hops share their token's identifier and are not compared |
+| `del_max_depth` | AAT: each token's cap, never raised (§4.3); asor: only `DT_0` bounds the chain (step 3) | Read per profile, fixed by the profile (`aat-holder-cap`, `asor-strict`, `uncapped` for `act`) and named in the audit record as `depth_semantics`. An asor child's own `del_max_depth` is still checked by rule 5 in the decoder; the engine sees only `DT_0`'s |
+| Chain length | AAT: `MAX_DELEGATION_DEPTH`; asor: 32 tokens; RFC 8693: not limited | At most 32 hops, whatever the format |
+| Authority types | One per format | `attenuating_agent_token`, `agent_delegation` and `rfc8693-act`, each from its format's own rules. Any other type is `chain.unknown_authority`; authorities of two types never subsume each other |
+| Cumulative asor constraints | Checked where the running total is held | The algebra holds no totals, so `max_lifetime` and `max_subtree` permit nothing, as in the gate |
+| `act` authority | None per actor (§4.1) | The empty object is the only well-formed authority; the gate asks an `act` chain no action, and the algebra refuses one if asked |
+| Status | asor step 7 | A hop with a status reference records whether it was checked; a chain from `decode()` has it unchecked and is `chain.status_unchecked` |
+
 ## AuthZEN: choices
 
 | Topic | Spec | visado |

@@ -5,8 +5,11 @@
 //! each runs what a verifier with an audience but no request can check.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use serde_json::Value;
+use visado_chain::algebra::Algebras;
+use visado_chain::invariants::Engine;
 use visado_chain::{Assurance, ChainDecoder, Link, Principal, Profile, SignerBinding};
 use visado_chain_asor::{Alg, TrustAnchor, Verifier};
 
@@ -69,7 +72,16 @@ fn every_vector_matches() {
             .map(|t| t.as_str().unwrap().to_owned())
             .collect();
         let now = vector["now"].as_i64().unwrap();
-        let result = verifier(vector).check(&tokens, now);
+        let verifier = verifier(vector);
+        let result = verifier.check(&tokens, now);
+        // The invariant engine holds on every chain the decoder accepts,
+        // accepted vectors included.
+        let engine = Engine::new(Algebras::new().with(Arc::new(verifier.algebra())));
+        if let Ok(decoded) = verifier.decode(&tokens, now)
+            && let Err(e) = engine.check_chain(&decoded)
+        {
+            failures.push(format!("{name}: the engine denies a decoded chain: {e}"));
+        }
         let expected = vector["expect_reject_reason"].as_str();
         match (expected, &result) {
             (None, Ok(chain)) => {
@@ -109,6 +121,12 @@ fn decoded_chain_is_normalized() {
             issuer: "attenu-guard".into(),
             subject: "acct:finance-ops@example.com".into(),
         }
+    );
+    assert!(
+        chain
+            .hops
+            .iter()
+            .all(|h| h.principal == chain.principal && h.status.is_none())
     );
     let depths: Vec<u32> = chain.hops.iter().map(|h| h.depth).collect();
     assert_eq!(depths, [0, 1, 2]);

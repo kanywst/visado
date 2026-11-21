@@ -11,7 +11,7 @@ use visado_chain::json::{self, ParseError, Value};
 use visado_chain::replay::ReplayCache;
 use visado_chain::{
     ActorId, Assurance, Authority as NormalizedAuthority, ChainDecoder, Cnf, Hop, KeyThumbprint,
-    Link, NormalizedChain, Principal, Profile, SignerBinding, TrustRef, Validity,
+    Link, NormalizedChain, Principal, Profile, SignerBinding, StatusCheck, TrustRef, Validity,
 };
 use wimsey_jose::{Algorithm, SIGNATURE_LEN, VerifyingKey};
 
@@ -348,6 +348,12 @@ impl Verifier {
         self.dpop_nonces.as_ref()
     }
 
+    /// The authority algebra for this verifier's limits.
+    #[must_use]
+    pub const fn algebra(&self) -> crate::Algebra {
+        crate::Algebra::new(self.limits.max_params_size)
+    }
+
     /// Checks `status` claims (step 7) against the lists `lists` holds.
     /// Without a source, a token with a `status` claim is denied as
     /// `status_unknown` by [`Verifier::verify`].
@@ -444,7 +450,7 @@ impl Verifier {
             .permits(&leaf.jti, action.scope, &params, action.totals)
             .map_err(|(outcome, reason)| AsorError::new(outcome, reason))?;
         Ok(Authorized {
-            chain: normalize(&chain, true),
+            chain: normalize(&chain, true, true),
             proof_jti: proof.jti,
         })
     }
@@ -467,7 +473,7 @@ impl Verifier {
             .last()
             .ok_or(AsorError::new(Outcome::Malformed, "empty chain"))?;
         self.audience(leaf, n)?;
-        Ok(normalize(&chain, false))
+        Ok(normalize(&chain, false, true))
     }
 
     /// Step 7: every token with a `status` reference is `VALID` in a list
@@ -579,7 +585,8 @@ impl ChainDecoder for Verifier {
     /// action, so `holder_proof` is `false` and the chain must not
     /// authorize anything on its own (§6.1).
     fn decode(&self, input: &[String], now: i64) -> Result<NormalizedChain, AsorError> {
-        self.chain(input, now).map(|chain| normalize(&chain, false))
+        self.chain(input, now)
+            .map(|chain| normalize(&chain, false, false))
     }
 }
 
@@ -853,7 +860,8 @@ fn time(tokens: &[Token<'_>], now: i64) -> Result<(), AsorError> {
     Ok(())
 }
 
-fn normalize(chain: &Verified<'_>, holder_proof: bool) -> NormalizedChain {
+/// `status_checked` says whether step 7 ran on the chain.
+fn normalize(chain: &Verified<'_>, holder_proof: bool, status_checked: bool) -> NormalizedChain {
     let root_max = chain
         .tokens
         .first()
@@ -870,6 +878,10 @@ fn normalize(chain: &Verified<'_>, holder_proof: bool) -> NormalizedChain {
             depth: token.depth,
             max_depth: root_max,
             actor,
+            principal: Principal::Subject {
+                issuer: token.iss.clone(),
+                subject: token.sub.clone(),
+            },
             delegator,
             signer: signer.clone(),
             signer_binding: SignerBinding::RootAnchor,
@@ -885,6 +897,13 @@ fn normalize(chain: &Verified<'_>, holder_proof: bool) -> NormalizedChain {
             audience: Some(token.audience.clone()),
             cnf: Some(Cnf {
                 thumbprint: KeyThumbprint(token.jkt.clone()),
+            }),
+            status: token.status.as_ref().map(|_| {
+                if status_checked {
+                    StatusCheck::Valid
+                } else {
+                    StatusCheck::Unchecked
+                }
             }),
             assurance: Assurance::Verified,
         });

@@ -19,6 +19,7 @@ hmac = { workspace = true }
 miniz_oxide = { workspace = true }
 
 [dev-dependencies]
+proptest = { workspace = true }
 serde_json = { workspace = true }
 visado-testkit = { workspace = true }
 

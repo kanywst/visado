@@ -26,7 +26,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 
 - `NormalizedChain`, the invariant engine and the authority algebra. AAT-02 decoder, then asor-03, then the RFC 8693 `act` adapter.
 - **Gate:** all 229 published AAT vectors and the 36 asor-03 vectors pass.
-- **Status:** partly met. `visado-chain` (the normalized model), `visado-chain-aat` (§8 verification, 229/229 AAT vectors at the expected step), `visado-chain-asor` (§6 verification with DPoP and Token Status Lists, 36/36 asor-03 vectors with the expected outcome and 27 own status list vectors) and `visado-chain-act` (the RFC 8693 `act` claim of a verified access token, with the current actor bound to the caller; 20 own vectors) are in, and the ext_authz gate enforces all three formats. Not yet: the separate invariant engine and authority algebra.
+- **Status:** met. `visado-chain` (the normalized model, the format-neutral invariant engine and the `AuthorityAlgebra` registry), `visado-chain-aat` (§8 verification, 229/229 AAT vectors at the expected step), `visado-chain-asor` (§6 verification with DPoP and Token Status Lists, 36/36 asor-03 vectors with the expected outcome and 27 own status list vectors) and `visado-chain-act` (the RFC 8693 `act` claim of a verified access token, with the current actor bound to the caller; 20 own vectors) are in, each format crate with the authority algebra of its type. The ext_authz gate enforces all three formats and runs every chain through the engine after the format's checks; the engine agrees with every AAT, asor and act vector and has 39 own vectors in `conformance/chain-invariants/`.
 
 ## Phase 4: AuthZEN
 

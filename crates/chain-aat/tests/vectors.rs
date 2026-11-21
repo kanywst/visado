@@ -6,8 +6,12 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde_json::Value;
+use std::sync::Arc;
+
+use visado_chain::algebra::{Action, Algebras};
+use visado_chain::invariants::{Engine, Invariant};
 use visado_chain::{Assurance, ChainDecoder, Link, SignerBinding};
 use visado_chain_aat::{
     Invocation, Limits, MemoryReplayCache, Policy, Presentation, ReplayCache, TrustAnchor, Verifier,
@@ -115,6 +119,10 @@ fn run(vector: &Value, suite: &Value) -> Option<String> {
         replay,
     );
 
+    if let Some(disagreement) = engine_agrees(&verifier, &chain, &invocation, now, &result) {
+        return Some(format!("{id}: {disagreement}"));
+    }
+
     let expected = &vector["expected"];
     let got = match &result {
         Ok(_) => ("PERMIT".to_owned(), None),
@@ -166,6 +174,43 @@ fn run(vector: &Value, suite: &Value) -> Option<String> {
         }
     }
     None
+}
+
+/// The invariant engine, with the AAT algebra, must agree with the §8
+/// verdict: it holds on every permitted chain, and on a chain that decodes
+/// but whose invocation step 6b denies, it denies the action.
+fn engine_agrees(
+    verifier: &Verifier,
+    chain: &[String],
+    invocation: &Invocation<'_>,
+    now: i64,
+    result: &Result<visado_chain_aat::Authorized, visado_chain_aat::AatError>,
+) -> Option<String> {
+    let engine = Engine::new(Algebras::new().with(Arc::new(verifier.algebra())));
+    let action = Action {
+        name: invocation.tool,
+        params_json: invocation.args_json,
+    };
+    match result {
+        Ok(authorized) => engine
+            .check(&authorized.chain, Some(&action))
+            .err()
+            .map(|e| format!("the engine denies a permitted chain: {e}")),
+        Err(e) if e.step() == visado_chain_aat::Step::S6b => {
+            let mut decoded = verifier.decode(chain, now).ok()?;
+            decoded.holder_proof = true;
+            match engine.check(&decoded, Some(&action)) {
+                Err(e) if e.invariant == Invariant::Action => None,
+                other => Some(format!("step 6b denied, the engine says {other:?}")),
+            }
+        }
+        Err(_) => verifier.decode(chain, now).ok().and_then(|decoded| {
+            engine
+                .check_chain(&decoded)
+                .err()
+                .map(|e| format!("the engine denies a chain decode() accepts: {e}"))
+        }),
+    }
 }
 
 #[test]

@@ -7,6 +7,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use serde_json::{Value, json};
+use visado_chain::algebra::{Action, Algebras};
+use visado_chain::invariants::{Engine, Invariant};
+use visado_chain::{ChainDecoder, StatusCheck};
 use visado_chain_asor::{
     MemoryStatusLists, StatusListError, StatusListVerifier, TrustAnchor, Verifier,
 };
@@ -520,7 +523,38 @@ fn run(suite: &Value, case: &Value) -> Result<(), visado_chain_asor::AsorError> 
     .with_status_lists(lists)
     .with_status_max_age(suite["max_age"].as_i64().unwrap());
     let chain: Vec<String> = serde_json::from_value(case["chain"].clone()).unwrap();
-    verifier.check(&chain, now).map(|_| ())
+    let checked = verifier.check(&chain, now)?;
+    // Step 7 ran, so every reference is recorded as checked; a decoded
+    // chain, which skips step 7, records the same references as unchecked.
+    let decoded = verifier.decode(&chain, now).expect("decode after check");
+    assert!(checked.hops.iter().any(|h| h.status.is_some()));
+    for (c, d) in checked.hops.iter().zip(&decoded.hops) {
+        assert_eq!(c.status.is_some(), d.status.is_some());
+        assert!(c.status.is_none_or(|s| s == StatusCheck::Valid));
+        assert!(d.status.is_none_or(|s| s == StatusCheck::Unchecked));
+    }
+    // The engine accepts the checked chain and refuses the decoded one,
+    // whose references were never looked up.
+    let engine = Engine::new(Algebras::new().with(Arc::new(verifier.algebra())));
+    let action = Action {
+        name: "crm.read",
+        params_json: "{}",
+    };
+    let proved = |chain: visado_chain::NormalizedChain| visado_chain::NormalizedChain {
+        holder_proof: true,
+        ..chain
+    };
+    engine
+        .check(&proved(checked), Some(&action))
+        .expect("the engine agrees with step 7");
+    assert_eq!(
+        engine
+            .check(&proved(decoded), Some(&action))
+            .unwrap_err()
+            .invariant,
+        Invariant::Status
+    );
+    Ok(())
 }
 
 #[test]

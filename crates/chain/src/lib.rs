@@ -14,7 +14,9 @@
 //! with JCS (RFC 8785), compact JWS parts and JWK thumbprints, DPoP proof
 //! checks (RFC 9449), and a proof `jti` cache.
 
+pub mod algebra;
 pub mod dpop;
+pub mod invariants;
 pub mod jose;
 pub mod json;
 pub mod replay;
@@ -146,6 +148,17 @@ pub struct Cnf {
     pub thumbprint: KeyThumbprint,
 }
 
+/// Whether a hop's revocation status reference, such as an asor `status`
+/// claim, was checked against its status list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum StatusCheck {
+    /// The hop carries a reference that was not looked up, as in a chain
+    /// [`ChainDecoder::decode`] returned. Such a chain must not authorize.
+    Unchecked,
+    /// The reference was looked up and the hop is valid.
+    Valid,
+}
+
 /// Whether a hop was cryptographically checked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Assurance {
@@ -169,6 +182,9 @@ pub struct Hop {
     pub max_depth: Option<u32>,
     /// Who holds this hop's authority.
     pub actor: ActorId,
+    /// On whose behalf this hop acts, as the hop itself names it. The chain's
+    /// [`principal`](NormalizedChain::principal) is the first hop's.
+    pub principal: Principal,
     /// Who delegated to the actor. `None` for the first hop.
     pub delegator: Option<ActorId>,
     /// The key that signed this hop.
@@ -185,6 +201,8 @@ pub struct Hop {
     pub audience: Option<Vec<String>>,
     /// The holder key, if the hop is sender-constrained.
     pub cnf: Option<Cnf>,
+    /// The hop's revocation status, if it carries a status reference.
+    pub status: Option<StatusCheck>,
     /// Whether this hop was verified.
     pub assurance: Assurance,
 }

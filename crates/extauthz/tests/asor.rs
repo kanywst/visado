@@ -208,6 +208,42 @@ async fn a_widened_scope_is_denied() {
     assert_eq!(denial(&outcome), (403, "asor.not_narrower"));
 }
 
+/// asor-03 checks only the leaf's `aud`; the invariant engine also refuses
+/// a child whose audience is not within its parent's.
+#[tokio::test]
+async fn a_widened_audience_is_denied_by_the_invariant_engine() {
+    let root = asor_sign(&asor_root_claims(
+        "root-1",
+        "spiffe://td.example/agent-a",
+        &pop_key(1),
+        &json!(["crm.*"]),
+        &json!([{ "key": "rows", "max": 1000 }]),
+        "https://other.td.example",
+        NOW,
+        3,
+    ));
+    let child = asor_sign(&asor_child_claims(
+        "child-1",
+        "spiffe://td.example/agent-b",
+        &root,
+        &pop_key(2),
+        1,
+        &json!(["crm.read"]),
+        &json!([{ "key": "rows", "max": 100 }]),
+        AUDIENCE,
+        NOW,
+    ));
+    let chain = vec![root, child];
+    let outcome = gate()
+        .check(
+            &call(&chain, 2, Some(2), "crm.read", &json!({ "rows": 1 }), 1),
+            NOW,
+            "t",
+        )
+        .await;
+    assert_eq!(denial(&outcome), (403, "chain.audience_widened"));
+}
+
 #[tokio::test]
 async fn the_chain_must_be_held_by_the_caller() {
     // A workload with key 3 presents agent B's chain with a proof by key 2.

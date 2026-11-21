@@ -11,14 +11,19 @@
 //! The [`ChainDecoder`](visado_chain::ChainDecoder) implementation runs steps
 //! 1 to 5 only and yields a [`NormalizedChain`](visado_chain::NormalizedChain).
 //!
+//! [`Algebra`] is the [`AuthorityAlgebra`](visado_chain::algebra::AuthorityAlgebra)
+//! of the `attenuating_agent_token` type, for the invariant engine.
+//!
 //! Only `Ed25519` and `ES256` are accepted. Numbers in claims and arguments
 //! are read as written, so admissibility (§3.4) is checked exactly.
 
+mod algebra;
 mod constraint;
 mod error;
 mod jws;
 mod verify;
 
+pub use algebra::Algebra;
 pub use error::{AatError, Step};
 pub use verify::{
     Authorized, DETAIL_TYPE, Invocation, Limits, POP_TYP, Policy, Presentation, TYP, TrustAnchor,

@@ -27,13 +27,15 @@
 //!
 //! RFC 8693 defines no authority per actor, so this crate invents none: each
 //! hop's [`Authority`] is an empty object, and what the token grants is its
-//! top-level `scope`. Claims inside `act` other than `sub`, `iss` and `act`
+//! top-level `scope`. [`Algebra`] is the matching
+//! [`AuthorityAlgebra`] for the invariant engine. Claims inside `act` other than `sub`, `iss` and `act`
 //! are ignored, as §4.1 says non-identity claims there are not used.
 
 use std::collections::BTreeMap;
 use std::fmt;
 
 use serde_json::Value;
+use visado_chain::algebra::{Action, AuthorityAlgebra};
 use visado_chain::{
     ActorId, Assurance, Authority, ChainError, Hop, KeyThumbprint, Link, NormalizedChain,
     Principal, Profile, SignerBinding, TrustRef, Validity,
@@ -197,6 +199,10 @@ impl Verifier {
             issued_at: token.issued_at.map_or(0, saturate),
             expires_at: saturate(token.expires_at),
         };
+        let principal = Principal::Subject {
+            issuer: token.issuer.to_owned(),
+            subject: token.subject.to_owned(),
+        };
         let mut hops: Vec<Hop> = Vec::with_capacity(actors.len());
         for (depth, actor) in actors.into_iter().enumerate() {
             let actor = ActorId::Subject {
@@ -209,6 +215,7 @@ impl Verifier {
                 depth: u32::try_from(depth).unwrap_or(u32::MAX),
                 max_depth: None,
                 actor,
+                principal: principal.clone(),
                 link: if delegator.is_some() {
                     Link::Nested
                 } else {
@@ -224,15 +231,13 @@ impl Verifier {
                 validity,
                 audience: None,
                 cnf: None,
+                status: None,
                 assurance: Assurance::Declared,
             });
         }
         Ok(NormalizedChain {
             profile: Profile::Rfc8693Act,
-            principal: Principal::Subject {
-                issuer: token.issuer.to_owned(),
-                subject: token.subject.to_owned(),
-            },
+            principal,
             root: TrustRef {
                 issuer: token.issuer.to_owned(),
                 key: signer,
@@ -296,6 +301,38 @@ impl Verifier {
     }
 }
 
+/// The [`AuthorityAlgebra`] of the [`DETAIL_TYPE`] authority.
+///
+/// RFC 8693 gives an actor no authority of its own: what an access token
+/// grants is its top-level `scope`, which the PDP evaluates and which caps
+/// the Transaction Token. So the only well-formed authority is the empty
+/// object, it subsumes only itself, and it permits a request only when no
+/// action is asked of the chain (`None`). An action is never checked against
+/// an `act` chain, so `Some(action)` is refused rather than allowed by
+/// default.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Algebra;
+
+impl Algebra {
+    fn empty(authority: &Authority) -> bool {
+        authority.detail_type == DETAIL_TYPE && authority.json == "{}"
+    }
+}
+
+impl AuthorityAlgebra for Algebra {
+    fn detail_type(&self) -> &'static str {
+        DETAIL_TYPE
+    }
+
+    fn subsumes(&self, parent: &Authority, child: &Authority) -> bool {
+        Self::empty(parent) && Self::empty(child)
+    }
+
+    fn permits(&self, leaf: &Authority, action: Option<&Action<'_>>) -> bool {
+        Self::empty(leaf) && action.is_none()
+    }
+}
+
 struct Actor {
     sub: String,
     iss: Option<String>,
@@ -310,7 +347,7 @@ mod tests {
     use serde_json::{Value, json};
     use visado_chain::{ActorId, Assurance, Link, Principal};
 
-    use super::{ActError, ActToken, Caller, MAX_ACTORS_LIMIT, Verifier};
+    use super::{ActError, ActToken, Algebra, Caller, MAX_ACTORS_LIMIT, Verifier};
 
     fn token(act: &Value) -> ActToken<'_> {
         ActToken {
@@ -482,6 +519,30 @@ mod tests {
         let chain = Verifier::new().decode(&token(&act)).unwrap();
         assert_eq!(subject(&chain.hops[0].actor), "a");
         assert_eq!(chain.hops[0].authority.json, "{}");
+    }
+
+    #[test]
+    fn the_algebra_accepts_only_the_empty_authority_and_no_action() {
+        use visado_chain::Authority;
+        use visado_chain::algebra::{Action, AuthorityAlgebra};
+        let chain = Verifier::new()
+            .decode(&token(&json!({ "sub": "a" })))
+            .unwrap();
+        let empty = &chain.hops[0].authority;
+        assert!(Algebra.subsumes(empty, empty));
+        assert!(Algebra.permits(empty, None));
+        let action = Action {
+            name: "tools/call",
+            params_json: "{}",
+        };
+        assert!(!Algebra.permits(empty, Some(&action)));
+        let scoped = Authority {
+            detail_type: super::DETAIL_TYPE.into(),
+            json: r#"{"scope":"admin"}"#.into(),
+        };
+        assert!(!Algebra.subsumes(empty, &scoped));
+        assert!(!Algebra.subsumes(&scoped, &scoped));
+        assert!(!Algebra.permits(&scoped, None));
     }
 
     #[test]

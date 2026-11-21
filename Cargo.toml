@@ -65,6 +65,7 @@ ryu = "1.0.23"
 thiserror = "2"
 miniz_oxide = "0.9"
 getrandom = "0.4"
+proptest = { version = "1", default-features = false, features = ["std"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

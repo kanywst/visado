@@ -1,0 +1,4502 @@
+{
+  "algebras": [
+    "attenuating_agent_token",
+    "agent_delegation",
+    "rfc8693-act"
+  ],
+  "cases": [
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/a\"}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/a\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "Three AAT hops narrowing read to one path.",
+      "expect": "aat-holder-cap",
+      "hop": null,
+      "name": "aat-valid"
+    },
+    {
+      "action": {
+        "name": "crm.read",
+        "params_json": "{\"rows\":50}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "summarizer"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "Three asor hops narrowing crm.* to crm.read.",
+      "expect": "asor-strict",
+      "hop": null,
+      "name": "asor-valid"
+    },
+    {
+      "action": null,
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "issuer": "https://as.example",
+              "subject": "agent-0"
+            },
+            "assurance": "declared",
+            "audience": null,
+            "authority": {
+              "json": "{}",
+              "type": "rfc8693-act"
+            },
+            "cnf": null,
+            "delegator": null,
+            "depth": 0,
+            "id": "at-1",
+            "link": "root",
+            "max_depth": null,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "issuer": "https://as.example",
+              "subject": "agent-1"
+            },
+            "assurance": "verified",
+            "audience": null,
+            "authority": {
+              "json": "{}",
+              "type": "rfc8693-act"
+            },
+            "cnf": null,
+            "delegator": {
+              "issuer": "https://as.example",
+              "subject": "agent-0"
+            },
+            "depth": 1,
+            "id": "at-1",
+            "link": "nested",
+            "max_depth": null,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "rfc8693-act",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "An act claim: a declared prior actor, the verified current one, no action.",
+      "expect": "uncapped",
+      "hop": null,
+      "name": "act-valid"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/a\"}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/a\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "The leaf holder is the root holder again (AAT-02 §6.2 allows a holder to repeat).",
+      "expect": "aat-holder-cap",
+      "hop": null,
+      "name": "aat-holder-repeats"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/a\"}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": null,
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": null,
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/a\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "Hops without aud inherit their parent's restriction.",
+      "expect": "aat-holder-cap",
+      "hop": null,
+      "name": "aat-audience-inherited"
+    },
+    {
+      "action": {
+        "name": "crm.read",
+        "params_json": "{\"rows\":50}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 1,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "summarizer"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "Under asor only the first hop's bound counts, so a later hop's smaller bound does not deny.",
+      "expect": "asor-strict",
+      "hop": null,
+      "name": "asor-later-bound-ignored"
+    },
+    {
+      "action": null,
+      "chain": {
+        "holder_proof": false,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": "unchecked",
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "summarizer"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "chain",
+      "description": "What needs no request: a decoded asor chain without holder proof, with a status reference not yet looked up.",
+      "expect": "asor-strict",
+      "hop": null,
+      "name": "asor-without-a-request"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/a\"}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "No hops.",
+      "expect": "chain.malformed",
+      "hop": null,
+      "name": "empty"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/a\"}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 2,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/a\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "The second hop says depth 2.",
+      "expect": "chain.malformed",
+      "hop": 1,
+      "name": "depth-out-of-order"
+    },
+    {
+      "action": {
+        "name": "crm.read",
+        "params_json": "{\"rows\":50}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "other",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "summarizer"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "The first hop's signer is not the trust anchor.",
+      "expect": "chain.link_mismatch",
+      "hop": 0,
+      "name": "root-not-anchor-signed"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/a\"}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/a\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "An AAT hop is signed by a key other than its parent's cnf.",
+      "expect": "chain.link_mismatch",
+      "hop": 2,
+      "name": "signer-not-parent-cnf"
+    },
+    {
+      "action": {
+        "name": "crm.read",
+        "params_json": "{\"rows\":50}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "A hop names the root's actor, not its parent's, as delegator.",
+      "expect": "chain.link_mismatch",
+      "hop": 2,
+      "name": "delegator-not-parent"
+    },
+    {
+      "action": null,
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "issuer": "https://as.example",
+              "subject": "agent-0"
+            },
+            "assurance": "declared",
+            "audience": null,
+            "authority": {
+              "json": "{}",
+              "type": "rfc8693-act"
+            },
+            "cnf": null,
+            "delegator": null,
+            "depth": 0,
+            "id": "at-1",
+            "link": "root",
+            "max_depth": null,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "issuer": "https://as.example",
+              "subject": "agent-1"
+            },
+            "assurance": "verified",
+            "audience": null,
+            "authority": {
+              "json": "{}",
+              "type": "rfc8693-act"
+            },
+            "cnf": null,
+            "delegator": {
+              "issuer": "https://as.example",
+              "subject": "agent-0"
+            },
+            "depth": 1,
+            "id": "at-2",
+            "link": "nested",
+            "max_depth": null,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "rfc8693-act",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "A nested act hop has another token's identifier.",
+      "expect": "chain.link_mismatch",
+      "hop": 1,
+      "name": "nested-in-another-token"
+    },
+    {
+      "action": {
+        "name": "crm.read",
+        "params_json": "{\"rows\":50}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "summarizer"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "mallory"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "The leaf acts for another subject.",
+      "expect": "chain.principal_altered",
+      "hop": 2,
+      "name": "principal-altered"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/a\"}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/a\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 2001,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "The leaf expires after its parent.",
+      "expect": "chain.exp_extended",
+      "hop": 2,
+      "name": "exp-extended"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/a\"}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/a\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "An AAT hop raises its parent's cap.",
+      "expect": "chain.depth_exceeded",
+      "hop": 2,
+      "name": "aat-cap-raised"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/a\"}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/a\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 1,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "An AAT hop is deeper than its own cap.",
+      "expect": "chain.depth_exceeded",
+      "hop": 2,
+      "name": "aat-beyond-own-cap"
+    },
+    {
+      "action": {
+        "name": "crm.read",
+        "params_json": "{\"rows\":50}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 1,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 1,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "summarizer"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 1,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "The asor leaf is deeper than the first hop's bound.",
+      "expect": "chain.depth_exceeded",
+      "hop": 2,
+      "name": "asor-beyond-root-bound"
+    },
+    {
+      "action": {
+        "name": "crm.read",
+        "params_json": "{\"rows\":50}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": null,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "summarizer"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "The first asor hop has no bound.",
+      "expect": "chain.depth_exceeded",
+      "hop": 0,
+      "name": "asor-no-root-bound"
+    },
+    {
+      "action": {
+        "name": "crm.read",
+        "params_json": "{\"rows\":50}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example",
+              "https://other.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "summarizer"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "The leaf adds an audience its parent does not have.",
+      "expect": "chain.audience_widened",
+      "hop": 2,
+      "name": "audience-widened"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/a\"}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/a\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "A hop restricts its audience to nothing.",
+      "expect": "chain.audience_widened",
+      "hop": 1,
+      "name": "audience-empty"
+    },
+    {
+      "action": {
+        "name": "crm.read",
+        "params_json": "{\"rows\":50}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "summarizer"
+            },
+            "depth": 2,
+            "id": "jti-0",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "The leaf token is the root token again.",
+      "expect": "chain.token_repeated",
+      "hop": 2,
+      "name": "token-repeated"
+    },
+    {
+      "action": null,
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "issuer": "https://as.example",
+              "subject": "agent-0"
+            },
+            "assurance": "declared",
+            "audience": null,
+            "authority": {
+              "json": "{}",
+              "type": "rfc8693-act"
+            },
+            "cnf": null,
+            "delegator": null,
+            "depth": 0,
+            "id": "at-1",
+            "link": "root",
+            "max_depth": null,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "issuer": "https://as.example",
+              "subject": "agent-1"
+            },
+            "assurance": "declared",
+            "audience": null,
+            "authority": {
+              "json": "{}",
+              "type": "rfc8693-act"
+            },
+            "cnf": null,
+            "delegator": {
+              "issuer": "https://as.example",
+              "subject": "agent-0"
+            },
+            "depth": 1,
+            "id": "at-1",
+            "link": "nested",
+            "max_depth": null,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "rfc8693-act",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "The current act actor was never bound to the caller.",
+      "expect": "chain.unverified",
+      "hop": 1,
+      "name": "declared-leaf"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/a\"}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "payments"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/a\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "A verified hop's authority type has no algebra.",
+      "expect": "chain.unknown_authority",
+      "hop": 1,
+      "name": "unknown-authority-type"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/a\"}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/a\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "An AAT hop carries an asor authority.",
+      "expect": "chain.scope_escalation",
+      "hop": 1,
+      "name": "authority-type-changes"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/a\"}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"delete\":{},\"read\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "An AAT hop grants a tool its parent does not.",
+      "expect": "chain.scope_escalation",
+      "hop": 2,
+      "name": "aat-tool-added"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/a\"}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/c\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "An AAT hop allows a path its parent does not.",
+      "expect": "chain.scope_escalation",
+      "hop": 2,
+      "name": "aat-constraint-widened"
+    },
+    {
+      "action": {
+        "name": "crm.read",
+        "params_json": "{\"rows\":50}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\",\"mail.send\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "summarizer"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "An asor hop adds a scope its parent does not cover.",
+      "expect": "chain.scope_escalation",
+      "hop": 2,
+      "name": "asor-scope-widened"
+    },
+    {
+      "action": {
+        "name": "crm.read",
+        "params_json": "{\"rows\":50}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "summarizer"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "An asor hop drops its parent's row cap.",
+      "expect": "chain.scope_escalation",
+      "hop": 2,
+      "name": "asor-constraint-dropped"
+    },
+    {
+      "action": {
+        "name": "crm.read",
+        "params_json": "{\"rows\":50}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":500}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "summarizer"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "An asor hop raises its parent's row cap.",
+      "expect": "chain.scope_escalation",
+      "hop": 2,
+      "name": "asor-ceiling-raised"
+    },
+    {
+      "action": null,
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "issuer": "https://as.example",
+              "subject": "agent-0"
+            },
+            "assurance": "declared",
+            "audience": null,
+            "authority": {
+              "json": "{}",
+              "type": "rfc8693-act"
+            },
+            "cnf": null,
+            "delegator": null,
+            "depth": 0,
+            "id": "at-1",
+            "link": "root",
+            "max_depth": null,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "issuer": "https://as.example",
+              "subject": "agent-1"
+            },
+            "assurance": "verified",
+            "audience": null,
+            "authority": {
+              "json": "{\"scope\":\"admin\"}",
+              "type": "rfc8693-act"
+            },
+            "cnf": null,
+            "delegator": {
+              "issuer": "https://as.example",
+              "subject": "agent-0"
+            },
+            "depth": 1,
+            "id": "at-1",
+            "link": "nested",
+            "max_depth": null,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "rfc8693-act",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "An act hop carries an authority RFC 8693 does not define.",
+      "expect": "chain.action_denied",
+      "hop": 1,
+      "name": "act-authority-invented"
+    },
+    {
+      "action": {
+        "name": "crm.read",
+        "params_json": "{\"rows\":50}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": "unchecked",
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "summarizer"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "A status reference was never looked up.",
+      "expect": "chain.status_unchecked",
+      "hop": 1,
+      "name": "status-unchecked"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/a\"}"
+      },
+      "chain": {
+        "holder_proof": false,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/a\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "The presenter did not prove the leaf key.",
+      "expect": "chain.no_holder_proof",
+      "hop": null,
+      "name": "no-holder-proof"
+    },
+    {
+      "action": {
+        "name": "write",
+        "params_json": "{}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/a\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "The call is to a tool the leaf does not grant.",
+      "expect": "chain.action_denied",
+      "hop": 2,
+      "name": "aat-tool-not-granted"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{\"path\":\"/b\"}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/a\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "The call's path is outside the leaf's constraint.",
+      "expect": "chain.action_denied",
+      "hop": 2,
+      "name": "aat-argument-outside"
+    },
+    {
+      "action": null,
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "key": "holder-0"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}},\"write\":{}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 4,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-1"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"one_of\",\"values\":[\"/a\",\"/b\"]}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "key": "holder-0"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-0",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "key": "holder-2"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"read\":{\"path\":{\"constraint_type\":\"exact\",\"value\":\"/a\"}}}",
+              "type": "attenuating_agent_token"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "key": "holder-1"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 3,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "holder-1",
+            "signer_binding": "parent_cnf",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "aat-02",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "An AAT chain is asked to authorize no action.",
+      "expect": "chain.action_denied",
+      "hop": 2,
+      "name": "aat-no-action"
+    },
+    {
+      "action": {
+        "name": "crm.write",
+        "params_json": "{\"rows\":1}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "summarizer"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "The call's scope is not covered by the leaf.",
+      "expect": "chain.action_denied",
+      "hop": 2,
+      "name": "asor-scope-not-granted"
+    },
+    {
+      "action": {
+        "name": "crm.read",
+        "params_json": "{\"rows\":101}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "name": "orchestrator"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":1000}],\"scopes\":[\"crm.*\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-0",
+            "delegator": null,
+            "depth": 0,
+            "id": "jti-0",
+            "link": "root",
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "summarizer"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-1",
+            "delegator": {
+              "name": "orchestrator"
+            },
+            "depth": 1,
+            "id": "jti-1",
+            "link": {
+              "par_hash": "hash-1"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "name": "formatter"
+            },
+            "assurance": "verified",
+            "audience": [
+              "https://tools.example"
+            ],
+            "authority": {
+              "json": "{\"constraints\":[{\"key\":\"rows\",\"max\":100}],\"scopes\":[\"crm.read\"],\"type\":\"agent_delegation\"}",
+              "type": "agent_delegation"
+            },
+            "cnf": "holder-2",
+            "delegator": {
+              "name": "summarizer"
+            },
+            "depth": 2,
+            "id": "jti-2",
+            "link": {
+              "par_hash": "hash-2"
+            },
+            "max_depth": 2,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1998,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "asor-03",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "The call asks for more rows than the leaf allows.",
+      "expect": "chain.action_denied",
+      "hop": 2,
+      "name": "asor-over-ceiling"
+    },
+    {
+      "action": {
+        "name": "read",
+        "params_json": "{}"
+      },
+      "chain": {
+        "holder_proof": true,
+        "hops": [
+          {
+            "actor": {
+              "issuer": "https://as.example",
+              "subject": "agent-0"
+            },
+            "assurance": "declared",
+            "audience": null,
+            "authority": {
+              "json": "{}",
+              "type": "rfc8693-act"
+            },
+            "cnf": null,
+            "delegator": null,
+            "depth": 0,
+            "id": "at-1",
+            "link": "root",
+            "max_depth": null,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 2000,
+              "issued_at": 1000
+            }
+          },
+          {
+            "actor": {
+              "issuer": "https://as.example",
+              "subject": "agent-1"
+            },
+            "assurance": "verified",
+            "audience": null,
+            "authority": {
+              "json": "{}",
+              "type": "rfc8693-act"
+            },
+            "cnf": null,
+            "delegator": {
+              "issuer": "https://as.example",
+              "subject": "agent-0"
+            },
+            "depth": 1,
+            "id": "at-1",
+            "link": "nested",
+            "max_depth": null,
+            "principal": {
+              "issuer": "https://as.example",
+              "subject": "alice"
+            },
+            "signer": "anchor",
+            "signer_binding": "root_anchor",
+            "status": null,
+            "validity": {
+              "expires_at": 1999,
+              "issued_at": 1000
+            }
+          }
+        ],
+        "principal": {
+          "issuer": "https://as.example",
+          "subject": "alice"
+        },
+        "profile": "rfc8693-act",
+        "root": {
+          "issuer": "https://as.example",
+          "key": "anchor"
+        }
+      },
+      "check": "full",
+      "description": "An act chain is asked to authorize a tool call.",
+      "expect": "chain.action_denied",
+      "hop": 1,
+      "name": "act-asked-an-action"
+    }
+  ],
+  "format": "visado-chain-invariants/v1",
+  "spec": "visado docs/design.md, Delegation chain: the invariant engine and the authority algebras",
+  "suite": "chain-invariants"
+}
