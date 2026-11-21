@@ -201,6 +201,12 @@ impl Verifier {
         self
     }
 
+    /// The authority algebra for this verifier's limits.
+    #[must_use]
+    pub const fn algebra(&self) -> crate::Algebra {
+        crate::Algebra::new(self.limits)
+    }
+
     /// Runs the whole §8 algorithm for one invocation at time `now`.
     ///
     /// Pass `replay` for tools whose PoP `jti` values are tracked (§7.3); it
