@@ -64,6 +64,7 @@ hmac = "0.13"
 ryu = "1.0.23"
 thiserror = "2"
 miniz_oxide = "0.9"
+getrandom = "0.4"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

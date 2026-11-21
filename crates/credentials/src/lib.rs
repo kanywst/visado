@@ -44,7 +44,7 @@ pub use mtls::X509Bundle;
 pub use oauth::{AccessToken, OAuthIssuer};
 pub use request::RequestView;
 pub use svid::JwtBundle;
-pub use visado_chain::dpop::{NonceError, Nonces};
+pub use visado_chain::dpop::{MIN_NONCE_KEY_LEN as MIN_DPOP_NONCE_KEY_LEN, NonceError, Nonces};
 pub use wimse::WitIssuer;
 
 use visado_chain::dpop::{self as dpop_proof, Expected, HttpRequest, Rejection};
