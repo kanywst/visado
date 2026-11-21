@@ -146,18 +146,6 @@ agentgateway's `extAuthz` policy (`agentgateway.yaml`) calls visado over gRPC wi
 
 On agentgateway, `/mcp` is an MCP route (below); the `/mcp` scenarios through Envoy reach the echo server.
 
-## MCP backend
-
-agentgateway routes `/mcp` to its MCP backend (`statefulMode: stateless`, `prefixMode: never`), which serves the tools of `mcp/server.py`: a small MCP server over Streamable HTTP, written against the Python standard library and run in the pinned `python:3.13.18-alpine` image, with `read_file` and `delete_file` on an in-memory file store. The route has the same `extAuthz` policy as the others, so visado sees each MCP message before agentgateway handles it. For a `tools/call`, the tool name and arguments are what the caller's AAT chain must permit ([bindings](../../docs/bindings.md#aat)); with an asor chain, the tool name is the action's scope.
-
-| Scenario | Expected |
-| --- | --- |
-| agent-b lists the tools (`tools/list`, no chain) | 200 with `read_file` and `delete_file` from the MCP server |
-| agent-b calls `read_file` on `/data/report.pdf`, which agent-a delegated to it | 200 with the file's text from the MCP server |
-| agent-b calls `delete_file`, which agent-a kept | 403 `aat.invocation_denied`; the call never reaches the MCP server |
-
-The MCP server logs each `tools/call` it receives; the attack demos use that log to show which calls got through.
-
 The AAT chains are bound to the keys SPIRE issued: agent-a's WIT key holds the root and signs the delegation to agent-b's WIT key.
 
 The signed requests need the body: the ext_authz filters set `with_request_body` with `pack_as_bytes: true`. The mTLS listener's filter sets `include_peer_certificate: true`. visado's gRPC port listens only on its address on `authz`, an internal network that only Envoy and agentgateway share, so `visado.toml` sets the top-level `grpc_reachable_only_by_proxy = true` and the proxies connect without TLS: no other container can send a check request with someone else's certificate or get a Transaction Token. visado logs a warning for it at startup. A deployment without such a network sets `[grpc_tls]` with a `client_ca_file` instead. `demo.sh` checks that another container cannot connect to the port.
@@ -171,3 +159,15 @@ The chain view at <http://127.0.0.1:8080/chain> draws each recent decision: prin
 The policy is in `policy/visado.rego` (and `cerbos/http_resource.yaml` for Cerbos): `/admin/` needs `roles.write`, everything else `tickets.read`.
 
 The demo keys are public. Do not reuse them.
+
+## MCP backend
+
+agentgateway routes `/mcp` to its MCP backend (`statefulMode: stateless`, `prefixMode: never`), which serves the tools of `mcp/server.py`: a small MCP server over Streamable HTTP, written against the Python standard library and run in the pinned `python:3.13.18-alpine` image, with `read_file` and `delete_file` on an in-memory file store. The route has the same `extAuthz` policy as the others, so visado sees each MCP message before agentgateway handles it. For a `tools/call`, the tool name and arguments are what the caller's AAT chain must permit ([bindings](../../docs/bindings.md#aat)); with an asor chain, the tool name is the action's scope.
+
+| Scenario | Expected |
+| --- | --- |
+| agent-b lists the tools (`tools/list`, no chain) | 200 with `read_file` and `delete_file` from the MCP server |
+| agent-b calls `read_file` on `/data/report.pdf`, which agent-a delegated to it | 200 with the file's text from the MCP server |
+| agent-b calls `delete_file`, which agent-a kept | 403 `aat.invocation_denied`; the call never reaches the MCP server |
+
+The MCP server logs each `tools/call` it receives.
