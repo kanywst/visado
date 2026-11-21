@@ -1,6 +1,6 @@
 # Design (draft)
 
-Status: v0.3.0. Steps 1 to 6 are implemented: caller authentication by WIT with WPT or HTTP signatures, mTLS, JWT-SVID and OAuth access tokens, bearer or DPoP-bound; AAT, asor-03 and RFC 8693 `act` chains (decoders and per-format checks; no separate invariant engine or authority algebra); audit events, OpenTelemetry spans and the chain view. Items marked Open need a decision before the code that depends on them.
+Status: v0.3.0. Steps 1 to 6 are implemented: caller authentication by WIT with WPT or HTTP signatures, mTLS, JWT-SVID and OAuth access tokens, bearer or DPoP-bound; AAT, asor-03 and RFC 8693 `act` chains (decoders and per-format checks, then the format-neutral invariant engine and an authority algebra per detail type); audit events, OpenTelemetry spans and the chain view. Items marked Open need a decision before the code that depends on them.
 
 ## Request pipeline
 
@@ -48,24 +48,36 @@ Method selection, the Envoy settings each method needs, and their limits are in 
 
 Three layers, so a new draft is a new plugin:
 
-1. `ChainDecoder` per format parses, canonicalizes, checks signatures and links (`par_hash`, `sd_hash`, receipts, or nesting only), and produces a `NormalizedChain`.
-2. A format-neutral invariant engine checks:
-   - the principal never changes
-   - `exp` is monotone
-   - depth limits hold (`DepthSemantics::{AsorStrict, AatHolderCap}`)
-   - audiences only narrow
-   - no actor repeats
-   - status and proof of possession hold
-   - the action is allowed
-3. An `AuthorityAlgebra` per RAR detail type implements `subsumes(parent, child)` and `permits(leaf, action)`. Unknown types are denied.
+1. `ChainDecoder` per format parses, canonicalizes, checks signatures and links (`par_hash`, `sd_hash`, receipts, or nesting only), and produces a `NormalizedChain`. The format's request checks (proof of possession, status, audience, action) follow in the same crate.
+2. A format-neutral invariant engine (`visado_chain::invariants::Engine`) then checks the normalized chain again, whatever the format. The per-format checks stay; the engine must agree with them, and the gate runs it on every chain after them. In order, each with its deny code:
+   - shape: one to 32 hops, depths `0..n` in order (`chain.malformed`)
+   - links: the first hop is the root, signed by the trust anchor; every later hop names its parent's actor as delegator and is signed by the key its binding names, the parent's `cnf` or the anchor; a nested hop shares its parent's token (`chain.link_mismatch`)
+   - the principal never changes (`chain.principal_altered`)
+   - `exp` is monotone: no hop outlives its parent (`chain.exp_extended`)
+   - depth limits hold, read per profile (`DepthSemantics::{AsorStrict, AatHolderCap, Uncapped}`, see below; `chain.depth_exceeded`)
+   - audiences only narrow: a hop's audience is a non-empty subset of the restriction in force, and a hop without one inherits it (`chain.audience_widened`)
+   - no delegation token repeats (`chain.token_repeated`). A holder may repeat: AAT-02 §6.2 lets a holder derive a token for itself, and the AAT vectors cycle keys
+   - verified hops end the chain and the leaf is verified (`chain.unverified`)
+   - every verified hop's authority type has an algebra (`chain.unknown_authority`), and each verified hop's authority is subsumed by its verified parent's (`chain.scope_escalation`)
+   - status holds: no status reference is left unchecked (`chain.status_unchecked`)
+   - proof of possession holds: `holder_proof` is true (`chain.no_holder_proof`)
+   - the action is allowed: the leaf's authority permits it (`chain.action_denied`)
+3. An `AuthorityAlgebra` per RAR detail type implements `subsumes(parent, child)` and `permits(leaf, action)`; an `Algebras` registry maps a type to its algebra, and unknown types are denied. Each format crate implements its own type, from the same rules its decoder applies: `attenuating_agent_token` (AAT §8 step 4p and step 6b), `agent_delegation` (asor §4.3 rules 1 to 3 and step 8, without running totals) and `rfc8693-act` (only the empty authority, which subsumes only itself and permits a request only when no action is asked of the chain, since RFC 8693 gives an actor no authority; the gate asks none of an `act` chain).
+
+`del_max_depth` means different things in the two drafts, so the engine reads `Hop::max_depth` per profile, fixed by the profile rather than configured, and the audit record of an accepted chain names it (`depth_semantics`):
+
+- `AsorStrict` (asor-03): only the first hop's bound limits the chain. `Hop::max_depth` is `DT_0.del_max_depth - 1` on every hop; every depth must be at most it.
+- `AatHolderCap` (AAT-02): every hop carries its own cap. Each depth is at most its hop's `max_depth`, and no hop raises its parent's.
+- `Uncapped` (RFC 8693 `act`): no per-hop bound; the adapter's `max_actors` and the engine's 32 hops apply.
 
 ```rust
 struct NormalizedChain { profile: Profile, principal: Principal, root: TrustRef, hops: Vec<Hop>, holder_proof: bool }
 struct Hop {
-    depth: u32, max_depth: Option<u32>, actor: ActorId, delegator: Option<ActorId>,
-    signer: KeyThumbprint, signer_binding: SignerBinding, // RootAnchor | ParentCnf | AuthServer | Unverified
-    link: Link,                                           // ParHash | SdHash | Receipt | NestedOnly
-    authority: Authority, validity: Validity, cnf: Option<Cnf>, status: Option<StatusRef>,
+    depth: u32, max_depth: Option<u32>, actor: ActorId, principal: Principal, delegator: Option<ActorId>,
+    signer: KeyThumbprint, signer_binding: SignerBinding, // RootAnchor | ParentCnf
+    link: Link,                                           // Root | ParHash | Nested
+    authority: Authority, validity: Validity, audience: Option<Vec<String>>, cnf: Option<Cnf>,
+    status: Option<StatusCheck>,                          // Unchecked | Valid
     assurance: Assurance,                                 // Verified | Declared
 }
 ```
@@ -215,7 +227,6 @@ The lab also hosts the attack demos in [research/05-threats.md](research/05-thre
 ## Open questions
 
 - Which ID-JAG revision to accept: the MCP extension cites -04 and the latest is -06. Proposal: accept both and record which one passed.
-- `del_max_depth` semantics differ between AAT and asor. Proposal: per-profile setting, reported in the audit record.
 - The Txn-Token draft does not define a representation of the call chain across replacement. Proposal: carry the chain digest in `tctx` and note it as a divergence.
 - Key storage beyond files (KMS/HSM) and per-trust-domain key separation.
 - Name of the WIT `subject_token_type` URN to propose.

@@ -18,9 +18,17 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `deploy/lab` checks visado's reason code on every denial it decides (`credential.missing`, `pdp.deny`, `txn.untrusted_hop`, `aat.invocation_denied`, `aat.bad_signature`), and admits an OAuth client with a plain bearer access token (and refuses an expired one, `token.expired`) through `lab_methods bearer`.
 - `deploy/lab` requires DPoP nonces. `demo.sh` walks the retry through Envoy and agentgateway: a proof without a nonce is 401 `dpop.nonce_missing` with `use_dpop_nonce` and a `DPoP-Nonce`, the retry with it is 200 with the next nonce, and a nonce visado did not issue is 401 `dpop.nonce_invalid`. `lab_methods dpop` takes `--nonce`.
 
+- `visado-chain`: the format-neutral invariant engine (`invariants::Engine`). It checks any `NormalizedChain`: shape, links and signer bindings, an unchanging principal, monotone `exp`, depth limits read per profile (`DepthSemantics`: `AsorStrict`, `AatHolderCap`, `Uncapped`), audiences that only narrow, no repeated token, verified hops ending the chain, authorities that have an algebra and attenuate, checked status, holder proof, and the action. Each broken invariant has a stable `chain.*` code. `check_chain` runs the checks that need no request.
+- `visado-chain`: the `AuthorityAlgebra` trait (`subsumes`, `permits`) and the `Algebras` registry; a type without an algebra is denied. `visado-chain-aat`, `visado-chain-asor` and `visado-chain-act` each implement it for their type (`Algebra`; `Verifier::algebra` for the verifier's limits).
+- 39 chain invariant vectors in `conformance/chain-invariants/`, visado's own, and property tests for the AAT and asor algebras (reflexive, transitive, attenuation never widens). The engine is also run against every AAT, asor and act vector.
+- The audit record of an accepted chain has a `depth_semantics` field.
+
 ### Changed
 
 - `visado-extauthz`: `Outcome::Allow` has `response_headers` and `Outcome::Deny` has `headers`, for `DPoP-Nonce` and `Cache-Control`. `visado_chain::dpop::Expected` has a `nonces` field and `Rejection` a `Nonce` variant, and `AuthError` has `DpopNonce`.
+- The gate runs every delegation chain through the invariant engine after the format's checks. It now also denies an asor or AAT child whose `aud` names an audience outside its parent's (`chain.audience_widened`), and any chain of more than 32 hops.
+- `visado-chain`: `Hop` has two new fields, `principal` (the principal the hop's own token names) and `status` (`StatusCheck`: whether its status reference was checked). Code that builds a `Hop` must set them. The asor decoder marks a status reference `Unchecked` from `decode()` and `Valid` after step 7.
+- `docs/design.md`: the `del_max_depth` open question is decided: the semantics is fixed per profile and reported in the audit record.
 - `visado-chain-asor`: a `status` claim of the wrong shape (not a non-empty object, or a `status_list` without a non-negative integer `idx` and a non-empty string `uri`) is now `malformed` at parse, so `check()` and `decode()` reject it too.
 
 ## [0.3.0] - 2026-11-21
