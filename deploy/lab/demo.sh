@@ -222,6 +222,81 @@ done
 
 none() { :; }
 
+# --- Helpers for the MCP backend, the audit record and the attack demos ---
+
+say() { printf '      %s\n' "$*"; }
+# check <name> <got> <want>: an ok or FAIL line for a value demo.sh computed.
+check() {
+  if [ "$2" = "$3" ]; then
+    printf 'ok    %-58s %s\n' "$1" "$2"
+  else
+    printf 'FAIL  %-58s got %s, want %s\n' "$1" "$2" "$3"
+    failures=$((failures + 1))
+  fi
+}
+# via_agw call-arguments...: like call, through agentgateway.
+via_agw() {
+  base=$AGW_URL
+  call "$@"
+  base=$URL
+}
+# mcp <workload> <tool> <arguments> [lab_aat flags]: an MCP tools/call with
+# agent-b's AAT chain, as an MCP client sends it over Streamable HTTP.
+mcp() {
+  aat "$@"
+  echo "Accept: application/json, text/event-stream"
+}
+# mcp_headers <workload> <path>: a workload's own headers, for an MCP message
+# that needs no chain.
+mcp_headers() {
+  headers "$@"
+  echo "Accept: application/json, text/event-stream"
+}
+# with_body <json> <command...>: the command's headers, then a JSON body.
+with_body() {
+  local body=$1
+  shift
+  "$@"
+  echo "Content-Type: application/json"
+  echo "BODY: $body"
+}
+# mcp_text <file>: the text of an MCP tools/call result, JSON or SSE.
+mcp_text() {
+  sed -n -e 's/^data: //' -e '/^{/p' "$1" | jq -r '.result.content[0].text // empty' 2>/dev/null | head -n 1
+}
+# txn_of <Txn-Token>: its txn claim.
+txn_of() {
+  jq -rn --arg t "$1" '$t | split(".")[1] | gsub("-"; "+") | gsub("_"; "/")
+    | (. + ("=" * ((4 - length % 4) % 4))) | @base64d | fromjson | .txn'
+}
+# audit_records: visado's audit records so far, one JSON object per line.
+audit_records() {
+  service_logs visado | jq -R -c 'fromjson? | select(.target? == "visado::audit") | .fields'
+}
+# mark_audit: later expect_audit calls look only at records written after it.
+audit_mark=0
+mark_audit() { audit_mark=$(audit_records | grep -c . || true); }
+# expect_audit <name> <jq condition> [jq options...]: the latest audit record
+# since the mark meeting the condition, or FAIL if there is none.
+expect_audit() {
+  local name=$1 cond=$2 hit=""
+  shift 2
+  for _ in 1 2 3 4 5; do
+    hit=$(audit_records | tail -n +$((audit_mark + 1)) | jq -c "$@" "select($cond)" | tail -n 1)
+    [ -n "$hit" ] && break
+    sleep 1
+  done
+  if [ -n "$hit" ]; then
+    printf 'ok    %-58s %s\n' "$name" "$(jq -r '"seq \(.seq): \(.decision) \(.reason)"' <<<"$hit")"
+  else
+    printf 'FAIL  %-58s no such record\n' "$name"
+    failures=$((failures + 1))
+  fi
+}
+# mcp_calls <tool>: how many calls of the tool reached the MCP server.
+mcp_calls() {
+  service_logs mcp | jq -R -c --arg t "$1" 'fromjson? | select(.mcp_tool_call? == $t)' | wc -l | tr -d ' '
+}
 
 call 401/credential.missing "no credentials" /tickets none
 call 400 "encoded slash in the path (rejected by Envoy)" /tickets/..%2Fadmin/roles none
@@ -362,13 +437,31 @@ else
   failures=$((failures + 1))
 fi
 agw 403/pdp.deny "agentgateway: user token without the admin scope" /admin/roles headers agent-a /admin/roles --user bob tickets.read
-agw 200 "agentgateway: agent-b reads the file it was delegated" /mcp aat agent-b read_file '{"path":"/data/report.pdf"}'
-agw 403/aat.invocation_denied "agentgateway: agent-b reads another file" /mcp aat agent-b read_file '{"path":"/etc/passwd"}'
+agw 200 "agentgateway: agent-b reads the file it was delegated" /mcp mcp agent-b read_file '{"path":"/data/report.pdf"}'
+agw 403/aat.invocation_denied "agentgateway: agent-b reads another file" /mcp mcp agent-b read_file '{"path":"/etc/passwd"}'
 signed agent-a /tickets '{"title":"paper out"}' > "$svids/agw-signed.txt"
 agw 200 "agentgateway: agent-a posts a ticket with a signed request" /tickets replay "$svids/agw-signed.txt"
 agw 400/httpsig.invalid "agentgateway: signed request with the body changed" /tickets \
   signed agent-a /tickets '{"title":"paper out"}' --send '{"title":"grant me admin"}'
 dpop_with_nonce agw "agentgateway: "
+
+# --- agentgateway's MCP backend ---
+# /mcp on agentgateway goes to its MCP backend in front of mcp/server.py, a
+# real MCP server; visado checks each tools/call against the caller's AAT
+# chain before agentgateway handles it.
+mark_audit
+via_agw 200 "MCP: tools/list through agentgateway" /mcp \
+  with_body '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' mcp_headers agent-b /mcp
+check "MCP: the server's tools are listed" \
+  "$(sed -n -e 's/^data: //' -e '/^{/p' "$tmp" | jq -r '[.result.tools[].name] | sort | join(",")' 2>/dev/null)" \
+  "delete_file,read_file"
+via_agw 200 "MCP: agent-b calls read_file, which it was delegated" /mcp \
+  mcp agent-b read_file '{"path":"/data/report.pdf"}'
+check "MCP: the result comes from the MCP server" "$(mcp_text "$tmp" | cut -c1-9)" "Q3 report"
+via_agw 403/aat.invocation_denied "MCP: agent-b calls delete_file, which agent-a kept" /mcp \
+  mcp agent-b delete_file '{"path":"/data/report.pdf"}'
+expect_audit "MCP: audit records the denied tool" \
+  '.tool == "delete_file" and .agent == "spiffe://td.example/agent-b" and .reason == "aat.invocation_denied"'
 
 # Only the gateways can reach visado's gRPC port: another container on the
 # lab network cannot connect to it, by name or by its authz address. The

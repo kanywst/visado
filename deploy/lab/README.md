@@ -2,7 +2,7 @@
 
 Envoy and [agentgateway](https://agentgateway.dev/) call visado through ext_authz. visado asks [OPA with the AuthZEN plugin](https://github.com/kanywst/opa-authzen-plugin) (or [Cerbos](#a-second-pdp-cerbos)), and allowed requests reach an echo server that returns the headers it received. [SPIRE](https://spiffe.io/) v1.16.0 issues the workloads' WITs, X.509-SVIDs and JWT-SVIDs. [Keycloak](https://www.keycloak.org/) 26.8.2, the resource authorization server, issues OAuth access tokens, bearer and DPoP-bound, and redeems ID-JAGs that [Casdoor](https://casdoor.org/) v4.26.0 issues for the user.
 
-Envoy listens on two ports: `10000` (plain HTTP) and `10443` (mTLS). agentgateway v1.7.0 listens on `10001` (plain HTTP) in front of the same upstream.
+Envoy listens on two ports: `10000` (plain HTTP) and `10443` (mTLS). agentgateway v1.7.0 listens on `10001` (plain HTTP) in front of the same upstream, and in front of a real MCP server on `/mcp`.
 
 ## Running it
 
@@ -144,7 +144,19 @@ agentgateway's `extAuthz` policy (`agentgateway.yaml`) calls visado over gRPC wi
 | bob's access token, DPoP-bound, with a proof without a nonce | 401 `dpop.nonce_missing`, with `use_dpop_nonce` and a `DPoP-Nonce` header |
 | The same request with a new proof carrying that nonce | 200, with the next `DPoP-Nonce` |
 
-The `/mcp` scenarios use a plain HTTP route to the echo server, not agentgateway's MCP backend.
+On agentgateway, `/mcp` is an MCP route (below); the `/mcp` scenarios through Envoy reach the echo server.
+
+## MCP backend
+
+agentgateway routes `/mcp` to its MCP backend (`statefulMode: stateless`, `prefixMode: never`), which serves the tools of `mcp/server.py`: a small MCP server over Streamable HTTP, written against the Python standard library and run in the pinned `python:3.13.18-alpine` image, with `read_file` and `delete_file` on an in-memory file store. The route has the same `extAuthz` policy as the others, so visado sees each MCP message before agentgateway handles it. For a `tools/call`, the tool name and arguments are what the caller's AAT chain must permit ([bindings](../../docs/bindings.md#aat)); with an asor chain, the tool name is the action's scope.
+
+| Scenario | Expected |
+| --- | --- |
+| agent-b lists the tools (`tools/list`, no chain) | 200 with `read_file` and `delete_file` from the MCP server |
+| agent-b calls `read_file` on `/data/report.pdf`, which agent-a delegated to it | 200 with the file's text from the MCP server |
+| agent-b calls `delete_file`, which agent-a kept | 403 `aat.invocation_denied`; the call never reaches the MCP server |
+
+The MCP server logs each `tools/call` it receives; the attack demos use that log to show which calls got through.
 
 The AAT chains are bound to the keys SPIRE issued: agent-a's WIT key holds the root and signs the delegation to agent-b's WIT key.
 

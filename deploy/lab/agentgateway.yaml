@@ -10,6 +10,33 @@ binds:
   - name: tools
     protocol: HTTP
     routes:
+    # The MCP endpoint: agentgateway's MCP backend in front of a real MCP
+    # server (mcp/server.py), behind the same extAuthz policy. visado reads
+    # the tool name and arguments from the tools/call body and checks them
+    # against the AAT chain before agentgateway handles the MCP message.
+    - name: mcp
+      hostnames: ["tools.td.example"]
+      matches:
+      - path:
+          exact: /mcp
+      backends:
+      - mcp:
+          statefulMode: stateless
+          prefixMode: never
+          targets:
+          - name: files
+            mcp:
+              host: http://mcp:8000/mcp
+      policies:
+        extAuthz:
+          host: 172.30.91.10:9191
+          protocol:
+            grpc: {}
+          failureMode: deny
+          includeRequestBody:
+            maxRequestBytes: 65536
+            allowPartialMessage: false
+            packAsBytes: true
     - name: tools
       hostnames: ["tools.td.example"]
       backends:

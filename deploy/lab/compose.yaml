@@ -32,6 +32,7 @@ services:
     depends_on:
       visado: { condition: service_started }
       upstream: { condition: service_started }
+      mcp: { condition: service_started }
 
   visado:
     build:
@@ -212,10 +213,18 @@ services:
     environment:
       HTTP_PORT: "8080"
 
+  # A real MCP server behind agentgateway's MCP backend (agentgateway.yaml):
+  # the standard library alone, so it needs no build.
+  mcp:
+    image: python:3.13.18-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
+    command: ["python", "-u", "/srv/server.py", "8000"]
+    volumes:
+      - ./mcp/server.py:/srv/server.py:ro
+
   # The demo runner: `docker compose run --rm demo` runs demo.sh with
   # nothing on the host but Docker. It shares the SPIRE agent's PID
   # namespace and socket so each workload fetches its own SVID, and reads
-  # the lab's logs through the Docker socket.
+  # the visado and MCP server logs through the Docker socket.
   demo:
     profiles: [demo]
     build:
@@ -228,6 +237,7 @@ services:
     depends_on:
       envoy: { condition: service_started }
       agentgateway: { condition: service_started }
+      mcp: { condition: service_started }
       jaeger: { condition: service_started }
       spire-agent: { condition: service_healthy }
 
