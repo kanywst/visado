@@ -1,4 +1,4 @@
-# The lab's demo runner: demo.sh and the testkit examples
+# The lab's demo runner: demo.sh, the attack scripts and the testkit examples
 # that make their requests, so the scenarios need nothing on the host but
 # Docker. Built from the repository root (compose.yaml sets the context).
 FROM rust:1.100-slim-bookworm@sha256:7c7d4eb4d05b7781187a327809466cfddf29753f6defdc3d19a0e291951b7a37 AS build
@@ -25,6 +25,7 @@ RUN apt-get update \
 COPY --from=agent /opt/spire/bin/spire-agent /usr/local/bin/spire-agent
 COPY --from=build /out/ /lab/bin/
 COPY deploy/lab/demo.sh /lab/deploy/lab/demo.sh
+COPY deploy/lab/attacks/ /lab/deploy/lab/attacks/
 ENV LAB_IN_COMPOSE=1 LAB_BIN=/lab/bin
 WORKDIR /lab
 ENTRYPOINT ["/lab/deploy/lab/demo.sh"]

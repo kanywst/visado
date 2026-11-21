@@ -2,14 +2,16 @@
 # Runs the lab scenarios against `docker compose up` in this directory.
 # Exits non-zero if any scenario does not get the expected status.
 #
-#   docker compose run --rm demo
-#   ./demo.sh
+#   docker compose run --rm demo [attacks/<n>-<name>.sh ...]
+#   ./demo.sh [attacks/<n>-<name>.sh ...]
 #
 # In the `demo` container (LAB_IN_COMPOSE set) it needs nothing but the
 # lab; run from a checkout it needs cargo, curl, jq, openssl and docker.
+# With arguments it runs only those attack demos.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
+only=("$@")
 # Logs and audit records from before this run are not looked at.
 started=$(date +%s)
 
@@ -297,6 +299,21 @@ expect_audit() {
 mcp_calls() {
   service_logs mcp | jq -R -c --arg t "$1" 'fromjson? | select(.mcp_tool_call? == $t)' | wc -l | tr -d ' '
 }
+for _ in $(seq 60); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: tools.td.example' "$AGW_URL/tickets" || true)
+  [ "$code" = "401" ] && break
+  sleep 1
+done
+
+# With arguments, run only those attack demos.
+if [ ${#only[@]} -gt 0 ]; then
+  for attack in "${only[@]}"; do
+    mark_audit
+    # shellcheck source=/dev/null
+    . "deploy/lab/$attack"
+  done
+  exit "$failures"
+fi
 
 call 401/credential.missing "no credentials" /tickets none
 call 400 "encoded slash in the path (rejected by Envoy)" /tickets/..%2Fadmin/roles none
@@ -509,6 +526,13 @@ view_count=$(jq --argjson s "$started" '[.requests[] | select(.time >= $s)] | le
 if [ "$view_count" -lt "$(jq '.capacity' <<<"$view" 2>/dev/null || echo 0)" ]; then
   check "audit: one record per decision" "$record_count records" "$view_count records"
 fi
+
+# --- Attack demos (deploy/lab/attacks/README.md) ---
+for attack in deploy/lab/attacks/[0-9]-*.sh; do
+  mark_audit
+  # shellcheck source=/dev/null
+  . "$attack"
+done
 
 # Only the gateways can reach visado's gRPC port: another container on the
 # lab network cannot connect to it, by name or by its authz address. The

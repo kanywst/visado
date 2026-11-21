@@ -14,7 +14,7 @@ docker compose up -d --build
 docker compose run --rm demo
 ```
 
-`docker compose run --rm demo` builds the `demo` image (the testkit examples that make the requests, `curl`, `jq`, `openssl` and the SPIRE agent CLI), runs every scenario below, and exits non-zero if any outcome differs. The container shares the SPIRE agent's PID namespace and socket, so each workload fetches its own SVIDs as its own Unix user, and it reads the lab's logs through the Docker socket (`/var/run/docker.sock`, mounted read-only). CI runs the same two commands.
+`docker compose run --rm demo` builds the `demo` image (the testkit examples that make the requests, `curl`, `jq`, `openssl` and the SPIRE agent CLI), runs every scenario below and the [attack demos](attacks/README.md), and exits non-zero if any outcome differs. `docker compose run --rm demo attacks/3-recruited-admin.sh` runs one attack. The container shares the SPIRE agent's PID namespace and socket, so each workload fetches its own SVIDs as its own Unix user, and it reads the lab's logs through the Docker socket (`/var/run/docker.sock`, mounted read-only). CI runs the same two commands.
 
 `./demo.sh` also runs from the host if it has `cargo`, `curl`, `jq`, `openssl` and `docker`.
 
@@ -170,8 +170,12 @@ agentgateway routes `/mcp` to its MCP backend (`statefulMode: stateless`, `prefi
 | agent-b calls `read_file` on `/data/report.pdf`, which agent-a delegated to it | 200 with the file's text from the MCP server |
 | agent-b calls `delete_file`, which agent-a kept | 403 `aat.invocation_denied`; the call never reaches the MCP server |
 
-The MCP server logs each `tools/call` it receives.
+The MCP server logs each `tools/call` it receives; the attack demos use that log to show which calls got through.
 
 ## Audit record
 
-visado writes one audit record per decision to its log (`docker compose logs visado`), in the schema of [docs/audit.md](../../docs/audit.md). `demo.sh` finds the record of the first allowed request by its `txn` and checks each member, checks a 401's record, checks that every record has every member, recomputes the hash chain over the whole log, and checks that there are as many records as decisions in the chain view.
+visado writes one audit record per decision to its log (`docker compose logs visado`), in the schema of [docs/audit.md](../../docs/audit.md). `demo.sh` finds the record of the first allowed request by its `txn` and checks each member, checks a 401's record, checks that every record has every member, recomputes the hash chain over the run's records, and checks that there are as many records as decisions in the chain view.
+
+## Attack demos
+
+[attacks/README.md](attacks/README.md): a prompt-injected agent widening its delegation, a stolen chain replayed by another workload, a ticket that recruits the admin agent (all three stopped), and exfiltration within granted scope (not stopped).
