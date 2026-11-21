@@ -29,6 +29,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - The gate runs every delegation chain through the invariant engine after the format's checks. It now also denies an asor or AAT child whose `aud` names an audience outside its parent's (`chain.audience_widened`), and any chain of more than 32 hops.
 - `visado-chain`: `Hop` has two new fields, `principal` (the principal the hop's own token names) and `status` (`StatusCheck`: whether its status reference was checked). Code that builds a `Hop` must set them. The asor decoder marks a status reference `Unchecked` from `decode()` and `Valid` after step 7.
 - `docs/design.md`: the `del_max_depth` open question is decided: the semantics is fixed per profile and reported in the audit record.
+- `visado-credentials`: a DPoP-bound access token from Keycloak is accepted. Keycloak writes `cnf` as `jkt` plus `kc-jkt-type` `DPoP`; that member is now allowed next to `jkt`. Any other `kc-jkt-type` (Keycloak's `ABCA` binds a client attestation key) or other `cnf` member is still `token.sender_constrained`.
 - `visado-chain-asor`: a `status` claim of the wrong shape (not a non-empty object, or a `status_list` without a non-negative integer `idx` and a non-empty string `uri`) is now `malformed` at parse, so `check()` and `decode()` reject it too.
 
 ## [0.3.0] - 2026-11-21

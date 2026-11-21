@@ -298,6 +298,52 @@ fn the_token_must_be_bound_to_the_proof_key() {
     );
 }
 
+/// Keycloak's `cnf` names the binding in `kc-jkt-type`. `DPoP` is a DPoP
+/// binding; `ABCA` (a client attestation key) and anything else is not.
+#[test]
+fn keycloak_names_the_jkt_binding() {
+    let auth = authenticator();
+    let jkt = jwk_thumbprint(&holder().verifying_key());
+    let bound = |cnf: Value| {
+        signed_access_token(&json!({
+            "iss": OAUTH_ISSUER, "sub": "alice", "aud": AUDIENCE, "azp": "c1",
+            "exp": NOW + 300, "cnf": cnf,
+        }))
+    };
+
+    let dpop = bound(json!({ "jkt": jkt, "kc-jkt-type": "DPoP" }));
+    let proof = dpop_proof(&holder(), "POST", HTU, &dpop, "p-1", NOW);
+    let ok = send(&auth, &dpop, &proof).unwrap();
+    assert_eq!(ok.method, Method::OAuthDpop);
+    assert_eq!(ok.caller, "c1");
+    // Still bound: not accepted as a bearer token.
+    assert_eq!(
+        run(&auth, &[("authorization", &format!("Bearer {dpop}"))]).unwrap_err(),
+        "token.dpop_bound"
+    );
+
+    for (name, cnf) in [
+        ("ABCA", json!({ "jkt": jkt, "kc-jkt-type": "ABCA" })),
+        (
+            "not a string",
+            json!({ "jkt": jkt, "kc-jkt-type": ["DPoP"] }),
+        ),
+        ("no jkt", json!({ "kc-jkt-type": "DPoP" })),
+        (
+            "another member",
+            json!({ "jkt": jkt, "kc-jkt-type": "DPoP", "x5t#S256": "abc" }),
+        ),
+    ] {
+        let at = bound(cnf);
+        let proof = dpop_proof(&holder(), "POST", HTU, &at, "p-2", NOW);
+        assert_eq!(
+            send(&auth, &at, &proof).unwrap_err(),
+            "token.sender_constrained",
+            "{name}"
+        );
+    }
+}
+
 #[test]
 fn the_token_is_verified_as_usual() {
     let auth = authenticator();
