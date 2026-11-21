@@ -4,6 +4,10 @@
 
 use std::sync::Arc;
 
+use visado_chain::ChainDecoder;
+use visado_chain::algebra::{Action as EngineAction, Algebras};
+use visado_chain::invariants::{Engine, Invariant};
+
 use serde_json::{Value, json};
 use visado_chain_asor::{
     Action, AsorError, Cumulative, HttpRequest, MemoryReplayCache, MemoryStatusLists, Outcome,
@@ -69,7 +73,7 @@ fn run(
     replay: Option<&MemoryReplayCache>,
 ) -> Result<(), AsorError> {
     let replay = replay.map(|r| r as &dyn visado_chain_asor::ReplayCache);
-    verifier()
+    let result = verifier()
         .verify(
             &Presentation { chain, dpop: proof },
             &HttpRequest {
@@ -84,7 +88,54 @@ fn run(
             i64::try_from(NOW).unwrap(),
             replay,
         )
-        .map(|authorized| assert!(authorized.chain.holder_proof))
+        .map(|authorized| {
+            assert!(authorized.chain.holder_proof);
+            authorized.chain
+        });
+    if totals.is_none() {
+        engine_agrees(chain, scope, params, &result);
+    }
+    result.map(|_| ())
+}
+
+/// The invariant engine with the asor algebra agrees with step 8: it holds
+/// on every permitted chain and denies the action wherever step 8 does. The
+/// algebra holds no running totals, so runs with totals are not compared.
+fn engine_agrees(
+    chain: &[String],
+    scope: &str,
+    params: &str,
+    result: &Result<visado_chain::NormalizedChain, AsorError>,
+) {
+    let engine = Engine::new(Algebras::new().with(Arc::new(verifier().algebra())));
+    let action = EngineAction {
+        name: scope,
+        params_json: params,
+    };
+    match result {
+        Ok(chain) => {
+            engine
+                .check(chain, Some(&action))
+                .expect("the engine agrees");
+        }
+        Err(e)
+            if matches!(
+                e.outcome(),
+                Outcome::ScopeNotGranted | Outcome::CeilingExceeded | Outcome::UnknownConstraint
+            ) =>
+        {
+            let mut decoded = verifier()
+                .decode(chain, i64::try_from(NOW).unwrap())
+                .unwrap();
+            decoded.holder_proof = true;
+            assert_eq!(
+                engine.check(&decoded, Some(&action)).unwrap_err().invariant,
+                Invariant::Action,
+                "{e}"
+            );
+        }
+        Err(_) => {}
+    }
 }
 
 fn proof(chain: &[String], seed: u8, jti: &str) -> String {

@@ -7,6 +7,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use serde_json::{Value, json};
+use visado_chain::algebra::{Action, Algebras};
+use visado_chain::invariants::{Engine, Invariant};
 use visado_chain::{ChainDecoder, StatusCheck};
 use visado_chain_asor::{
     MemoryStatusLists, StatusListError, StatusListVerifier, TrustAnchor, Verifier,
@@ -531,6 +533,27 @@ fn run(suite: &Value, case: &Value) -> Result<(), visado_chain_asor::AsorError> 
         assert!(c.status.is_none_or(|s| s == StatusCheck::Valid));
         assert!(d.status.is_none_or(|s| s == StatusCheck::Unchecked));
     }
+    // The engine accepts the checked chain and refuses the decoded one,
+    // whose references were never looked up.
+    let engine = Engine::new(Algebras::new().with(Arc::new(verifier.algebra())));
+    let action = Action {
+        name: "crm.read",
+        params_json: "{}",
+    };
+    let proved = |chain: visado_chain::NormalizedChain| visado_chain::NormalizedChain {
+        holder_proof: true,
+        ..chain
+    };
+    engine
+        .check(&proved(checked), Some(&action))
+        .expect("the engine agrees with step 7");
+    assert_eq!(
+        engine
+            .check(&proved(decoded), Some(&action))
+            .unwrap_err()
+            .invariant,
+        Invariant::Status
+    );
     Ok(())
 }
 

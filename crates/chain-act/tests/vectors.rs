@@ -1,9 +1,13 @@
 //! Runs `conformance/act/vectors.json`: two claim sets from RFC 8693 §4.1
 //! and visado's own cases.
 
+use std::sync::Arc;
+
 use serde_json::{Value, json};
 use visado_chain::ActorId;
-use visado_chain_act::{ActToken, Caller, Verifier};
+use visado_chain::algebra::Algebras;
+use visado_chain::invariants::{Engine, Invariant};
+use visado_chain_act::{ActToken, Algebra, Caller, Verifier};
 
 fn actor(id: &ActorId) -> Value {
     match id {
@@ -55,6 +59,21 @@ fn vectors() {
                 assert_eq!(actor(&current.actor), case["actor"], "{name}");
                 let prior: Vec<Value> = prior.iter().map(|h| actor(&h.actor)).collect();
                 assert_eq!(Value::from(prior), case["prior_actors"], "{name}");
+                // The engine needs a caller that proved a key; then it holds.
+                let engine = Engine::new(Algebras::new().with(Arc::new(Algebra)));
+                assert_eq!(
+                    engine.check(&chain, None).unwrap_err().invariant,
+                    Invariant::HolderProof,
+                    "{name}"
+                );
+                let proved = Caller {
+                    proved_key: true,
+                    ..caller
+                };
+                let chain = verifier.verify(&token, &proved).unwrap();
+                engine
+                    .check(&chain, None)
+                    .unwrap_or_else(|e| panic!("{name}: {e}"));
             }
             code => assert_eq!(
                 result
