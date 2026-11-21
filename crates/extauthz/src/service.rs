@@ -93,7 +93,12 @@ fn input_from(request: &CheckRequest) -> Option<CheckInput> {
     })
 }
 
-fn denied_response(status: u16, code: &str, challenge: Option<&str>) -> CheckResponse {
+fn denied_response(
+    status: u16,
+    code: &str,
+    challenge: Option<&str>,
+    headers: &[(String, String)],
+) -> CheckResponse {
     let mut denied = DeniedHttpResponseBuilder::new();
     denied.set_http_status(status_code(status));
     if code == AuthError::HttpSig(String::new()).code() {
@@ -111,6 +116,9 @@ fn denied_response(status: u16, code: &str, challenge: Option<&str>) -> CheckRes
     }
     if let Some(challenge) = challenge {
         denied.add_header("www-authenticate", challenge, None, false);
+    }
+    for (name, value) in headers {
+        denied.add_header(name, value, None, false);
     }
     let mut response = CheckResponse::new();
     response
@@ -153,15 +161,26 @@ impl<P: Pdp + 'static> Authorization for ExtAuthz<P> {
                 400,
                 "request.no_http_attributes",
                 None,
+                &[],
             )));
         };
         let Ok(elapsed) = SystemTime::now().duration_since(UNIX_EPOCH) else {
-            return Ok(Response::new(denied_response(500, "internal.clock", None)));
+            return Ok(Response::new(denied_response(
+                500,
+                "internal.clock",
+                None,
+                &[],
+            )));
         };
         let txn = uuid::Uuid::new_v4().to_string();
 
         let response = match self.gate.check(&input, elapsed.as_secs(), &txn).await {
-            Outcome::Allow { txn, set, remove } => {
+            Outcome::Allow {
+                txn,
+                set,
+                remove,
+                response_headers,
+            } => {
                 let mut ok = OkHttpResponseBuilder::new();
                 for (name, value) in set {
                     ok.add_header(
@@ -174,6 +193,14 @@ impl<P: Pdp + 'static> Authorization for ExtAuthz<P> {
                 for name in remove {
                     ok.remove_header(name);
                 }
+                for (name, value) in response_headers {
+                    ok.add_response_header(
+                        name,
+                        value,
+                        Some(HeaderAppendAction::OverwriteIfExistsOrAdd),
+                        false,
+                    );
+                }
                 let mut response = CheckResponse::new();
                 response
                     .set_status(Status::ok("allowed"))
@@ -185,7 +212,8 @@ impl<P: Pdp + 'static> Authorization for ExtAuthz<P> {
                 status,
                 code,
                 challenge,
-            } => denied_response(status, &code, challenge.as_deref()),
+                headers,
+            } => denied_response(status, &code, challenge.as_deref(), &headers),
         };
         Ok(Response::new(response))
     }
@@ -273,7 +301,7 @@ mod tests {
 
     #[test]
     fn a_failed_signed_request_is_a_problem_document() {
-        let response = denied_response(400, "httpsig.invalid", None);
+        let response = denied_response(400, "httpsig.invalid", None, &[]);
         let Some(Http::DeniedResponse(denied)) = response.http_response else {
             panic!("denied")
         };
