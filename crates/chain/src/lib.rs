@@ -16,6 +16,7 @@
 
 pub mod algebra;
 pub mod dpop;
+pub mod invariants;
 pub mod jose;
 pub mod json;
 pub mod replay;
