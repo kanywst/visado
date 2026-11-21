@@ -1,0 +1,490 @@
+{
+  "audience": "https://tools.example.com",
+  "cases": [
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "The root's entry is VALID.",
+      "expect": "accept",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.TjUQwiiCWvbaYot9_E0LbhciQTCcxgv2sWKycO_etfkXHyFDnAA-M3LM10wGoZ0MBvZu83SJks1beg3ZE-QJBA",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "valid"
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg",
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0ucmVhZCJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoicmVhZGVyIiwiY25mIjp7ImprdCI6ImFWQnRhcExkMTFTVVZLSU1HSmZQek9FRHVOMHNYY216SlFOVlQtX3NLRVUifSwiZGVsX2RlcHRoIjoxLCJleHAiOjE4MDAwMDAzMDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJjIiwicGFyX2hhc2giOiI1YjB6WVZka3Fua3lCbXJ5aXN6SlR5Y2U5MWlJbW1waE9WS1JaRExEU2h3Iiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6NCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.u2CgQ-nqtKOLoF5c_COg5zRcgU2uxPQih9lPgLUpWGjrfYUWfj4hILgB_0-f8HC6x7zNVsLl6NeBNz3qLyHrDg"
+      ],
+      "description": "Both tokens carry a reference to a VALID entry.",
+      "expect": "accept",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.TjUQwiiCWvbaYot9_E0LbhciQTCcxgv2sWKycO_etfkXHyFDnAA-M3LM10wGoZ0MBvZu83SJks1beg3ZE-QJBA",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "valid-chain"
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MSwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.HUZ7pGrQIQ3skjYG8usGhKb3U-iIGoe33k8GsIKHQUVAOWyQRfRrM-OxEP9DCEQMA8PPOt5MvMU4ny8SUFthCg"
+      ],
+      "description": "The entry is INVALID (0x01).",
+      "expect": "revoked",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.TjUQwiiCWvbaYot9_E0LbhciQTCcxgv2sWKycO_etfkXHyFDnAA-M3LM10wGoZ0MBvZu83SJks1beg3ZE-QJBA",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "revoked",
+      "reason": "token is revoked",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MiwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.pZfFdiwtj_hmXp9kxxNGEeB-JyfhLFtYpcXuDsTD8shbc9N6YPf0PDO4Jb-x9wDQbjBe-A8jGcuScUcZEUYLDw"
+      ],
+      "description": "The entry is SUSPENDED (0x02).",
+      "expect": "revoked",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.TjUQwiiCWvbaYot9_E0LbhciQTCcxgv2sWKycO_etfkXHyFDnAA-M3LM10wGoZ0MBvZu83SJks1beg3ZE-QJBA",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "suspended",
+      "reason": "token is suspended",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MSwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.HUZ7pGrQIQ3skjYG8usGhKb3U-iIGoe33k8GsIKHQUVAOWyQRfRrM-OxEP9DCEQMA8PPOt5MvMU4ny8SUFthCg",
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0ucmVhZCJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoicmVhZGVyIiwiY25mIjp7ImprdCI6ImFWQnRhcExkMTFTVVZLSU1HSmZQek9FRHVOMHNYY216SlFOVlQtX3NLRVUifSwiZGVsX2RlcHRoIjoxLCJleHAiOjE4MDAwMDAzMDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJjIiwicGFyX2hhc2giOiJnbExNQjlZenJleTJvNjZMQXl4X0ZfYkJtYVlpbmFfT0xwMVhpQU5KeGVRIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.ZmSuHuMwpQfLYptTyFHlOm72cIhMaboMoD-ggniVKaronc-E7Dop0qQxULfCxiBv65hc3sUu5vfl-GfrJQ5KAQ"
+      ],
+      "description": "The child is VALID but its parent is INVALID: the whole chain is denied.",
+      "expect": "revoked",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.TjUQwiiCWvbaYot9_E0LbhciQTCcxgv2sWKycO_etfkXHyFDnAA-M3LM10wGoZ0MBvZu83SJks1beg3ZE-QJBA",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "revoked-parent",
+      "reason": "token is revoked",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg",
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0ucmVhZCJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoicmVhZGVyIiwiY25mIjp7ImprdCI6ImFWQnRhcExkMTFTVVZLSU1HSmZQek9FRHVOMHNYY216SlFOVlQtX3NLRVUifSwiZGVsX2RlcHRoIjoxLCJleHAiOjE4MDAwMDAzMDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJjIiwicGFyX2hhc2giOiI1YjB6WVZka3Fua3lCbXJ5aXN6SlR5Y2U5MWlJbW1waE9WS1JaRExEU2h3Iiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MSwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.ZzaV6h9UBbbYgsZOB2_JpKyxIgW7w-HYlsd_eqti22ki-SEzaz45A7zGLR69_lD92_WX0R7U4RGaGkHCjN3sCA"
+      ],
+      "description": "The root is VALID, the child INVALID.",
+      "expect": "revoked",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.TjUQwiiCWvbaYot9_E0LbhciQTCcxgv2sWKycO_etfkXHyFDnAA-M3LM10wGoZ0MBvZu83SJks1beg3ZE-QJBA",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "revoked-child",
+      "reason": "token is revoked",
+      "token": 1
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MywidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.4yGgq0AGoKtiCZo1D3AaT5iOhuF5Xh44dsQu4m7ZIY2BotOgNPEM8Tj1zEIfPFuXRP5w_M9rHGAzyUt9jJziCA"
+      ],
+      "description": "The entry is 0x03, an application-specific value this verifier does not know.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.TjUQwiiCWvbaYot9_E0LbhciQTCcxgv2sWKycO_etfkXHyFDnAA-M3LM10wGoZ0MBvZu83SJks1beg3ZE-QJBA",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "application-specific-value",
+      "reason": "status value not understood",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6OCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.oSjap48RNBVM-vLtTfnjctfUs0CVS-jOn2NYVo5kAux7co6hBN5zbas0te9PB6sp2wC9pGaxts8yqvopaJQ5Bg"
+      ],
+      "description": "The list has 8 entries (2 bytes at 2 bits); idx 8 is past the end.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.TjUQwiiCWvbaYot9_E0LbhciQTCcxgv2sWKycO_etfkXHyFDnAA-M3LM10wGoZ0MBvZu83SJks1beg3ZE-QJBA",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "index-out-of-range",
+      "reason": "status index out of range",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "No list is held for the uri.",
+      "expect": "status_unknown",
+      "lists": [],
+      "name": "no-list",
+      "reason": "no status list is configured for this uri",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "The only fetch of the list failed.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": null,
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "unreachable",
+      "reason": "status list could not be fetched",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "A refresh failed, but the list fetched before it is still within its ttl.",
+      "expect": "accept",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.TjUQwiiCWvbaYot9_E0LbhciQTCcxgv2sWKycO_etfkXHyFDnAA-M3LM10wGoZ0MBvZu83SJks1beg3ZE-QJBA",
+          "uri": "https://status.td.example/lists/1"
+        },
+        {
+          "fetched_at": 1799999995,
+          "token": null,
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "refresh-failed-within-ttl"
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "The list was fetched 121 s ago and its ttl is 120 s.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999879,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTgwMCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.dLqkNLHYw5tDQqX9n7yheN8Wx1rauHxbbHqbqmhmi_jizdp5ibMLGwee81Y6WIjeZWwNh_C45Tjf-adlEx_QBg",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "stale-ttl",
+      "reason": "status list outlived its time to live",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "The list has no ttl and was fetched 300 s ago, the verifier's max_age.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999700,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTYwMCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSJ9.nph75EruFrp-ap-AxO_UND28BCztWxtLnpZobSIF3IhCzuKAQpHVpqHokjNju-eSs4WeavPmHm9jU88hG30DDQ",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "stale-max-age",
+      "reason": "status list outlived its time to live",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "The list has no exp or ttl and was fetched 5 s ago, but was issued 400 s ago, past max_age.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999995,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJpYXQiOjE3OTk5OTk2MDAsImlzcyI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUiLCJzdGF0dXNfbGlzdCI6eyJiaXRzIjoyLCJsc3QiOiJlTnA3d2dBQUFjb0E1USJ9LCJzdWIiOiJodHRwczovL3N0YXR1cy50ZC5leGFtcGxlL2xpc3RzLzEifQ.Vd5zmxzgdj21gaWxbKS5EpSbO9r8AOleNFi50ZbREGiHPa3k4aV7wzIIZlTmQxAAB48FQMGkY21hWOe5e9lKDg",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "stale-iat-without-exp",
+      "reason": "status list outlived its time to live",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "The list's iat was more than 60 s ahead of the clock when it was fetched.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999995,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTgwMDAwMDEyMCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.Pn_kCkzCu3BWfvshVYa_eQKbGsDT149Q2qlr0oSk5QlDvVUZdHrZysokKlrOWqTM9aH2l5JoleGJ7vBbv0QZDQ",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "iat-in-the-future",
+      "reason": "status list iat is in the future",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "The list was valid when fetched; its exp has passed since.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE3OTk5OTk5OTUsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.opCZYjUE7DxB-u0BMIqJVuFwmCa9XjDjuA7g82hj4aODeNND4uMomf56wWOe5PGuo-nsjWV47lxSSnttkiE8AA",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "expired-since-fetch",
+      "reason": "status list expired",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "The list's exp had passed when it was fetched.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE3OTk5OTk5ODAsImlhdCI6MTc5OTk5OTkwMCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.UnoTyRyXCUb_q6EzZedhg2_QHFaOzmv9iYnXw95vGjbIo-mFC9gADXcy2Y2QbuhqfojWCDSPxQ0KjnDr9AuBAw",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "expired-at-fetch",
+      "reason": "status list token expired or not yet valid",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "The list is signed by a key that is not trusted for status lists.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.hyJmMyOduljArTv0LisEFcRnoI8lTcjVH6bdhYoqYfhCLhEwkjc_9o3ssAavOzHpIyqqrPq4-Y8bxJDqC-IlAg",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "bad-signature",
+      "reason": "status list signature does not verify under a trusted key",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "The list's iss is not the issuer of the key that signed it.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9vdGhlci5leGFtcGxlIiwic3RhdHVzX2xpc3QiOnsiYml0cyI6MiwibHN0IjoiZU5wN3dnQUFBY29BNVEifSwic3ViIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIiwidHRsIjoxMjB9.0Y349ykrXZzL5VEx2y-795m5Wt5YbWYrgq12-BxrBvx-EP-yP69PU0WNjYHuu0WoMAvDXZwR8tTnK7KHlCV6CA",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "issuer-mismatch",
+      "reason": "status list signature does not verify under a trusted key",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "The list's typ is JWT, not statuslist+jwt.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJKV1QifQ.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.82NfTt1Idmey4a0RTQulsH5X0D2BDdIiNLV4M8adDAfQrYWwdyZJo4kV1mI5pt_k47EZklJtUJ8qqsqrPdiuCQ",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "wrong-type",
+      "reason": "status list typ is not statuslist+jwt",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "The list's sub names another list.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMiIsInR0bCI6MTIwfQ.at2QrHl-ghZ8jq0t4eOOu1xIeIpYoao9HxN7ZLsU92W5cBOxsbM5a0k6kckvSZ9Es9kxZp8FsvKfLTTKk_xlBA",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "subject-mismatch",
+      "reason": "status list sub is not the uri",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "bits is 3.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjMsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.1OE1iPQezyiNm9VgkRqGtauGmX31tgIUWlYOjIA-lTJNzESmPqiLE4o3QEBv7wvrdsfs_xz_NDuM8s7CFA6qCw",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "bits-not-allowed",
+      "reason": "status_list.bits is not 1, 2, 4 or 8",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "lst is base64url but not ZLIB data.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6IkFBQUEifSwic3ViIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIiwidHRsIjoxMjB9.0FSGsOBhrGLPRZrBtvz4rQ5waYaIg52TDXLC5orp9Y5xBEzkAgcr_kU9cNGK3nBslZzUel0-FYbWWr9EdGVmDg",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "lst-not-zlib",
+      "reason": "status_list.lst is not ZLIB data",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MCwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.fA9o87efxDeoXxi0cWGZSyh7GRFC-S8ff07Zx8DTbiatH3smtXp3v8OC3iAGzyLap1-o_vM_Rf2UqswClbRrCg"
+      ],
+      "description": "The list has no iat.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlzcyI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUiLCJzdGF0dXNfbGlzdCI6eyJiaXRzIjoyLCJsc3QiOiJlTnA3d2dBQUFjb0E1USJ9LCJzdWIiOiJodHRwczovL3N0YXR1cy50ZC5leGFtcGxlL2xpc3RzLzEiLCJ0dGwiOjEyMH0.l9Ggj1pBQ_6MPAd_d-tVWDoYjojrwwnv8_DLKqP07vIfXwH_slZG_nhYP1Q5SxJJkG-DvTd-AQmkKhT-NSz9BA",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "missing-iat",
+      "reason": "status list iat is not an integer",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6MSwidXJpIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZS9saXN0cy8xIn19LCJzdWIiOiJ1c2VyOmFsaWNlIn0.HUZ7pGrQIQ3skjYG8usGhKb3U-iIGoe33k8GsIKHQUVAOWyQRfRrM-OxEP9DCEQMA8PPOt5MvMU4ny8SUFthCg"
+      ],
+      "description": "A list issued before the one held, which marks idx 1 VALID, does not replace it.",
+      "expect": "revoked",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.TjUQwiiCWvbaYot9_E0LbhciQTCcxgv2sWKycO_etfkXHyFDnAA-M3LM10wGoZ0MBvZu83SJks1beg3ZE-QJBA",
+          "uri": "https://status.td.example/lists/1"
+        },
+        {
+          "fetched_at": 1799999995,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTkwMCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcGpZQUFBQUFJQUFRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.G-GpSiiLvgnoEr6i8l9h9y6nZ4ixts3MG4OoWQg4MR9kUURSs3wV9exdwYwH4zoge0AQ_8y0-TDfBvGrV9OLAw",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "rollback",
+      "reason": "token is revoked",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7Im90aGVyX21lY2hhbmlzbSI6eyJ1cmkiOiJodHRwczovL3N0YXR1cy50ZC5leGFtcGxlL2xpc3RzLzEifX0sInN1YiI6InVzZXI6YWxpY2UifQ.eQk3E55uZlQNnSBbozuzITGOcDNNazhuinDoDm_FC4ps9v7t25pe4kCcYqeHNl2KIjKiMTz0ZJqwSm9xF4scCg"
+      ],
+      "description": "status names a mechanism other than status_list.",
+      "expect": "status_unknown",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.TjUQwiiCWvbaYot9_E0LbhciQTCcxgv2sWKycO_etfkXHyFDnAA-M3LM10wGoZ0MBvZu83SJks1beg3ZE-QJBA",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "other-mechanism",
+      "reason": "status mechanism not supported",
+      "token": 0
+    },
+    {
+      "chain": [
+        "eyJhbGciOiJFZDI1NTE5IiwidHlwIjoiYXQrand0In0.eyJhdWQiOiJodHRwczovL3Rvb2xzLmV4YW1wbGUuY29tIiwiYXV0aG9yaXphdGlvbl9kZXRhaWxzIjpbeyJjb25zdHJhaW50cyI6W10sInNjb3BlcyI6WyJjcm0uKiJdLCJ0eXBlIjoiYWdlbnRfZGVsZWdhdGlvbiJ9XSwiY2xpZW50X2lkIjoib3JjaGVzdHJhdG9yIiwiY25mIjp7ImprdCI6IlVERFJlT1psMWlwWEFmcDl3WXNtMTNzREJNSzVvZy0tUVdkQmp6dWY2bzQifSwiZGVsX2RlcHRoIjowLCJkZWxfbWF4X2RlcHRoIjo1LCJleHAiOjE4MDAwMDA2MDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9hc29yLnRkLmV4YW1wbGUiLCJqdGkiOiJyIiwic3RhdHVzIjp7InN0YXR1c19saXN0Ijp7ImlkeCI6LTEsInVyaSI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSJ9fSwic3ViIjoidXNlcjphbGljZSJ9.jAJ3sobpYB03jJYmGWEdy7pIehYGeHX5pZySnUeUmzCDFa-9hj1_uChYJuR-iPyni6TbgVpeKk6GBC0xt2nDBw"
+      ],
+      "description": "status_list.idx is negative: the claim is malformed.",
+      "expect": "malformed",
+      "lists": [
+        {
+          "fetched_at": 1799999990,
+          "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoic3RhdHVzLTEiLCJ0eXAiOiJzdGF0dXNsaXN0K2p3dCJ9.eyJleHAiOjE4MDAwMDM2MDAsImlhdCI6MTc5OTk5OTk5MCwiaXNzIjoiaHR0cHM6Ly9zdGF0dXMudGQuZXhhbXBsZSIsInN0YXR1c19saXN0Ijp7ImJpdHMiOjIsImxzdCI6ImVOcDd3Z0FBQWNvQTVRIn0sInN1YiI6Imh0dHBzOi8vc3RhdHVzLnRkLmV4YW1wbGUvbGlzdHMvMSIsInR0bCI6MTIwfQ.TjUQwiiCWvbaYot9_E0LbhciQTCcxgv2sWKycO_etfkXHyFDnAA-M3LM10wGoZ0MBvZu83SJks1beg3ZE-QJBA",
+          "uri": "https://status.td.example/lists/1"
+        }
+      ],
+      "name": "negative-index",
+      "reason": "status_list.idx is not a non-negative integer",
+      "token": 0
+    }
+  ],
+  "chain_anchor": {
+    "issuer": "https://asor.td.example",
+    "jwk": {
+      "alg": "Ed25519",
+      "crv": "Ed25519",
+      "kty": "OKP",
+      "x": "4v4qObcyZkKCfW2C1JdiLNbCl_54Jw6qQ2sB8Ia288s"
+    },
+    "kid": null
+  },
+  "format": "visado-asor-status-vectors/v1",
+  "max_age": 300,
+  "now": 1800000000,
+  "spec": "draft-asor-wimse-agent-delegation-chain-03 §6 step 7, with draft-ietf-oauth-status-list-21",
+  "status_list_anchor": {
+    "issuer": "https://status.td.example",
+    "jwk": {
+      "alg": "Ed25519",
+      "crv": "Ed25519",
+      "kty": "OKP",
+      "x": "W2SJycf9Dc9QVF58FkiG70BJHsBsfxsSMEF5foEXU14"
+    },
+    "kid": "status-1"
+  },
+  "suite": "asor-status"
+}

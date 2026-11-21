@@ -27,7 +27,9 @@ wimsey-jose = { workspace = true }
 envoy-types = { workspace = true }
 tonic = { workspace = true }
 axum = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["time"] }
+reqwest = { workspace = true }
+rustls = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 jsonwebtoken = { workspace = true }

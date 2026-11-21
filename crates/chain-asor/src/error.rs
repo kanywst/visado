@@ -37,9 +37,12 @@ pub enum Outcome {
     Expired,
     /// Step 6: the DPoP proof is absent or invalid for this request.
     HolderBindingFailed,
-    /// Step 7: a token is revoked.
+    /// Step 7: a token is revoked: its status list entry is `INVALID` or
+    /// `SUSPENDED`.
     Revoked,
-    /// Step 7: a token's status cannot be established.
+    /// Step 7: a token's status cannot be established: no list for its
+    /// reference, a list that is invalid, expired or stale, an index out of
+    /// range, or a status value this verifier does not know.
     StatusUnknown,
     /// Step 8: the leaf's `aud` does not name this enforcement point.
     AudienceMismatch,
@@ -171,6 +174,12 @@ impl AsorError {
     #[must_use]
     pub const fn code(&self) -> &'static str {
         self.outcome.code()
+    }
+
+    /// A short reason, finer than the outcome.
+    #[must_use]
+    pub const fn reason(&self) -> &'static str {
+        self.reason
     }
 }
 

@@ -74,7 +74,7 @@ Only `Verified` hops are used for authorization, and only when `holder_proof` is
 Order of formats:
 
 1. AAT (draft-niyikiza-oauth-attenuating-agent-tokens-02): 229 published vectors, and each hop is signed by the parent's `cnf` key.
-2. asor (draft-asor-wimse-agent-delegation-chain-03): 36 published vectors; every hop is signed by a trust anchor, and the leaf key is proven with DPoP.
+2. asor (draft-asor-wimse-agent-delegation-chain-03): 36 published vectors; every hop is signed by a trust anchor, the leaf key is proven with DPoP, and each `status` reference is checked against a Token Status List the gate holds.
 3. RFC 8693 `act` adapter: the actors of a verified access token's `act` claim, signed by its issuer. The current actor is `Verified` once it is bound to the authenticated caller; prior actors stay `Declared` and never reach the PDP, as RFC 8693 §4.1 requires. Its actors have no key; the gate reads the chain only from a user token bound to a WIT caller, which proved possession of its WIT key for the request, so `holder_proof` is true there.
 4. Delegate SD-JWT once it has vectors.
 

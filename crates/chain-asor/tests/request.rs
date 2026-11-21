@@ -2,14 +2,17 @@
 //! the DPoP proof (step 6), status (step 7) and the action (step 8), on
 //! Ed25519 chains.
 
+use std::sync::Arc;
+
 use serde_json::{Value, json};
 use visado_chain_asor::{
-    Action, AsorError, Cumulative, HttpRequest, MemoryReplayCache, Outcome, Presentation,
-    RunningTotals, TrustAnchor, Verifier,
+    Action, AsorError, Cumulative, HttpRequest, MemoryReplayCache, MemoryStatusLists, Outcome,
+    Presentation, RunningTotals, StatusListVerifier, TrustAnchor, Verifier,
 };
 use visado_testkit::{
-    ASOR_ISSUER, asor_anchor_key, asor_child_claims, asor_root_claims, asor_sign, asor_sign_raw,
-    dpop_proof, pop_key,
+    ASOR_ISSUER, STATUS_LIST_ISSUER, STATUS_LIST_URI, asor_anchor_key, asor_child_claims,
+    asor_root_claims, asor_sign, asor_sign_raw, dpop_proof, pop_key, status_list_key,
+    status_list_lst, status_list_token,
 };
 
 const NOW: u64 = 1_800_000_000;
@@ -246,6 +249,92 @@ fn a_status_reference_cannot_be_checked() {
     assert_eq!(
         outcome(run(&chain, &p, "crm.read", r#"{"rows":1}"#, None, None)),
         Some(Outcome::StatusUnknown)
+    );
+    assert_eq!(
+        check(&chain),
+        Some(Outcome::StatusUnknown),
+        "check() fails closed too"
+    );
+}
+
+/// Step 7 runs after the proof and before the action: a revoked token is
+/// denied even for an action within bounds, and a valid one is permitted.
+#[test]
+fn step_7_checks_each_status_reference() {
+    let list = status_list_token(
+        &json!({ "alg": "Ed25519", "typ": "statuslist+jwt" }),
+        &json!({
+            "sub": STATUS_LIST_URI, "iat": NOW, "ttl": 60,
+            "status_list": { "bits": 1, "lst": status_list_lst(1, &[0, 1]) },
+        }),
+    );
+    let now = i64::try_from(NOW).unwrap();
+    let lists = Arc::new(MemoryStatusLists::new());
+    let held = StatusListVerifier::new(vec![TrustAnchor::new(
+        STATUS_LIST_ISSUER,
+        status_list_key().verifying_key(),
+    )])
+    .verify(&list, STATUS_LIST_URI, now);
+    lists.update(STATUS_LIST_URI, held).unwrap();
+    let verifier = verifier().with_status_lists(lists);
+    let decide = |idx: u32, jti: &str| {
+        let mut claims = asor_root_claims(
+            "r",
+            "orchestrator",
+            &pop_key(1),
+            &json!(["crm.read"]),
+            &json!([]),
+            AUD,
+            NOW,
+            5,
+        );
+        claims["status"] = json!({ "status_list": { "idx": idx, "uri": STATUS_LIST_URI } });
+        let chain = vec![asor_sign(&claims)];
+        let p = proof(&chain, 1, jti);
+        verifier
+            .verify(
+                &Presentation {
+                    chain: &chain,
+                    dpop: &p,
+                },
+                &HttpRequest {
+                    method: "POST",
+                    uri: URI,
+                },
+                &Action {
+                    scope: "crm.read",
+                    params_json: "{}",
+                    totals: None,
+                },
+                now,
+                None,
+            )
+            .map(|_| ())
+            .map_err(|e| (e.outcome(), e.reason()))
+    };
+    assert_eq!(decide(0, "p1"), Ok(()));
+    assert_eq!(decide(1, "p2"), Err((Outcome::Revoked, "token is revoked")));
+    assert_eq!(
+        decide(8, "p3"),
+        Err((Outcome::StatusUnknown, "status index out of range"))
+    );
+    // A bad proof is reported before status: step 6 comes first.
+    let mut claims = asor_root_claims(
+        "r",
+        "orchestrator",
+        &pop_key(1),
+        &json!(["crm.read"]),
+        &json!([]),
+        AUD,
+        NOW,
+        5,
+    );
+    claims["status"] = json!({ "status_list": { "idx": 1, "uri": STATUS_LIST_URI } });
+    let chain = vec![asor_sign(&claims)];
+    let wrong_holder = proof(&chain, 9, "p4");
+    assert_eq!(
+        outcome(run(&chain, &wrong_holder, "crm.read", "{}", None, None)),
+        Some(Outcome::HolderBindingFailed)
     );
 }
 
