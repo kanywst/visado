@@ -6,6 +6,8 @@ use std::sync::Arc;
 use serde_json::{Map, Value, json};
 use tracing::Instrument;
 use visado_authzen::{Action, Entity, EvaluationRequest, Pdp};
+use visado_chain::algebra::{Action as ChainAction, Algebras};
+use visado_chain::invariants::{Checked, Engine};
 use visado_chain::{ActorId, Hop, NormalizedChain, Principal, Profile};
 use visado_chain_aat::{Invocation, MemoryReplayCache, Presentation, Verifier, jwk_thumbprint};
 use visado_chain_act::{ActError, ActToken, Caller as ActCaller};
@@ -145,7 +147,12 @@ pub struct Gate<P> {
     /// verifier's.
     nonces: Option<Nonces>,
     log: Option<Arc<RequestLog>>,
+    /// Runs on every chain after its format's checks.
+    engine: Engine,
 }
+
+/// The tool and its arguments a chain is asked to authorize.
+type Invoked = (String, String);
 
 impl<P: Pdp> Gate<P> {
     /// A gate. Inbound Transaction Tokens are verified with the gate's own key.
@@ -175,6 +182,7 @@ impl<P: Pdp> Gate<P> {
             .map(str::to_owned),
         );
         stripped.push(authenticator.user_token_header().to_owned());
+        let engine = Engine::new(chain_algebras(&config));
         Self {
             config,
             authenticator,
@@ -185,6 +193,7 @@ impl<P: Pdp> Gate<P> {
             dpop_replay: MemoryReplayCache::new(100_000),
             nonces,
             log: None,
+            engine,
         }
     }
 
@@ -277,7 +286,13 @@ impl<P: Pdp> Gate<P> {
         let caller = self.authenticate(input, now)?;
         trail.agent.clone_from(&caller.caller);
         trail.method = Some(caller.method);
-        let chain = self.verify_chain(input, &caller, now, &trail)?;
+        let chain = match self.verify_chain(input, &caller, now, &trail)? {
+            Some((chain, checked)) => {
+                trail.depth_semantics = Some(checked.depth_semantics.as_str());
+                Some(chain)
+            }
+            None => None,
+        };
         if self.log.is_some() {
             trail.chain = chain
                 .as_ref()
@@ -382,42 +397,50 @@ impl<P: Pdp> Gate<P> {
     /// holding caller may present an AAT or asor chain, and the chain's
     /// holder must be the workload that proved possession of that key. An
     /// `act` chain's current actor must be the caller.
+    ///
+    /// Every chain then goes through the invariant engine, which must agree
+    /// with the format's own checks: for AAT and asor with the invoked tool
+    /// as the action, for `act` with none (its actors hold no authority).
     fn verify_chain(
         &self,
         input: &CheckInput,
         caller: &Authenticated,
         now: u64,
         trail: &Trail,
-    ) -> Result<Option<NormalizedChain>, Denied> {
+    ) -> Result<Option<(NormalizedChain, Checked)>, Denied> {
         let aat = header(input, AAT_CHAIN_HEADER);
         let asor = header(input, ASOR_CHAIN_HEADER);
         let act = caller.user.as_ref().filter(|user| user.act.is_some());
-        let chain = match (aat, asor, act) {
+        let (chain, invoked) = match (aat, asor, act) {
             (None, None, None) => {
                 if self.config.require_chain {
                     return Err(Denied::new(403, "chain.required", trail));
                 }
                 return Ok(None);
             }
-            (None, None, Some(user)) => return self.verify_act(caller, user, trail).map(Some),
-            (Some(chain), None, None) => self.verify_aat(input, caller, chain, now, trail)?,
-            (None, Some(chain), None) => self.verify_asor(input, caller, chain, now, trail)?,
+            (None, None, Some(user)) => (self.verify_act(caller, user, trail)?, None),
+            (Some(chain), None, None) => {
+                let (chain, invoked) = self.verify_aat(input, caller, chain, now, trail)?;
+                bound_to_caller(&chain, caller, trail)?;
+                (chain, Some(invoked))
+            }
+            (None, Some(chain), None) => {
+                let (chain, invoked) = self.verify_asor(input, caller, chain, now, trail)?;
+                bound_to_caller(&chain, caller, trail)?;
+                (chain, Some(invoked))
+            }
             _ => return Err(Denied::new(400, "chain.ambiguous", trail)),
         };
-        // The chain must belong to the caller: its leaf holder key is the
-        // key the caller proved possession of with its WIT.
-        let key = caller
-            .proof_key
-            .as_ref()
-            .ok_or_else(|| Denied::new(403, "chain.unbound_caller", trail))?;
-        let holder = chain
-            .leaf()
-            .and_then(|leaf| leaf.cnf.as_ref())
-            .map(|c| c.thumbprint.0.as_str());
-        if holder != Some(jwk_thumbprint(key).as_str()) {
-            return Err(Denied::new(403, "chain.holder_mismatch", trail));
-        }
-        Ok(Some(chain))
+        let action = invoked.as_ref().map(|(tool, args)| ChainAction {
+            name: tool,
+            params_json: args,
+        });
+        let checked = self.engine.check(&chain, action.as_ref()).map_err(|e| {
+            let mut denied = Denied::new(403, e.invariant.code(), trail);
+            denied.detail = Some(format!("invariant engine: {e}").into_boxed_str());
+            denied
+        })?;
+        Ok(Some((chain, checked)))
     }
 
     fn verify_aat(
@@ -427,7 +450,7 @@ impl<P: Pdp> Gate<P> {
         chain_header: &str,
         now: u64,
         trail: &Trail,
-    ) -> Result<NormalizedChain, Denied> {
+    ) -> Result<(NormalizedChain, Invoked), Denied> {
         let Some(verifier) = &self.config.aat else {
             return Err(Denied::new(403, "chain.unsupported", trail));
         };
@@ -453,7 +476,7 @@ impl<P: Pdp> Gate<P> {
                 now,
                 Some(&self.aat_replay),
             )
-            .map(|authorized| authorized.chain)
+            .map(|authorized| (authorized.chain, (tool, args)))
             .map_err(|e| Denied::new(403, e.code(), trail))
     }
 
@@ -467,7 +490,7 @@ impl<P: Pdp> Gate<P> {
         chain_header: &str,
         now: u64,
         trail: &Trail,
-    ) -> Result<NormalizedChain, Denied> {
+    ) -> Result<(NormalizedChain, Invoked), Denied> {
         let Some(verifier) = &self.config.asor else {
             return Err(Denied::new(403, "chain.unsupported", trail));
         };
@@ -504,7 +527,7 @@ impl<P: Pdp> Gate<P> {
                 now,
                 Some(&self.dpop_replay),
             )
-            .map(|authorized| authorized.chain)
+            .map(|authorized| (authorized.chain, (tool, args)))
             .map_err(|e| match e.dpop_nonce() {
                 // The leaf proof is fine but for its nonce: ask for a retry
                 // with the fresh one the 401 carries (RFC 9449 §9).
@@ -715,6 +738,45 @@ impl<P: Pdp> Gate<P> {
     }
 }
 
+/// The authority algebras for the chain formats `config` accepts, with the
+/// limits of their verifiers. A format that is not configured has no
+/// algebra, so the engine denies its authorities too.
+fn chain_algebras(config: &GateConfig) -> Algebras {
+    let mut algebras = Algebras::new();
+    if let Some(aat) = &config.aat {
+        algebras = algebras.with(Arc::new(aat.algebra()));
+    }
+    if let Some(asor) = &config.asor {
+        algebras = algebras.with(Arc::new(asor.algebra()));
+    }
+    if config.act.is_some() {
+        algebras = algebras.with(Arc::new(visado_chain_act::Algebra));
+    }
+    algebras
+}
+
+/// An AAT or asor chain must belong to the caller: its leaf holder key is
+/// the key the caller proved possession of with its WIT (or certificate).
+fn bound_to_caller(
+    chain: &NormalizedChain,
+    caller: &Authenticated,
+    trail: &Trail,
+) -> Result<(), Denied> {
+    let key = caller
+        .proof_key
+        .as_ref()
+        .ok_or_else(|| Denied::new(403, "chain.unbound_caller", trail))?;
+    let holder = chain
+        .leaf()
+        .and_then(|leaf| leaf.cnf.as_ref())
+        .map(|c| c.thumbprint.0.as_str());
+    if holder == Some(jwk_thumbprint(key).as_str()) {
+        Ok(())
+    } else {
+        Err(Denied::new(403, "chain.holder_mismatch", trail))
+    }
+}
+
 /// The first value of header `name`.
 fn header<'a>(input: &'a CheckInput, name: &str) -> Option<&'a str> {
     input
@@ -742,6 +804,9 @@ struct Trail {
     pdp: Option<PdpResult>,
     /// The verified chain, kept only when there is a request log.
     chain: Option<Box<ChainSummary>>,
+    /// How the chain's depth bound was read (`del_max_depth`), once the
+    /// invariant engine accepted it.
+    depth_semantics: Option<&'static str>,
 }
 
 struct Allowed {
@@ -1089,5 +1154,6 @@ fn audit(input: &CheckInput, trail: &Trail, decision: &str, reason: &str, detail
         decision,
         reason,
         detail,
+        depth_semantics = trail.depth_semantics.unwrap_or(""),
     );
 }
