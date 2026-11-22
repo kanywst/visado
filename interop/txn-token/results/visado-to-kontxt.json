@@ -22,12 +22,18 @@
       "crv": "Ed25519",
       "alg": "EdDSA",
       "use": "sig"
+    },
+    {
+      "kid": "visado-rs256",
+      "kty": "RSA",
+      "alg": "RS256",
+      "use": "sig"
     }
   ],
   "summary": {
     "visado": {
-      "cases": 18,
-      "as_expected": 14,
+      "cases": 21,
+      "as_expected": 17,
       "unexpected": [],
       "unspecified": {
         "es256-empty-scope": "reject",
@@ -37,8 +43,8 @@
       }
     },
     "kontxt": {
-      "cases": 18,
-      "as_expected": 10,
+      "cases": 21,
+      "as_expected": 13,
       "unexpected": [
         "es256-valid",
         "ed25519-valid",
@@ -94,6 +100,48 @@
       "kontxt": {
         "verdict": "reject",
         "error": "token verification failed: token is unverifiable: error while executing keyfunc: unexpected signing method: EdDSA"
+      }
+    },
+    {
+      "id": "rs256-valid",
+      "expect": "accept",
+      "why": "alg RS256, the only alg in a draft-11 example (§9.1)",
+      "alg": "RS256",
+      "visado": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      },
+      "kontxt": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      }
+    },
+    {
+      "id": "rs256-expired",
+      "expect": "reject",
+      "why": "§12.2 expiry",
+      "alg": "RS256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.expired"
+      },
+      "kontxt": {
+        "verdict": "reject",
+        "error": "token verification failed: token has invalid claims: token is expired"
+      }
+    },
+    {
+      "id": "rs256-tampered",
+      "expect": "reject",
+      "why": "§12.2 signature",
+      "alg": "RS256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.bad_signature"
+      },
+      "kontxt": {
+        "verdict": "reject",
+        "error": "token verification failed: token signature is invalid: crypto/rsa: verification error"
       }
     },
     {

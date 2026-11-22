@@ -3,7 +3,7 @@
   "trust_domain": "trust-domain.example",
   "keys": [
     {
-      "kid": "dyMj2kuj-BJ9Idz9IQ030w",
+      "kid": "YwNjOWz_ep6aKoSJshhjbw",
       "kty": "EC",
       "crv": "P-256",
       "alg": "ES256",

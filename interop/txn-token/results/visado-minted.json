@@ -71,6 +71,53 @@
     },
     {
       "expect": "accept",
+      "id": "rs256-valid",
+      "token": "eyJ0eXAiOiJ0eG50b2tlbitqd3QiLCJhbGciOiJSUzI1NiIsImtpZCI6InZpc2Fkby1yczI1NiJ9.eyJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsImlhdCI6MTgwMDAwMDAwMCwiYXVkIjoidHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJleHAiOjE4MDAwMDAzMDAsInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiIsInN1YiI6InVzZXJAdHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2dhdGV3YXkiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsImN1c3RvbWVyX3R5cGUiOnsiZ2VvIjoiVVMiLCJsZXZlbCI6IlZJUCJ9LCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwicmN0eCI6eyJhdXRobiI6InVybjppZXRmOnJmYzo2NzQ5IiwicmVxX2lwIjoiMTk4LjUxLjEwMC43In19.Z5mlydCOR2wRiUW2XPjAf6XcStuzkuDDyEf78ouBOtnWoeSv5VrFqasJo9YKGXMkoxjzNYtcUaxYw_zK5NgQEGvZ6cc-2NYiUteKrpSDijk0bdV4dcDTmN5IKCwH3QxH6kIryVrAH8kUJzvt3B23C-q0jsloBAvVJELsNlLk-mjmefJYM9cBZ05YlNWBskUU2iyTT3pyBpl7AM-ekZm71y2ASR3e5CnIfvJqazB8kv_SBPO_rh1Bm04qFJ-pKpfdLCOOlHr8RCfJgDAkCz2uVYzbhTe9B6adiF1FgixNMpT8uqwH_teYRKvVQuOjqEp0Kt8eRenCA78edPmBY5gDmQ",
+      "visado": {
+        "id": "rs256-valid",
+        "rctx": {
+          "authn": "urn:ietf:rfc:6749",
+          "req_ip": "198.51.100.7"
+        },
+        "tctx": {
+          "action": "BUY",
+          "customer_type": {
+            "geo": "US",
+            "level": "VIP"
+          },
+          "quantity": "100",
+          "ticker": "MSFT"
+        },
+        "verdict": "accept"
+      },
+      "why": "alg RS256, the only alg in a draft-11 example (§9.1)"
+    },
+    {
+      "expect": "reject",
+      "id": "rs256-expired",
+      "token": "eyJ0eXAiOiJ0eG50b2tlbitqd3QiLCJhbGciOiJSUzI1NiIsImtpZCI6InZpc2Fkby1yczI1NiJ9.eyJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsImlhdCI6MTc5OTk5OTQwMCwiYXVkIjoidHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJleHAiOjE3OTk5OTk3MDAsInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiIsInN1YiI6InVzZXJAdHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2dhdGV3YXkiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsImN1c3RvbWVyX3R5cGUiOnsiZ2VvIjoiVVMiLCJsZXZlbCI6IlZJUCJ9LCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwicmN0eCI6eyJhdXRobiI6InVybjppZXRmOnJmYzo2NzQ5IiwicmVxX2lwIjoiMTk4LjUxLjEwMC43In19.iaC7tFUS_1TGILMUeYb4polV2e7IjiHwBcs3FDhkB5WENdeAfDBx6I3IK9NoHJtw6JNVXX22rYbHGb81FHJrgIOOW9W3VboiEKabwDmnq5Br_wMX_elReA6ZdjjnKiSWn-8Lhz-iaKBZ9jsO3rJrm9yI6rXiHp6hix_G70_MjSdNRlWJnLXwcNdGI3c0lNc4UWXBrieTPoJeX6dqmH6X3yXGO1CBRPAKlK0v2AaTXkhGrRNzpnE94SWsytZpo-1UUpRPasa8Aj2tRo_WbuD54m-5QirtFpG5JQe_Jll10t5qEMkKqW2SFpH93lprZ0Oq2CO-i8jOgu7OL1jNKyUCxg",
+      "visado": {
+        "detail": "token has expired",
+        "error": "txn.expired",
+        "id": "rs256-expired",
+        "verdict": "reject"
+      },
+      "why": "§12.2 expiry"
+    },
+    {
+      "expect": "reject",
+      "id": "rs256-tampered",
+      "token": "eyJ0eXAiOiJ0eG50b2tlbitqd3QiLCJhbGciOiJSUzI1NiIsImtpZCI6InZpc2Fkby1yczI1NiJ9.eyJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsImlhdCI6MTgwMDAwMDAwMCwiYXVkIjoidHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJleHAiOjE4MDAwMDAzMDAsInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiIsInN1YiI6InVzZXJAdHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2dhdGV3YXkiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsImN1c3RvbWVyX3R5cGUiOnsiZ2VvIjoiVVMiLCJsZXZlbCI6IlZJUCJ9LCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwicmN0eCI6eyJhdXRobiI6InVybjppZXRmOnJmYzo2NzQ5IiwicmVxX2lwIjoiMTk4LjUxLjEwMC43In19.ZpmlydCOR2wRiUW2XPjAf6XcStuzkuDDyEf78ouBOtnWoeSv5VrFqasJo9YKGXMkoxjzNYtcUaxYw_zK5NgQEGvZ6cc-2NYiUteKrpSDijk0bdV4dcDTmN5IKCwH3QxH6kIryVrAH8kUJzvt3B23C-q0jsloBAvVJELsNlLk-mjmefJYM9cBZ05YlNWBskUU2iyTT3pyBpl7AM-ekZm71y2ASR3e5CnIfvJqazB8kv_SBPO_rh1Bm04qFJ-pKpfdLCOOlHr8RCfJgDAkCz2uVYzbhTe9B6adiF1FgixNMpT8uqwH_teYRKvVQuOjqEp0Kt8eRenCA78edPmBY5gDmQ",
+      "visado": {
+        "detail": "signature verification failed",
+        "error": "txn.bad_signature",
+        "id": "rs256-tampered",
+        "verdict": "reject"
+      },
+      "why": "§12.2 signature"
+    },
+    {
+      "expect": "accept",
       "id": "es256-no-iss",
       "token": "eyJ0eXAiOiJ0eG50b2tlbitqd3QiLCJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiJ9.eyJpYXQiOjE4MDAwMDAwMDAsImF1ZCI6InRydXN0LWRvbWFpbi5leGFtcGxlIiwiZXhwIjoxODAwMDAwMzAwLCJ0eG4iOiI5NzA1Mzk2My03NzFkLTQ5Y2MtYTRlMy0yMGFhZDM5OWMzMTIiLCJzdWIiOiJ1c2VyQHRydXN0LWRvbWFpbi5leGFtcGxlIiwic2NvcGUiOiJ0cmFkZS5zdG9ja3MiLCJyZXFfd2wiOiJzcGlmZmU6Ly90cnVzdC1kb21haW4uZXhhbXBsZS9nYXRld2F5IiwidGN0eCI6eyJhY3Rpb24iOiJCVVkiLCJjdXN0b21lcl90eXBlIjp7ImdlbyI6IlVTIiwibGV2ZWwiOiJWSVAifSwicXVhbnRpdHkiOiIxMDAiLCJ0aWNrZXIiOiJNU0ZUIn0sInJjdHgiOnsiYXV0aG4iOiJ1cm46aWV0ZjpyZmM6Njc0OSIsInJlcV9pcCI6IjE5OC41MS4xMDAuNyJ9fQ.tN64YxB8HBlxSWQ2suT70AqnEEa4HXbcqQ-wLclfAhyfN9eZWurlq9aU1l1jmnq-4iaGg8PNkfVQnFOxQpX4KQ",
       "visado": {
@@ -309,6 +356,14 @@
       "kty": "OKP",
       "use": "sig",
       "x": "F8t5-ytBIPKx7GXkGY1uCLKOgT_rAeSkAIObheGAgM4"
+    },
+    {
+      "alg": "RS256",
+      "e": "AQAB",
+      "kid": "visado-rs256",
+      "kty": "RSA",
+      "n": "jRJcEQVrAtBL71411_2anAcw6aY9tOgl6R610B8DtQMPurpw_e_oCno3zx5FHxVmToWA57iKALw-8ie2YxefwPqPB-BvfNLClvFwRvR37NVJqFQzkuf-XZd6doHT2PytSuhm4fXR0SY2BM1wShQ06s8WkYTwooJf_kzXIulKPHA617JBuxQ1FHeMz1_GsFE7Inc08uYUv9YtN-hSPPGkjjhOLHoBtDpV3OXwvyFemM14ajQu-xJJVetRtHCH0omy_SAoiGEab85fQtOMNek4RsW2fH0g-iC38N3CAFvWNtIDKrOImWlqqOs9xHpRLw3vwl6hh5TZrOGBTM-12hUUiQ",
+      "use": "sig"
     }
   ],
   "minter": "visado",

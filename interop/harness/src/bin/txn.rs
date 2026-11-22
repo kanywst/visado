@@ -16,7 +16,9 @@ use std::process::ExitCode;
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde_json::{Map, Value, json};
-use visado_txn_token::{KeySet, Scope, TxnTokenClaims, Validation, mint, verify};
+use visado_txn_token::{
+    KeySet, Scope, TxnSigningKey, TxnTokenClaims, Validation, mint, mint_with, verify,
+};
 use wimsey_jose::{Algorithm, Jwk, SigningKey};
 
 /// The default time minted tokens are issued around and checked at.
@@ -183,6 +185,8 @@ struct Keys {
     es256: SigningKey,
     ed25519: SigningKey,
     eddsa: SigningKey,
+    /// The test-only RSA key of `visado-txn-token`'s tests.
+    rs256: TxnSigningKey,
 }
 
 impl Keys {
@@ -193,6 +197,13 @@ impl Keys {
             eddsa: SigningKey::from_ed25519_seed(&[0x33; 32])
                 .with_algorithm(Algorithm::EdDsa)
                 .expect("EdDSA"),
+            rs256: TxnSigningKey::from_rsa_jwk(
+                &serde_json::from_str(include_str!(
+                    "../../../../crates/txn-token/tests/fixtures/rsa-2048.private.jwk.json"
+                ))
+                .expect("jwk"),
+            )
+            .expect("RSA key"),
         }
     }
 
@@ -210,6 +221,12 @@ impl Keys {
             jwk["use"] = json!("sig");
             jwk
         })
+        .chain(std::iter::once({
+            let mut jwk = self.rs256.public_jwk();
+            jwk["kid"] = json!("visado-rs256");
+            jwk["use"] = json!("sig");
+            jwk
+        }))
         .collect()
     }
 }
@@ -323,6 +340,24 @@ fn mint_cases(now: u64) -> Value {
             mint(&valid, Some("visado-eddsa"), &keys.eddsa).expect("mint"),
             "accept",
             "alg EdDSA (RFC 8037)",
+        ),
+        case(
+            "rs256-valid",
+            mint_with(&valid, Some("visado-rs256"), &keys.rs256).expect("mint"),
+            "accept",
+            "alg RS256, the only alg in a draft-11 example (§9.1)",
+        ),
+        case(
+            "rs256-expired",
+            mint_with(&expired, Some("visado-rs256"), &keys.rs256).expect("mint"),
+            "reject",
+            "§12.2 expiry",
+        ),
+        case(
+            "rs256-tampered",
+            tamper(&mint_with(&valid, Some("visado-rs256"), &keys.rs256).expect("mint")),
+            "reject",
+            "§12.2 signature",
         ),
         case(
             "es256-no-iss",

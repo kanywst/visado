@@ -22,12 +22,18 @@
       "crv": "Ed25519",
       "alg": "EdDSA",
       "use": "sig"
+    },
+    {
+      "kid": "visado-rs256",
+      "kty": "RSA",
+      "alg": "RS256",
+      "use": "sig"
     }
   ],
   "summary": {
     "visado": {
-      "cases": 18,
-      "as_expected": 14,
+      "cases": 21,
+      "as_expected": 17,
       "unexpected": [],
       "unspecified": {
         "es256-empty-scope": "reject",
@@ -37,8 +43,8 @@
       }
     },
     "atlas-go": {
-      "cases": 18,
-      "as_expected": 11,
+      "cases": 21,
+      "as_expected": 14,
       "unexpected": [
         "ed25519-valid",
         "es256-no-iss",
@@ -93,6 +99,48 @@
       "atlas-go": {
         "verdict": "accept",
         "tctx_rctx_carried": true
+      }
+    },
+    {
+      "id": "rs256-valid",
+      "expect": "accept",
+      "why": "alg RS256, the only alg in a draft-11 example (§9.1)",
+      "alg": "RS256",
+      "visado": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      },
+      "atlas-go": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      }
+    },
+    {
+      "id": "rs256-expired",
+      "expect": "reject",
+      "why": "§12.2 expiry",
+      "alg": "RS256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.expired"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
+      }
+    },
+    {
+      "id": "rs256-tampered",
+      "expect": "reject",
+      "why": "§12.2 signature",
+      "alg": "RS256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.bad_signature"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
       }
     },
     {

@@ -52,9 +52,9 @@ decide. Counts exclude `unspecified` cases.
 
 | Direction | Verifier | As expected | Differs |
 | --- | --- | --- | --- |
-| visado -> atlas-go | visado | 14/14 | |
-| visado -> atlas-go | atlas-go | 11/14 | `ed25519-valid`, `es256-no-iss`, `es256-exp-equals-now` |
-| visado -> kontxt | kontxt | 10/14 | every valid case; all 18 rejected at `alg` |
+| visado -> atlas-go | visado | 17/17 | |
+| visado -> atlas-go | atlas-go | 14/17 | `ed25519-valid`, `es256-no-iss`, `es256-exp-equals-now` |
+| visado -> kontxt | kontxt | 13/17 | the non-RSA valid cases (`es256-valid`, `ed25519-valid`, `eddsa-valid`, `es256-no-iss`), rejected at `alg`; the RS256 cases all pass |
 | authgent -> visado | visado | 6/6 | |
 | authgent -> visado | atlas-go (control) | 5/6 | `authgent-exp-equals-now` |
 | kontxt -> visado | visado | 4/4 | |
@@ -85,12 +85,13 @@ Paths are in the other project at the pinned commit.
 
 1. kontxt signs RS256 only (`pkg/token/token.go:45`) and its verifier takes
    RSA keys only (`sdk/verify/verifier.go:77`, JWKS filter at `:140`). visado
-   first verified Ed25519/EdDSA/ES256 only and rejected every kontxt token at
-   `alg`. Fixed in visado: `visado-txn-token` now verifies RS256 with RSA keys
-   of at least 2048 bits, and kontxt -> visado is 4/4. visado still mints only
-   Ed25519, EdDSA and ES256, so kontxt cannot verify visado's tokens. Spec gap:
-   draft -11 names no mandatory-to-implement algorithm; the only `alg` in the
-   text is RS256 in the §9.1 example.
+   first minted and verified Ed25519/EdDSA/ES256 only, so neither side
+   accepted the other's tokens. Fixed in visado: `visado-txn-token` verifies
+   and mints RS256 with RSA keys of at least 2048 bits. kontxt -> visado is
+   4/4, and kontxt accepts visado's `rs256-valid` and rejects
+   `rs256-expired` and `rs256-tampered`. Spec gap: draft -11 names no
+   mandatory-to-implement algorithm; the only `alg` in the text is RS256 in
+   the §9.1 example.
 2. `Ed25519` (RFC 9864) not accepted by atlas-go. `SigningAlgs` lists `EdDSA`
    but not `Ed25519` (`verify.go:574`), checked at `txn_token.go:85`. visado
    tokens signed with the `EdDSA` label verify. Same spec gap as 1; visado

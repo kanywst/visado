@@ -6,9 +6,9 @@ What implementing the drafts and running them against other implementations show
 
 - AAT -02: tenuo's 229 vectors agree 229/229 in visado, every denial at the expected step; 9 visado-minted chains agree 9/9 in tenuo's Section 8 verifier.
 - asor -03: 9/9 each way with attenu-guard 0.22.0, same Table 2 outcome on every rejection, apart from attenu-guard's `EdDSA` label, which the draft already records.
-- Transaction Tokens -11: authgent and kontxt tokens verify in visado (6/6, 4/4); visado tokens verify in atlas-go except where atlas-go departs from §9.2 (11/14). kontxt cannot verify visado tokens: no common algorithm.
+- Transaction Tokens -11: authgent and kontxt tokens verify in visado (6/6, 4/4); visado tokens verify in atlas-go except where atlas-go departs from §9.2 (14/17), and in kontxt once visado signs RS256.
 - WIMSE: the token and signature formats interoperate with wit-wpt-go, go-spiffe, the WG example generator and yaronf/httpsign. Most disagreements come from implementations that target s2s-protocol-07 or older.
-- Two changes to visado came out of the runs: `RS256` verification and `aud` arrays in `visado-txn-token`.
+- Three changes to visado came out of the runs: `RS256` verification, `RS256` minting with an RSA signing key, and `aud` arrays.
 
 ## 1. One key type, two names
 
@@ -24,7 +24,7 @@ A deployment that mixes these needs per-peer configuration of the algorithm labe
 
 ## 2. Transaction Tokens
 
-- No mandatory-to-implement algorithm (§9.1). The only example is RS256; kontxt signs only RS256, visado minted only Ed25519 and ES256. visado now verifies RS256 but still cannot produce a token kontxt accepts (txn-1).
+- No mandatory-to-implement algorithm (§9.1). The only example is RS256; kontxt signs and verifies only RS256, visado only Ed25519 and ES256. Two implementations of the same draft shared no algorithm until visado added RS256 (txn-1).
 - `scope` is REQUIRED (§9.2) but not required to be non-empty. authgent issues `" "` and atlas-go accepts it; visado rejects it (txn-5).
 - `aud` is "the trust domain" (§9.2) with no word on the array form RFC 7519 allows (txn-6). `typ` MUST be `txntoken+jwt` (§9.1), but RFC 7515 makes `application/txntoken+jwt` equivalent; implementations disagree (txn-7).
 - Scope comparison is undefined (§13.6), the method for preserving a call chain across replacement is out of scope (§13.15), and `req_wl` with several workloads is ambiguous (§9.2). visado's answers are in SPEC-MAP.md.

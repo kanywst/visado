@@ -12,8 +12,8 @@ Runs of visado against implementations written by other people, run on 2026-11-2
 | asor -03 | attenu-guard | 0.22.0 | visado -> attenu-guard | 9 | 9/9, same Table 2 outcome on every rejection |
 | Txn-Tokens -11 | [authgent/authgent](https://github.com/authgent/authgent) TTS | `8341cf93` (authgent-server 0.3.4) | authgent -> visado | 6 | 6/6 |
 | Txn-Tokens -11 | [aramase/kontxt](https://github.com/aramase/kontxt) TTS | `d23ebb50` | kontxt -> visado | 4 | 4/4 after the RS256 fix (0/4 valid before: txn-1) |
-| Txn-Tokens -11 | [Atlas-Authorization/atlas-go](https://github.com/Atlas-Authorization/atlas-go) verifier | v0.27.0 (`794a21e5`) | visado -> atlas-go | 14 | 11/14 (txn-2, txn-3, txn-4) |
-| Txn-Tokens -11 | kontxt verifier | `d23ebb50` | visado -> kontxt | 14 | 10/14: every valid case rejected at `alg` (txn-1) |
+| Txn-Tokens -11 | [Atlas-Authorization/atlas-go](https://github.com/Atlas-Authorization/atlas-go) verifier | v0.27.0 (`794a21e5`) | visado -> atlas-go | 17 | 14/17 (txn-2, txn-3, txn-4) |
+| Txn-Tokens -11 | kontxt verifier | `d23ebb50` | visado -> kontxt | 17 | 13/17: all RS256 cases pass after the RS256 minting fix; the ES256 and Ed25519 valid cases are rejected at `alg` (txn-1) |
 | WIMSE WIT + WPT | [strideynet/wit-wpt-go](https://github.com/strideynet/wit-wpt-go) | `e8fa3451` | wit-wpt-go -> visado | 7 | 6/7 (wimse-2) |
 | WIMSE WIT | wit-wpt-go `MintWIT` | `5cf9b7de` | wit-wpt-go -> visado | 6 | 6/6 |
 | WIMSE WIT + WPT | wit-wpt-go `ValidateWPT` | `5cf9b7de` | visado -> wit-wpt-go | 27 | 21/27 as is; 13/18 with WPTs re-signed in its format (wimse-2 to wimse-4) |
@@ -24,7 +24,7 @@ Runs of visado against implementations written by other people, run on 2026-11-2
 | WIT-SVID | SPIRE | v1.16.0 | SPIRE -> visado | lab | `deploy/lab`: SPIRE-issued ES256 WIT-SVIDs with WPTs and HTTP signatures |
 | AuthZEN 1.0 | OPA with [opa-authzen-plugin](https://github.com/kanywst/opa-authzen-plugin), Cerbos | 0.12.1, 0.57.0 | visado -> PDP | lab | `deploy/lab`, both PDPs in CI. The OPA plugin has the same author as visado; Cerbos is independent |
 
-visado changes from these runs: two, both in `visado-txn-token` (txn-1: RS256 verification; txn-6: `aud` arrays). No AAT, asor or WIMSE bug was found in visado or wimsey.
+visado changes from these runs: three, all in Transaction Tokens (txn-1: RS256 verification and RS256 minting with an RSA `[signing_key]`; txn-6: `aud` arrays). No AAT, asor or WIMSE bug was found in visado or wimsey.
 
 ## Divergences
 
@@ -34,7 +34,7 @@ Section numbers are the pinned revision. File and line references are in the oth
 
 | # | Finding | Evidence | Class |
 | --- | --- | --- | --- |
-| txn-1 | No mandatory-to-implement algorithm. kontxt signs and verifies RS256 only; visado verified only Ed25519, EdDSA and ES256. visado now verifies RS256 (RSA keys of at least 2048 bits) but mints only Ed25519, EdDSA and ES256, so kontxt still cannot verify visado's tokens | §9.1 (the only `alg` is RS256 in the example); kontxt `pkg/token/token.go:45`, `sdk/verify/verifier.go:77`, `:140` | spec; visado fixed for verification |
+| txn-1 | No mandatory-to-implement algorithm. kontxt signs and verifies RS256 only; visado signed and verified only Ed25519, EdDSA and ES256. visado now verifies and mints RS256 (RSA keys of at least 2048 bits), so the two interoperate when visado is given an RSA `[signing_key]` | §9.1 (the only `alg` is RS256 in the example); kontxt `pkg/token/token.go:45`, `sdk/verify/verifier.go:77`, `:140` | spec; visado fixed |
 | txn-2 | atlas-go accepts `EdDSA` but not the fully-specified `Ed25519` (RFC 9864), which visado writes for Ed25519 keys | atlas-go `verify.go:574`, `txn_token.go:85` | other side |
 | txn-3 | atlas-go requires `iss` and rejects a token without it | §9.2 (`iss` OPTIONAL); atlas-go `txn_token.go:69-70`, `:121` | other side |
 | txn-4 | atlas-go accepts until `exp` + 5 s; visado rejects at `exp` with no default leeway | RFC 7519 §4.1.4 allows leeway; atlas-go `txn_token.go:132`, `verify.go:35` | both conform |

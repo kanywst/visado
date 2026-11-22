@@ -3,7 +3,7 @@
   "trust_domain": "trust-domain.example",
   "keys": [
     {
-      "kid": "98a41bb598ff9d48",
+      "kid": "1aab5daec1815c47",
       "kty": "RSA",
       "alg": "RS256",
       "use": "sig"
