@@ -2,6 +2,7 @@
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use wimsey_jose::{Algorithm, JoseError, SIGNATURE_LEN, SigningKey};
 
@@ -193,7 +194,12 @@ pub fn verify(
             .map_err(|_| TxnTokenError::InvalidSignature)?;
     }
 
-    let claims: TxnTokenClaims = serde_json::from_slice(&decode(claims_b64)?)?;
+    let mut raw: Value = serde_json::from_slice(&decode(claims_b64)?)?;
+    let audience = audience_array(&raw, &validation.trust_domain)?;
+    if let Some(aud) = audience {
+        raw["aud"] = Value::String(aud);
+    }
+    let claims: TxnTokenClaims = serde_json::from_value(raw)?;
     claims.check()?;
     if claims.aud != validation.trust_domain {
         return Err(TxnTokenError::AudienceMismatch);
@@ -213,6 +219,33 @@ pub fn verify(
         claims,
         kid: header.kid,
     })
+}
+
+/// An `aud` given as an array (RFC 7519 §4.1.3): `Some(trust domain)` if an
+/// element is the trust domain, so the claims read it as a string;
+/// [`TxnTokenError::AudienceMismatch`] if none is; [`TxnTokenError::InvalidClaim`]
+/// for an empty array or one with an element that is not a non-empty string.
+/// `None` when `aud` is not an array.
+fn audience_array(claims: &Value, trust_domain: &str) -> Result<Option<String>, TxnTokenError> {
+    let Some(values) = claims.get("aud").and_then(Value::as_array) else {
+        return Ok(None);
+    };
+    let invalid = TxnTokenError::InvalidClaim { claim: "aud" };
+    if values.is_empty() {
+        return Err(invalid);
+    }
+    let mut found = false;
+    for value in values {
+        match value.as_str() {
+            Some(aud) if !aud.is_empty() => found |= aud == trust_domain,
+            _ => return Err(invalid),
+        }
+    }
+    if found {
+        Ok(Some(trust_domain.to_owned()))
+    } else {
+        Err(TxnTokenError::AudienceMismatch)
+    }
 }
 
 /// A log-safe identifier for a token: the Base64url SHA-256 of its compact

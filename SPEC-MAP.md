@@ -26,6 +26,7 @@ WIMSE credentials (WIT, WPT, HTTP signatures per draft-ietf-wimse-http-signature
 | Call chain across replacement | MUST be preserved, method out of scope (§13.15) | `tctx` members carry over and cannot change; callers add chain data as new members |
 | Lifetime extension on replacement | MAY, SHOULD limit (§13.15) | Caller passes `max_exp` to cap it |
 | Missing REQUIRED claim | Not specified as an error class | Reported as `txn.malformed` (the claim set does not parse) |
+| `aud` as an array | Not said; RFC 7519 §4.1.3 allows a string or an array | An array is accepted if an element is the trust domain; an empty array or an element that is not a non-empty string is `txn.invalid_claim` |
 | `req_wl` with several workloads | Ambiguous (§9.2) | Opaque string, replaced on each replacement |
 | Signature algorithms | Not restricted; no mandatory-to-implement algorithm. The only example is `RS256` (§9.1) | Minted with `Ed25519`, `EdDSA` or `ES256`. Verified with those and `RS256` (RSA keys of at least 2048 bits, `KeySet::with_rsa_key`), so tokens from an RSA-signing TTS such as kontxt verify |
 | Subject token type for a WIT | No URN defined | Not handled in this crate; the service decides |
