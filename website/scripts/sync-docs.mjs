@@ -38,6 +38,7 @@ const pages = [
   { src: 'docs/design.md', slug: 'concepts/design', title: 'Design' },
   { src: 'docs/bindings.md', slug: 'concepts/bindings', optional: true },
   { src: 'SPEC-MAP.md', slug: 'spec-map' },
+  { src: 'docs/interop.md', slug: 'interop', title: 'Interop results' },
   { src: 'SECURITY.md', slug: 'security/policy' },
   { src: 'docs/assurance-case.md', slug: 'security/assurance-case' },
   { src: 'docs/research/05-threats.md', slug: 'security/threats', title: 'Threat model' },
@@ -52,6 +53,7 @@ const pages = [
   { src: 'docs/research/04-landscape.md', slug: 'research/landscape' },
   { src: 'docs/research/06-idp-and-spire.md', slug: 'research/idp-and-spire' },
   { src: 'docs/research/07-observability-ui-launch.md', slug: 'research/observability-ui-launch' },
+  { src: 'docs/research/08-findings.md', slug: 'research/findings' },
 ].filter((p) => !p.optional || existsSync(path.join(root, p.src)));
 
 const bySource = new Map(pages.map((p) => [p.src, p]));
