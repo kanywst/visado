@@ -16,9 +16,9 @@ use visado_credentials::{
     AccessToken, AuthError, Authenticated, Authenticator, DPOP_ALGS, Method, Nonces, RequestView,
 };
 use visado_txn_token::{
-    KeySet, Replacement, Scope, TxnTokenClaims, Validation, VerifiedTxnToken, mint, replace, verify,
+    KeySet, Replacement, Scope, TxnSigningKey, TxnTokenClaims, Validation, VerifiedTxnToken,
+    mint_with, replace, verify,
 };
-use wimsey_jose::SigningKey;
 
 use crate::recent::{ChainSummary, Decision, PdpResult, RequestLog, RequestSummary, bounded};
 
@@ -67,8 +67,9 @@ pub const FORWARDED_HEADERS: [&str; 7] = [
 pub struct GateConfig {
     /// The trust domain: `aud` of minted Transaction Tokens.
     pub trust_domain: String,
-    /// Key that signs Transaction Tokens.
-    pub signing_key: SigningKey,
+    /// Key that signs Transaction Tokens: `Ed25519`, `ES256`, or an RSA key
+    /// for `RS256`. A [`wimsey_jose::SigningKey`] converts with `into()`.
+    pub signing_key: TxnSigningKey,
     /// `kid` for that key.
     pub kid: String,
     /// Lifetime of minted Transaction Tokens, in seconds.
@@ -185,8 +186,7 @@ impl<P: Pdp> Gate<P> {
             .dpop_nonces()
             .or_else(|| config.asor.as_ref().and_then(|a| a.dpop_nonces()))
             .cloned();
-        let txn_keys =
-            KeySet::new().with_key(config.kid.clone(), config.signing_key.verifying_key());
+        let txn_keys: KeySet = config.signing_key.key_set(&config.kid);
         let mut stripped: Vec<String> = STRIPPED_HEADERS.iter().map(|h| (*h).to_owned()).collect();
         stripped.extend(
             [
@@ -389,7 +389,7 @@ impl<P: Pdp> Gate<P> {
                 tctx: Some(tctx(&caller, chain.as_ref())),
                 rctx: Some(rctx(input)),
             };
-            mint(&claims, Some(&self.config.kid), &self.config.signing_key)
+            mint_with(&claims, Some(&self.config.kid), &self.config.signing_key)
                 .map_err(|e| Denied::new(403, e.code(), &trail))?
         };
         // A proof checked against nonces gets the next one.
@@ -639,7 +639,7 @@ impl<P: Pdp> Gate<P> {
             Some(max_exp),
         )
         .map_err(|e| Denied::new(403, e.code(), trail))?;
-        mint(&next, Some(&self.config.kid), &self.config.signing_key)
+        mint_with(&next, Some(&self.config.kid), &self.config.signing_key)
             .map_err(|e| Denied::new(403, e.code(), trail))
     }
 

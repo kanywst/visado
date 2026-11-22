@@ -10,7 +10,7 @@ use serde::Deserialize;
 use visado_chain_aat::{Policy, TrustAnchor, Verifier};
 use visado_credentials::{Authenticator, JwtBundle, Nonces, OAuthIssuer, WitIssuer, X509Bundle};
 use visado_extauthz::GateConfig;
-use visado_txn_token::Scope;
+use visado_txn_token::{Scope, TxnSigningKey};
 use wimsey_jose::{Jwk, PrivateJwk, VerifyingKey};
 
 use crate::status::{Source, StatusRefresh};
@@ -487,7 +487,8 @@ pub struct Loaded {
     /// The PDP endpoint is plain `http` to another host
     /// (`pdp.allow_insecure_http`).
     pub pdp_insecure_http: bool,
-    pub public_jwk: Jwk,
+    /// The public half of the Transaction Token signing key, for the JWKS.
+    pub public_jwk: serde_json::Value,
     pub grpc_listen: SocketAddr,
     pub grpc_tls: Option<GrpcTls>,
     /// `grpc_listen` is not loopback and no client certificate is required:
@@ -706,11 +707,7 @@ impl Config {
     }
 
     fn build(self, base: &Path) -> Result<Loaded, String> {
-        let private: PrivateJwk = read_json(&base.join(&self.signing_key.jwk_file))?;
-        let signing_key = private
-            .to_signing_key()
-            .map_err(|e| format!("signing key: {e}"))?;
-        let public_jwk = private.to_public();
+        let (signing_key, public_jwk) = txn_signing_key(&base.join(&self.signing_key.jwk_file))?;
 
         let anchors = self.chain_anchor_thumbprints(base)?;
         let grpc_tls = self.grpc_tls.as_ref().map(|t| t.read(base)).transpose()?;
@@ -1232,6 +1229,24 @@ fn check_user_token_header(name: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// The Transaction Token signing key from a private JWK: `OKP` Ed25519 or
+/// `EC` P-256 through wimsey-jose, or `RSA` (at least 2048 bits) for `RS256`.
+fn txn_signing_key(path: &Path) -> Result<(TxnSigningKey, serde_json::Value), String> {
+    let value: serde_json::Value = read_json(path)?;
+    if value.get("kty").and_then(serde_json::Value::as_str) == Some("RSA") {
+        let key = TxnSigningKey::from_rsa_jwk(&value).map_err(|e| format!("signing key: {e}"))?;
+        let public = key.public_jwk();
+        return Ok((key, public));
+    }
+    let private: PrivateJwk =
+        serde_json::from_value(value).map_err(|e| format!("{}: {e}", path.display()))?;
+    let key = private
+        .to_signing_key()
+        .map_err(|e| format!("signing key: {e}"))?;
+    let public = serde_json::to_value(private.to_public()).map_err(|e| e.to_string())?;
+    Ok((key.into(), public))
+}
+
 fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
@@ -1466,6 +1481,53 @@ jwks_file = "j"
         std::fs::remove_dir_all(&dir).unwrap();
         assert!(loaded.is_ok());
         assert!(bad_ca.is_err());
+    }
+
+    #[test]
+    fn an_rsa_signing_key_mints_rs256() {
+        use visado_txn_token::{Scope, TxnTokenClaims, Validation, mint_with, verify};
+        let fixtures =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../txn-token/tests/fixtures");
+        let dir = std::env::temp_dir().join(format!("visado-rsa-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::copy(
+            fixtures.join("rsa-2048.private.jwk.json"),
+            dir.join("k.json"),
+        )
+        .unwrap();
+        let path = dir.join("visado.toml");
+        std::fs::write(&path, BASE).unwrap();
+        let loaded = Config::load(&path);
+        // A public key alone, or one under 2048 bits, is refused at startup.
+        std::fs::copy(
+            fixtures.join("rsa-1024.public.jwk.json"),
+            dir.join("k.json"),
+        )
+        .unwrap();
+        let weak = Config::load(&path);
+        std::fs::remove_dir_all(&dir).unwrap();
+        let loaded = loaded.unwrap();
+        assert!(weak.is_err());
+
+        assert_eq!(loaded.public_jwk["kty"], "RSA");
+        assert_eq!(loaded.public_jwk["alg"], "RS256");
+        assert!(loaded.public_jwk.get("d").is_none());
+        let claims = TxnTokenClaims {
+            iss: None,
+            iat: 1_000,
+            aud: "td.example".into(),
+            exp: 1_060,
+            txn: "t".into(),
+            sub: "s".into(),
+            scope: Scope::parse("read"),
+            req_wl: "w".into(),
+            tctx: None,
+            rctx: None,
+        };
+        let gate = &loaded.gate;
+        let token = mint_with(&claims, Some(&gate.kid), &gate.signing_key).unwrap();
+        let keys = gate.signing_key.key_set(&gate.kid);
+        assert!(verify(&token, &keys, &Validation::new("td.example", 1_010)).is_ok());
     }
 
     #[test]
