@@ -58,6 +58,7 @@ aat() { ./target/debug/examples/lab_aat "$svids" "$@"; }
 signed() { ./target/debug/examples/lab_methods sig "$svids" "$@"; }
 dpop() { ./target/debug/examples/lab_methods dpop "$@"; }
 lab_bearer() { ./target/debug/examples/lab_methods bearer "$@"; }
+dpop_with() { ./target/debug/examples/lab_methods dpop-with "$@"; }
 bearer() { echo "Authorization: Bearer $1"; }
 replay() { cat "$1"; }
 user_token() { headers agent-a "$1" --user bob tickets.read | grep '^X-User-Token: '; }
@@ -221,6 +222,30 @@ dpop_with_nonce call ""
 call 401/dpop.nonce_invalid "DPoP: a nonce visado did not issue" /tickets \
   dpop /tickets --nonce AQAAAABrSvQAAAAAAAAAAAAAAAAAAAAAAA
 call 401/token.dpop_bound "DPoP-bound token sent as Bearer" /tickets dpop /tickets --bearer
+
+# Keycloak, the resource authorization server, issues agent-a's access tokens
+# with client_credentials: bearer, and DPoP-bound (RFC 9449) when the token
+# request carries a proof. visado trusts the realm's JWKS (keycloak-jwks).
+KC=http://keycloak.td.example:8180
+KC_TOKEN=$KC/realms/lab/protocol/openid-connect/token
+kc_token() {
+  curl -sf --resolve keycloak.td.example:8180:127.0.0.1 -u agent-a:agent-a-lab-secret \
+    -d grant_type=client_credentials "$@" "$KC_TOKEN" | jq -er .access_token
+}
+kc_bearer=$(kc_token)
+kc_admin=$(kc_token -d scope=roles.write)
+kc_dpop=$(kc_token -H "DPoP: $(./target/debug/examples/lab_methods token-proof "$KC_TOKEN")")
+kc_jkt=$(jq -rR 'split(".")[1] | gsub("-"; "+") | gsub("_"; "/") | @base64d | fromjson | .cnf.jkt' <<<"$kc_dpop")
+echo "      Keycloak issued agent-a a bearer token and a DPoP-bound token (cnf.jkt $kc_jkt)"
+call 200 "Keycloak: agent-a reads tickets" /tickets bearer "$kc_bearer"
+call 403/pdp.deny "Keycloak: agent-a on the admin API without roles.write" /admin/roles bearer "$kc_bearer"
+call 200 "Keycloak: agent-a with roles.write on the admin API" /admin/roles bearer "$kc_admin"
+# visado requires a server nonce: the first proof brings one back.
+call 401/dpop.nonce_missing "Keycloak: DPoP-bound token, proof without a nonce" /tickets dpop_with /tickets "$kc_dpop"
+kc_nonce=$(resp_header dpop-nonce)
+call 200 "Keycloak: DPoP-bound token with its proof and nonce" /tickets dpop_with /tickets "$kc_dpop" --nonce "$kc_nonce"
+call 401/token.dpop_bound "Keycloak: DPoP-bound token sent as Bearer" /tickets dpop_with /tickets "$kc_dpop" --bearer
+call 401/dpop.binding "Keycloak: DPoP proof by another key" /tickets dpop_with /tickets "$kc_dpop" --other-key --nonce "$kc_nonce"
 
 # agentgateway: the same visado behind the other front proxy. Its extAuthz
 # policy sends the host, path, method, headers and raw body over gRPC; a

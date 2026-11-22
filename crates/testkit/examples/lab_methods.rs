@@ -6,6 +6,8 @@
 //! lab_methods sig <svid-dir> <workload> <path> <body> [--send <body>]
 //! lab_methods dpop <path> [--bearer | --nonce <nonce>]
 //! lab_methods bearer [--expired]
+//! lab_methods token-proof <token-endpoint>
+//! lab_methods dpop-with <path> <token> [--bearer | --other-key | --nonce <nonce>]
 //! ```
 //!
 //! `sig`: a POST of `body` as JSON, signed with an HTTP message signature
@@ -22,17 +24,26 @@
 //! `bearer`: an access token for bob with no `cnf`, signed with the fixed
 //! OAuth demo key, as `Authorization: Bearer`. `--expired` makes it one that
 //! expired two minutes ago.
+//!
+//! `token-proof` and `dpop-with` are for an access token from a real
+//! authorization server (Keycloak in the lab). `token-proof` prints a DPoP
+//! proof for a POST to the token endpoint, so the server binds the token it
+//! issues to a fixed ES256 demo key. `dpop-with` prints a GET with that token
+//! and a proof by the same key; `--bearer` sends the token as `Bearer`
+//! without the proof, `--other-key` signs the proof with another key, and
+//! `--nonce` puts a server-provided nonce in the proof.
 
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde_json::json;
+use serde_json::{Value, json};
+use wimsey_jose::SigningKey;
 
 const AUTHORITY: &str = "tools.td.example";
 
 fn usage() -> ! {
     eprintln!(
-        "usage: lab_methods sig <svid-dir> <workload> <path> <body> [--send <body>]\n       lab_methods dpop <path> [--bearer | --nonce <nonce>]\n       lab_methods bearer [--expired]"
+        "usage: lab_methods sig <svid-dir> <workload> <path> <body> [--send <body>]\n       lab_methods dpop <path> [--bearer | --nonce <nonce>]\n       lab_methods bearer [--expired]\n       lab_methods token-proof <token-endpoint>\n       lab_methods dpop-with <path> <token> [--bearer | --other-key | --nonce <nonce>]"
     );
     std::process::exit(2);
 }
@@ -75,6 +86,45 @@ fn main() {
                 _ => usage(),
             };
             bearer(expired, now, &nonce);
+        }
+        Some("token-proof") => {
+            let Some(uri) = args.get(1) else { usage() };
+            let claims =
+                json!({ "jti": format!("proof-{nonce}"), "htm": "POST", "htu": uri, "iat": now });
+            println!("{}", es256_proof(&es256_holder(), &claims));
+        }
+        Some("dpop-with") => {
+            let (Some(path), Some(token)) = (args.get(1), args.get(2)) else {
+                usage()
+            };
+            let mut holder = es256_holder();
+            let mut server_nonce = None;
+            let mut rest = args[3..].iter().map(String::as_str);
+            while let Some(flag) = rest.next() {
+                match flag {
+                    "--bearer" if args.len() == 4 => {
+                        println!("Authorization: Bearer {token}");
+                        return;
+                    }
+                    "--other-key" => {
+                        holder = SigningKey::from_p256_scalar(&[0x53; 32]).expect("P-256 key");
+                    }
+                    "--nonce" => server_nonce = Some(rest.next().unwrap_or_else(|| usage())),
+                    _ => usage(),
+                }
+            }
+            let mut claims = visado_testkit::dpop_claims(
+                "GET",
+                &format!("http://{AUTHORITY}{path}"),
+                token,
+                &format!("proof-{nonce}"),
+                now,
+            );
+            if let Some(server_nonce) = server_nonce {
+                claims["nonce"] = json!(server_nonce);
+            }
+            println!("Authorization: DPoP {token}");
+            println!("DPoP: {}", es256_proof(&holder, &claims));
         }
         _ => usage(),
     }
@@ -175,4 +225,18 @@ fn dpop(path: &str, mode: &Dpop<'_>, now: u64, nonce: &str) {
     let proof = visado_testkit::sign_dpop_proof(&header, &claims, &holder);
     println!("Authorization: DPoP {token}");
     println!("DPoP: {proof}");
+}
+
+/// The fixed ES256 key that a real authorization server binds lab tokens to.
+fn es256_holder() -> SigningKey {
+    SigningKey::from_p256_scalar(&[0x52; 32]).expect("P-256 key")
+}
+
+fn es256_proof(holder: &SigningKey, claims: &Value) -> String {
+    let header = json!({
+        "alg": "ES256",
+        "typ": "dpop+jwt",
+        "jwk": visado_testkit::dpop_jwk(holder),
+    });
+    visado_testkit::sign_dpop_proof(&header, claims, holder)
 }

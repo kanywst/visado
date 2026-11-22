@@ -216,10 +216,19 @@ pub(crate) fn verify_bound(
     Ok((token, binding))
 }
 
-/// `cnf.jkt` when it is the only confirmation member and a non-empty string.
+/// `cnf.jkt` when it is a non-empty string and the only confirmation member.
+///
+/// Keycloak adds `kc-jkt-type` next to `jkt` to say which binding the
+/// thumbprint is for: `DPoP`, or `ABCA` for a key from client attestation.
+/// `kc-jkt-type` `DPoP` is accepted; any other value is not a DPoP binding.
 fn dpop_jkt(cnf: &serde_json::Value) -> Option<String> {
     let members = cnf.as_object()?;
-    if members.len() != 1 {
+    let others = match members.get(KEYCLOAK_JKT_TYPE) {
+        None => 1,
+        Some(kind) if kind.as_str() == Some("DPoP") => 2,
+        Some(_) => return None,
+    };
+    if members.len() != others {
         return None;
     }
     members
@@ -228,6 +237,9 @@ fn dpop_jkt(cnf: &serde_json::Value) -> Option<String> {
         .filter(|jkt| !jkt.is_empty())
         .map(ToOwned::to_owned)
 }
+
+/// The member Keycloak puts in `cnf` to name what `jkt` binds.
+const KEYCLOAK_JKT_TYPE: &str = "kc-jkt-type";
 
 /// `scp` as used by some issuers instead of `scope`: a string or an array of
 /// strings.

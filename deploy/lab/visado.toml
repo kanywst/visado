@@ -27,6 +27,18 @@ timeout_ms = 500
 issuer = "https://idp.example"
 audience = "http://tools.td.example"
 jwks_file = "keys/oauth-jwks.json"
+# With two OAuth issuers, each needs a prefix so their subjects and clients
+# cannot collide.
+subject_prefix = "idp:"
+
+# Keycloak, the lab's resource authorization server (realm "lab"). The
+# keycloak-jwks job writes the realm's signing keys before visado starts;
+# visado reads them once, so restart it after Keycloak rotates its key.
+[[oauth_issuers]]
+issuer = "http://keycloak.td.example:8180/realms/lab"
+audience = "http://tools.td.example"
+jwks_file = "keycloak/jwks.json"
+subject_prefix = "keycloak:"
 
 [aat]
 # The lab also serves callers without a chain, so the chain is optional here.

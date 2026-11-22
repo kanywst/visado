@@ -167,7 +167,7 @@ Every chain goes through the format-neutral invariant engine after its format's 
 
 | Topic | Spec | visado |
 | --- | --- | --- |
-| Sender-constrained tokens (`cnf`) | RFC 9449, RFC 8705 | `cnf` with only a `jkt` string is a DPoP-bound token (below). Any other `cnf`, including `x5t#S256` (RFC 8705), is rejected (`token.sender_constrained`) |
+| Sender-constrained tokens (`cnf`) | RFC 9449, RFC 8705 | `cnf` with only a `jkt` string, or with Keycloak's `kc-jkt-type` `DPoP` next to it, is a DPoP-bound token (below). Any other `cnf`, including `x5t#S256` (RFC 8705), is rejected (`token.sender_constrained`) |
 | `scope` vs `scp` | RFC 9068 uses `scope` | `scp` (string or array) is read when `scope` is absent |
 | No scope in a user token | Txn-Tokens §13.14 | Denied (`token.no_scope`); the default scope applies only to a workload without a user token |
 | Several issuers | | Each needs a `subject_prefix`, so `sub` and `client_id` cannot collide |
