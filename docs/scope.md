@@ -5,7 +5,7 @@ visado sits at an enforcement point. For each request it verifies the caller's w
 ## Principles
 
 - Inputs and outputs are published formats: WIMSE credentials, SPIFFE SVIDs, OAuth access tokens, delegation tokens from IETF drafts, Transaction Tokens, AuthZEN requests, OpenTelemetry. There is no visado token format.
-- Credential verifiers, chain formats, the PDP and the deployment mode are plugins.
+- Chain formats and the PDP are plugins (`ChainDecoder`, `AuthorityAlgebra`, `Pdp`). Credential verifiers are built into `visado-credentials`.
 - visado has no policy language. Decisions come from an AuthZEN 1.0 PDP.
 - Any verification error, PDP error or non-boolean decision denies the request.
 - The core does not depend on MCP. MCP is the main demo.
@@ -18,8 +18,8 @@ visado sits at an enforcement point. For each request it verifies the caller's w
 | Delegation chains | AAT, asor and RFC 8693 `act` decoded into one model; invariants and attenuation checked |
 | Authorization | AuthZEN 1.0 evaluation for the leaf agent, the principal and the chain |
 | Transaction Tokens | Mint, verify on internal hops, replace |
-| Audit | AIMS audit record, OpenTelemetry spans, per-request chain view |
-| Deployment | Envoy-compatible ext_authz (Envoy, Istio, agentgateway, kgateway) and a token endpoint |
+| Audit | Audit events toward the AIMS §11 minimum, OpenTelemetry spans, per-request chain view |
+| Deployment | Envoy-compatible ext_authz (Envoy, Istio, agentgateway, kgateway), and later a token endpoint |
 
 ## Out of scope
 

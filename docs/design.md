@@ -1,6 +1,6 @@
 # Design (draft)
 
-Status: v0.3.0. Steps 1 to 6 are implemented: caller authentication by WIT with WPT or HTTP signatures, mTLS, JWT-SVID and OAuth access tokens, bearer or DPoP-bound; AAT, asor-03 and RFC 8693 `act` chains (decoders and per-format checks, then the format-neutral invariant engine and an authority algebra per detail type); audit events, OpenTelemetry spans and the chain view. Items marked Open need a decision before the code that depends on them.
+Status: `main` after v0.3.0. Steps 1 to 6 are implemented: caller authentication by WIT with WPT or HTTP signatures, mTLS, JWT-SVID and OAuth access tokens, bearer or DPoP-bound; AAT, asor-03 and RFC 8693 `act` chains (decoders and per-format checks, then the format-neutral invariant engine and an authority algebra per detail type); audit events, OpenTelemetry spans and the chain view. Items marked Open need a decision before the code that depends on them.
 
 ## Request pipeline
 
@@ -8,26 +8,26 @@ One ext_authz `Check` call runs these steps in order and stops at the first fail
 
 ```text
 inbound request (via Envoy / Istio / agentgateway ext_authz)
-  1. sanitize      check the target; accept Txn-Token only from an allow-listed hop; ignore and strip forwarding headers
-  2. authenticate  CredentialVerifier plugins -> CallerIdentity (workload id, key binding, assurance)
+  1. sanitize      check the target, ignore forwarding headers (strip them on an allow)
+  2. authenticate  Authenticator -> Authenticated (caller id, method, bound user token, proof key)
   3. chain         ChainDecoder plugins -> NormalizedChain -> invariant engine -> authority algebra
   4. authorize     AuthZEN 1.0 evaluation request -> decision (fail closed)
-  5. mint          Txn-Token (typ txntoken+jwt) -> ok_response header, Authorization removed
+  5. mint          Txn-Token (typ txntoken+jwt) -> ok_response header, credential and chain headers removed
   6. record        audit record + OpenTelemetry span + reason code
 ```
 
 ### 1. Sanitize
 
 - Deny requests for authorities outside `allowed_authorities`, and request targets an upstream could read differently from the path the PDP sees (`request.unnormalized_path`, listed in `docs/bindings.md`).
-- An inbound `Txn-Token` is accepted only from a workload listed in `internal_callers` that proved possession of a key for the request (WIT with WPT or HTTP signature, or mTLS). It is verified and forwarded unchanged. From anyone else it is denied (`txn.untrusted_hop`).
-- Never forward the inbound access token downstream (MCP security best practices, Txn-Token draft §13).
+- After steps 2 and 3, an inbound `Txn-Token` is accepted only from a workload listed in `internal_callers` that proved possession of a key for the request (WIT with WPT or HTTP signature, or mTLS). It is verified and forwarded unchanged, or replaced when this hop verified a chain (`tctx.chain:<caller>`). From anyone else it is denied (`txn.untrusted_hop`).
+- Never forward the inbound access token downstream (MCP security best practices, Txn-Token draft §13). `Authorization`, `Workload-Identity-Token`, `Signature-Input`, `Signature`, `AAT-Chain`, `AAT-PoP`, `Agent-Delegation-Chain`, `DPoP` and the user token header are removed from an allowed request.
 - Never read `Forwarded` or `X-Forwarded-*` for a decision. On an allow, remove the ones a client can set to name another host, port, prefix or path (`Forwarded`, `X-Forwarded-Host`, `-Port`, `-Prefix`, `-Uri`, and `X-Original-URL`, `X-Rewrite-URL`), whatever the previous hop. `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Client-Cert` stay with the proxy, which sets or sanitizes them (Envoy `use_remote_address`, `forward_client_cert_details`).
 
 ### 2. Authenticate
 
-`CredentialVerifier` implementations, chosen by what the request carries:
+`visado_credentials::Authenticator` picks one method by what the request carries:
 
-| Verifier | Input | Built on |
+| Method | Input | Built on |
 | --- | --- | --- |
 | `wit-wpt` | `Workload-Identity-Token` + `Authorization: WPT` | `wimsey-wit`, `wimsey-wpt` |
 | `wit-httpsig` | WIT + RFC 9421 signature | `wimsey-httpsig` (needs `with_request_body` for digests) |
@@ -39,7 +39,7 @@ Trust rules:
 
 - Trust anchors and JWKS locations are configured per trust domain. Keys are never fetched from URLs found inside a token.
 - Audience is an exact string match.
-- Clock leeway is configurable with a 60 s ceiling.
+- Clock leeway is 30 s, at most 60 s (`Authenticator::with_leeway`); the server file does not set it.
 - WPT `jti`, HTTP signature `nonce` and DPoP `jti` replay are checked against bounded caches, one per proof type, each with a per-caller quota (see [bindings.md](bindings.md#replay)).
 - DPoP proofs can be required to carry a server-provided nonce (RFC 9449 §9). Nonces are stateless (an issue time under an HMAC), so replicas that share the key accept each other's.
 
@@ -49,7 +49,7 @@ Method selection, the Envoy settings each method needs, and their limits are in 
 
 Three layers, so a new draft is a new plugin:
 
-1. `ChainDecoder` per format parses, canonicalizes, checks signatures and links (`par_hash`, `sd_hash`, receipts, or nesting only), and produces a `NormalizedChain`. The format's request checks (proof of possession, status, audience, action) follow in the same crate.
+1. A decoder per format (`ChainDecoder` for AAT and asor, `visado_chain_act::Verifier::decode` for `act`) parses, canonicalizes, checks signatures and links (`par_hash`, or nesting only), and produces a `NormalizedChain`. The format's request checks (proof of possession, status, audience, action) follow in the same crate.
 2. A format-neutral invariant engine (`visado_chain::invariants::Engine`) then checks the normalized chain again, whatever the format. The per-format checks stay; the engine must agree with them, and the gate runs it on every chain after them. In order, each with its deny code:
    - shape: one to 32 hops, depths `0..n` in order (`chain.malformed`)
    - links: the first hop is the root, signed by the trust anchor; every later hop names its parent's actor as delegator and is signed by the key its binding names, the parent's `cnf` or the anchor; a nested hop shares its parent's token (`chain.link_mismatch`)
@@ -74,7 +74,7 @@ Three layers, so a new draft is a new plugin:
 ```rust
 struct NormalizedChain { profile: Profile, principal: Principal, root: TrustRef, hops: Vec<Hop>, holder_proof: bool }
 struct Hop {
-    depth: u32, max_depth: Option<u32>, actor: ActorId, principal: Principal, delegator: Option<ActorId>,
+    id: String, depth: u32, max_depth: Option<u32>, actor: ActorId, principal: Principal, delegator: Option<ActorId>,
     signer: KeyThumbprint, signer_binding: SignerBinding, // RootAnchor | ParentCnf
     link: Link,                                           // Root | ParHash | Nested
     authority: Authority, validity: Validity, audience: Option<Vec<String>>, cnf: Option<Cnf>,
@@ -83,25 +83,26 @@ struct Hop {
 }
 ```
 
-Only `Verified` hops are used for authorization, and only when `holder_proof` is true: the presenter proved possession of the leaf key for this request. `ChainDecoder::decode` checks the chain only and sets it to false. `Declared` hops, such as prior actors in a nested RFC 8693 `act` claim, go to the audit record and Txn-Token context only.
+Only `Verified` hops are used for authorization, and only when `holder_proof` is true: the presenter proved possession of the leaf key for this request. `ChainDecoder::decode` checks the chain only and sets it to false. `Declared` hops, such as prior actors in a nested RFC 8693 `act` claim, go to the Txn-Token context and the chain view only.
 
 Order of formats:
 
 1. AAT (draft-niyikiza-oauth-attenuating-agent-tokens-02): 229 published vectors, and each hop is signed by the parent's `cnf` key.
 2. asor (draft-asor-wimse-agent-delegation-chain-03): 36 published vectors; every hop is signed by a trust anchor, the leaf key is proven with DPoP, and each `status` reference is checked against a Token Status List the gate holds.
-3. RFC 8693 `act` adapter: the actors of a verified access token's `act` claim, signed by its issuer. The current actor is `Verified` once it is bound to the authenticated caller; prior actors stay `Declared` and never reach the PDP, as RFC 8693 §4.1 requires. Its actors have no key; the gate reads the chain only from a user token bound to a WIT caller, which proved possession of its WIT key for the request, so `holder_proof` is true there.
+3. RFC 8693 `act` adapter: the actors of a verified access token's `act` claim, signed by its issuer. The current actor is `Verified` once it is bound to the authenticated caller; prior actors stay `Declared` and never reach the PDP, as RFC 8693 §4.1 requires. Its actors have no key; the gate reads the chain only from a user token bound to a WIT caller, or from a DPoP-bound access token, so the caller proved possession of a key for the request and `holder_proof` is true there.
 4. Delegate SD-JWT once it has vectors.
 
 ### 4. Authorize
 
-AuthZEN 1.0 `POST /access/v1/evaluation`, PDP endpoint discovered from `/.well-known/authzen-configuration` or configured.
+AuthZEN 1.0 `POST /access/v1/evaluation` at the configured `[pdp] endpoint`. `visado_authzen::discover` reads the endpoint from `/.well-known/authzen-configuration`; the server does not use it yet.
 
-Open: the agent-and-principal profile. AuthZEN does not say how to carry an agent acting for a user. Proposal:
+Open: the agent-and-principal profile. AuthZEN does not say how to carry an agent acting for a user. What visado sends:
 
-- `subject` is the leaf agent (`type: agent`, `id`: workload identifier).
-- `context.principal` is the original subject.
-- `context.chain` carries the hop list and a chain digest.
-- `context.assurance` records which hops were verified.
+- `subject` is the caller (`type: agent`, or `client` for an OAuth client; `id`: its identifier).
+- `resource` is `type: http_resource` with `scheme://authority/path` as `id`; `action.name` is the HTTP method.
+- `context.principal` is the user (`type: user`), when the caller acts for one.
+- `context.scope`, `context.auth_method` and `context.txn`.
+- `context.chain` for a verified chain: `profile`, `issuer`, `depth`, `holders` (key thumbprints, root first), the leaf's `authority` and the `principal`. An `act` chain has its own shape ([bindings.md](bindings.md#rfc-8693-act)).
 
 To be proposed to the AuthZEN WG once it works end to end.
 
@@ -122,32 +123,19 @@ Per draft-ietf-oauth-transaction-tokens-11:
   - `scope`: never wider than the authorized scope
   - `req_wl`: caller workload id
   - `iat`, `exp`: short, default 60 s
-  - `tctx`: chain digest, leaf actor, verified depth
-  - `rctx`: request metadata
-- Injected with `ok_response.headers` (`Txn-Token`, overwrite), with `Authorization` in `headers_to_remove`. The txn id and chain digest also go into `dynamic_metadata` for later filters and access logs.
-- A token endpoint (RFC 8693 profile) serves services that want a Txn-Token without the gateway, and handles replacement: `txn`, `sub` and `aud` stay the same, scope never widens, and expired tokens are refused.
+  - `tctx`: `agent`, `auth_method`, and `chain` as sent to the PDP (with prior actors for `act`)
+  - `rctx`: `method` and `resource`
+- Injected with `ok_response.headers` (`Txn-Token`, overwrite), with the credential and chain headers in `headers_to_remove`. The `txn` also goes into `dynamic_metadata` for later filters and access logs.
+- Not built yet: a token endpoint (RFC 8693 profile) for services that want a Txn-Token without the gateway. Replacement is in `visado-txn-token` already: `txn`, `sub` and `aud` stay the same, scope never widens, and expired tokens are refused.
 - Open: there is no `subject_token_type` URN for a WIT. Use a private URN and propose one to the WIMSE and OAuth WGs.
 
 ### 6. Record
 
-- Audit record with the AIMS §11 minimum:
-  - agent id
-  - delegating subject
-  - resource or tool
-  - action and decision
-  - timestamp and correlation id (`txn`)
-  - posture or risk input
-  - remediation and its cause
-- Records are hash-chained and never contain whole tokens.
-- OpenTelemetry: one `visado.authorize {target}` span with these attributes, plus one `visado.hop` span event per hop:
-  - `visado.chain.subjects`
-  - `visado.chain.depth`
-  - `visado.decision`
-  - `visado.deny.hop`
-  - `visado.txn`
-- GenAI and MCP semantic-convention attributes are added where they apply.
-- Deny reasons are stable, language-neutral codes shared with the conformance vectors, for example:
-  - `credential.audience_mismatch`
+- One JSON audit event per decision on stdout, target `visado::audit`: `txn`, `agent`, `principal`, `resource`, `action` (the HTTP method), `decision`, `reason`, `detail` and `depth_semantics`, with the log timestamp. It never contains a token.
+- That covers five items of the AIMS §11 minimum (agent, delegated subject, resource, action and decision, timestamp and correlation id). Not yet: posture or risk input, remediation events, and tamper evidence (AIMS §11 asks for tamper-evident records; the events are not hash-chained).
+- OpenTelemetry: one `visado.authorize {target}` span with `http.request.method`, `url.full`, `visado.txn`, `visado.agent`, `visado.principal`, `visado.decision` and `visado.reason`. Not yet: per-hop span events and GenAI or MCP semantic-convention attributes.
+- Deny reasons are stable, language-neutral codes, listed in [bindings.md](bindings.md#reason-codes). The Transaction Token vectors share the `txn.*` codes. For example:
+  - `token.expired`
   - `wpt.replay`
   - `chain.link_mismatch`
   - `chain.scope_escalation`
@@ -190,20 +178,25 @@ It never holds a token, proof, signature, digest, header value, body or the hop'
 ```text
 crates/
   txn-token     mint, verify, replace (published on its own)
-  chain         ChainDecoder trait, NormalizedChain, invariants, algebra
+  chain         ChainDecoder trait, NormalizedChain, invariants, algebra, DPoP checks and nonces
   chain-aat     AAT decoder
-  chain-asor    asor decoder
+  chain-asor    asor decoder and status lists
   chain-act     RFC 8693 act adapter
   authzen       AuthZEN 1.0 client and the agent profile
-  credentials   CredentialVerifier trait and verifiers (wraps wimsey)
-  extauthz      Envoy ext_authz server
-  server        binary: config, token endpoint, JWKS, UI, telemetry
-  conformance   vectors, generator and runner (format as in wimsey)
-deploy/aims-lab compose file for the end-to-end lab and the attack demos
-crates/server/ui/  chain view (plain HTML, CSS and JS), embedded with include_str!
+  credentials   caller authentication (wraps wimsey)
+  extauthz      decision pipeline and Envoy ext_authz server
+  server        binary: config, JWKS, chain view, telemetry, status list refresh
+  server/ui/    chain view (plain HTML, CSS and JS), embedded with include_str!
+  testkit       test fixtures and the lab helpers (unpublished)
+conformance/    vectors, one JSON file or directory per suite
+fuzz/           cargo-fuzz targets
+deploy/local/   a configuration for cargo run
+deploy/lab/     compose file for the end-to-end lab
 ```
 
 ## Reference lab (aims-lab)
+
+Not built yet; [deploy/lab](../deploy/lab/README.md) has the parts that run today. The plan:
 
 ```text
 user --login--> Dex (ID-JAG issuance, master build)
@@ -229,6 +222,6 @@ The lab also hosts the attack demos in [research/05-threats.md](research/05-thre
 ## Open questions
 
 - Which ID-JAG revision to accept: the MCP extension cites -04 and the latest is -06. Proposal: accept both and record which one passed.
-- The Txn-Token draft does not define a representation of the call chain across replacement. Proposal: carry the chain digest in `tctx` and note it as a divergence.
+- The Txn-Token draft does not define a representation of the call chain across replacement. visado carries the chain context in `tctx.chain`, and in `tctx.chain:<caller>` on a replacement (see `SPEC-MAP.md`). Open: whether to propose it to the OAuth WG.
 - Key storage beyond files (KMS/HSM) and per-trust-domain key separation.
 - Name of the WIT `subject_token_type` URN to propose.
