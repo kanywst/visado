@@ -54,6 +54,7 @@ export default defineConfig({
         {
           label: 'Security model',
           items: [
+            { label: 'Assurance case', slug: 'security/assurance-case' },
             { label: 'Threat model', slug: 'security/threats' },
             { label: 'Reporting a vulnerability', slug: 'security/policy' },
           ],
