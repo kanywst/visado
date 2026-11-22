@@ -9,6 +9,7 @@ use wimsey_jose::{Algorithm, JoseError, SIGNATURE_LEN, SigningKey};
 use crate::claims::TxnTokenClaims;
 use crate::error::TxnTokenError;
 use crate::keys::{Key, KeySet};
+use crate::signer::TxnSigningKey;
 
 /// The JOSE `typ` of a Transaction Token (§9.1).
 pub const TYP: &str = "txntoken+jwt";
@@ -99,17 +100,30 @@ pub fn mint(
     kid: Option<&str>,
     key: &SigningKey,
 ) -> Result<String, TxnTokenError> {
+    mint_with(claims, kid, &TxnSigningKey::from(key.clone()))
+}
+
+/// Like [`mint`], with any [`TxnSigningKey`], including an `RS256` key.
+///
+/// # Errors
+///
+/// As [`mint`], or [`TxnTokenError::InvalidKey`] if an RSA key fails to sign.
+pub fn mint_with(
+    claims: &TxnTokenClaims,
+    kid: Option<&str>,
+    key: &TxnSigningKey,
+) -> Result<String, TxnTokenError> {
     claims.check()?;
     let header = Header {
         typ: TYP.to_owned(),
-        alg: key.algorithm().as_str().to_owned(),
+        alg: key.alg().to_owned(),
         kid: kid.map(ToOwned::to_owned),
         crit: None,
     };
     let header_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header)?);
     let claims_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_vec(claims)?);
     let signing_input = format!("{header_b64}.{claims_b64}");
-    let signature = URL_SAFE_NO_PAD.encode(key.sign(signing_input.as_bytes()));
+    let signature = key.sign(signing_input.as_bytes())?;
     Ok(format!("{signing_input}.{signature}"))
 }
 

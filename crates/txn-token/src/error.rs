@@ -42,6 +42,9 @@ pub enum TxnTokenError {
     /// has no exponent.
     #[error("RSA key too weak")]
     WeakKey,
+    /// A signing key could not be used; the text names the problem.
+    #[error("unusable signing key: {0}")]
+    InvalidKey(&'static str),
     /// The signature does not verify.
     #[error("signature verification failed")]
     InvalidSignature,
@@ -96,6 +99,7 @@ impl TxnTokenError {
             Self::UnknownKey => "txn.unknown_key",
             Self::AlgorithmMismatch => "txn.alg_mismatch",
             Self::WeakKey => "txn.weak_key",
+            Self::InvalidKey(_) => "txn.invalid_key",
             Self::InvalidSignature => "txn.bad_signature",
             Self::AudienceMismatch => "txn.audience_mismatch",
             Self::Expired => "txn.expired",
