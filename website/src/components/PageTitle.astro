@@ -1,0 +1,29 @@
+---
+// The default title, then links to this page as Markdown and to llms.txt.
+// scripts/sync-docs.mjs writes both for every synced page.
+import Default from '@astrojs/starlight/components/PageTitle.astro';
+
+const { id } = Astro.locals.starlightRoute;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const synced = id !== '' && id !== 'index';
+---
+
+<Default />
+{
+  synced && (
+    <p class="alt">
+      <a href={`${base}/${id}.md`}>Markdown</a> · <a href={`${base}/llms.txt`}>llms.txt</a>
+    </p>
+  )
+}
+
+<style>
+  .alt {
+    margin-top: 0.25rem;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  .alt a {
+    color: inherit;
+  }
+</style>

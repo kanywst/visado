@@ -34,6 +34,8 @@ export default defineConfig({
       components: {
         Footer: './src/components/Footer.astro',
         Hero: './src/components/Hero.astro',
+        PageTitle: './src/components/PageTitle.astro',
+        SocialIcons: './src/components/SocialIcons.astro',
       },
       credits: false,
       lastUpdated: false,

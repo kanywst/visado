@@ -1,0 +1,9 @@
+# CLOMonitor metadata: https://github.com/cncf/clomonitor/blob/main/docs/metadata/.clomonitor.yml
+
+exemptions:
+  - check: artifacthub_badge
+    reason: "visado ships Rust crates on crates.io and signed binaries on GitHub releases. Artifact Hub has no package kind for either, and no Helm chart, operator or container image is published."
+
+# cargo-deny checks every dependency's license against deny.toml on each push and pull request.
+licenseScanning:
+  url: https://github.com/kanywst/visado/actions/workflows/ci.yml
