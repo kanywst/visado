@@ -1,0 +1,127 @@
+{
+  "minter": "kontxt",
+  "trust_domain": "trust-domain.example",
+  "keys": [
+    {
+      "kid": "98a41bb598ff9d48",
+      "kty": "RSA",
+      "alg": "RS256",
+      "use": "sig"
+    }
+  ],
+  "summary": {
+    "visado": {
+      "cases": 4,
+      "as_expected": 4,
+      "unexpected": [],
+      "unspecified": {}
+    },
+    "kontxt": {
+      "cases": 4,
+      "as_expected": 4,
+      "unexpected": [],
+      "unspecified": {}
+    },
+    "atlas-go": {
+      "cases": 4,
+      "as_expected": 4,
+      "unexpected": [],
+      "unspecified": {}
+    }
+  },
+  "cases": [
+    {
+      "id": "rs256-valid",
+      "expect": "accept",
+      "why": "§9.2 all REQUIRED claims, tctx and rctx",
+      "alg": "RS256",
+      "visado": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      },
+      "kontxt": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      },
+      "atlas-go": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      }
+    },
+    {
+      "id": "rs256-expired",
+      "expect": "reject",
+      "why": "§12.2 not expired",
+      "alg": "RS256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.invalid_lifetime"
+      },
+      "kontxt": {
+        "verdict": "reject",
+        "error": "token verification failed: token has invalid claims: token is expired"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
+      }
+    },
+    {
+      "id": "rs256-wrong-aud",
+      "expect": "reject",
+      "why": "§9.2 aud, §12.2 trust domain",
+      "alg": "RS256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.audience_mismatch"
+      },
+      "kontxt": {
+        "verdict": "reject",
+        "error": "token verification failed: token has invalid claims: token has invalid audience"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
+      }
+    },
+    {
+      "id": "rs256-tampered",
+      "expect": "reject",
+      "why": "§12.2 signature",
+      "alg": "RS256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.bad_signature"
+      },
+      "kontxt": {
+        "verdict": "reject",
+        "error": "token verification failed: token signature is invalid: crypto/rsa: verification error"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
+      }
+    }
+  ],
+  "clock": {
+    "kontxt": "wall"
+  },
+  "not_minted": [
+    {
+      "id": "rs256-missing-scope",
+      "why": "token.New refused: scope is required"
+    },
+    {
+      "id": "rs256-missing-req_wl",
+      "why": "token.New refused: requesting workload (req_wl) is required"
+    },
+    {
+      "id": "rs256-missing-sub",
+      "why": "token.New refused: subject (sub) is required"
+    },
+    {
+      "id": "rs256-missing-iss",
+      "why": "token.New refused: issuer (iss) is required"
+    }
+  ]
+}

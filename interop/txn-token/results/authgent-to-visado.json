@@ -1,0 +1,145 @@
+{
+  "minter": "authgent",
+  "trust_domain": "trust-domain.example",
+  "keys": [
+    {
+      "kid": "dyMj2kuj-BJ9Idz9IQ030w",
+      "kty": "EC",
+      "crv": "P-256",
+      "alg": "ES256",
+      "use": "sig"
+    }
+  ],
+  "summary": {
+    "visado": {
+      "cases": 7,
+      "as_expected": 6,
+      "unexpected": [],
+      "unspecified": {
+        "authgent-blank-scope": "reject"
+      }
+    },
+    "atlas-go": {
+      "cases": 7,
+      "as_expected": 5,
+      "unexpected": [
+        "authgent-exp-equals-now"
+      ],
+      "unspecified": {
+        "authgent-blank-scope": "accept"
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "authgent-valid",
+      "expect": "accept",
+      "why": "§9.2 all REQUIRED claims, tctx and rctx",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      },
+      "atlas-go": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      }
+    },
+    {
+      "id": "authgent-no-ctx",
+      "expect": "accept",
+      "why": "no request_details: rctx only (authgent always adds rctx)",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      },
+      "atlas-go": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      }
+    },
+    {
+      "id": "authgent-expired",
+      "expect": "reject",
+      "why": "§12.2 not expired; verified 60 s after exp",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.expired"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
+      }
+    },
+    {
+      "id": "authgent-exp-equals-now",
+      "expect": "reject",
+      "why": "RFC 7519 §4.1.4: now must be before exp (leeway allowed)",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.expired"
+      },
+      "atlas-go": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      }
+    },
+    {
+      "id": "authgent-wrong-aud",
+      "expect": "reject",
+      "why": "§9.2 aud, §12.2 trust domain; verifier in another trust domain",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.audience_mismatch"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
+      }
+    },
+    {
+      "id": "authgent-tampered",
+      "expect": "reject",
+      "why": "§12.2 signature",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.bad_signature"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
+      }
+    },
+    {
+      "id": "authgent-blank-scope",
+      "expect": "unspecified",
+      "why": "scope=\" \" requested: authgent issues scope \" \"; §9.2 scope REQUIRED, emptiness not addressed",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.invalid_claim"
+      },
+      "atlas-go": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      }
+    }
+  ],
+  "claim_names": [
+    "aud",
+    "exp",
+    "iat",
+    "iss",
+    "rctx",
+    "req_wl",
+    "scope",
+    "sub",
+    "tctx",
+    "txn"
+  ]
+}

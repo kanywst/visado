@@ -1,0 +1,309 @@
+{
+  "minter": "visado",
+  "trust_domain": "trust-domain.example",
+  "keys": [
+    {
+      "kid": "visado-es256",
+      "kty": "EC",
+      "crv": "P-256",
+      "alg": "ES256",
+      "use": "sig"
+    },
+    {
+      "kid": "visado-ed25519",
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "alg": "Ed25519",
+      "use": "sig"
+    },
+    {
+      "kid": "visado-eddsa",
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "alg": "EdDSA",
+      "use": "sig"
+    }
+  ],
+  "summary": {
+    "visado": {
+      "cases": 18,
+      "as_expected": 14,
+      "unexpected": [],
+      "unspecified": {
+        "es256-empty-scope": "reject",
+        "es256-aud-array": "accept",
+        "es256-iat-future": "reject",
+        "es256-typ-media-type": "accept"
+      }
+    },
+    "atlas-go": {
+      "cases": 18,
+      "as_expected": 11,
+      "unexpected": [
+        "ed25519-valid",
+        "es256-no-iss",
+        "es256-exp-equals-now"
+      ],
+      "unspecified": {
+        "es256-empty-scope": "accept",
+        "es256-aud-array": "accept",
+        "es256-iat-future": "accept",
+        "es256-typ-media-type": "reject"
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "es256-valid",
+      "expect": "accept",
+      "why": "§9.2 all REQUIRED claims, tctx and rctx",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      },
+      "atlas-go": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      }
+    },
+    {
+      "id": "ed25519-valid",
+      "expect": "accept",
+      "why": "alg Ed25519 (RFC 9864); draft-11 names no algorithm",
+      "alg": "Ed25519",
+      "visado": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
+      }
+    },
+    {
+      "id": "eddsa-valid",
+      "expect": "accept",
+      "why": "alg EdDSA (RFC 8037)",
+      "alg": "EdDSA",
+      "visado": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      },
+      "atlas-go": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      }
+    },
+    {
+      "id": "es256-no-iss",
+      "expect": "accept",
+      "why": "§9.2 iss OPTIONAL",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
+      }
+    },
+    {
+      "id": "es256-expired",
+      "expect": "reject",
+      "why": "§12.2 not expired",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.expired"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
+      }
+    },
+    {
+      "id": "es256-exp-equals-now",
+      "expect": "reject",
+      "why": "RFC 7519 §4.1.4: now must be before exp (leeway allowed)",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.expired"
+      },
+      "atlas-go": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      }
+    },
+    {
+      "id": "es256-wrong-aud",
+      "expect": "reject",
+      "why": "§9.2 aud, §12.2 trust domain",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.audience_mismatch"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
+      }
+    },
+    {
+      "id": "es256-tampered",
+      "expect": "reject",
+      "why": "§12.2 signature",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.bad_signature"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
+      }
+    },
+    {
+      "id": "es256-missing-scope",
+      "expect": "reject",
+      "why": "§9.2 scope REQUIRED",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.malformed"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token has no scope"
+      }
+    },
+    {
+      "id": "es256-missing-req_wl",
+      "expect": "reject",
+      "why": "§9.2 req_wl REQUIRED",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.malformed"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token has no req_wl"
+      }
+    },
+    {
+      "id": "es256-missing-txn",
+      "expect": "reject",
+      "why": "§9.2 txn REQUIRED",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.malformed"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token has no txn"
+      }
+    },
+    {
+      "id": "es256-missing-iat",
+      "expect": "reject",
+      "why": "§9.2 iat REQUIRED",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.malformed"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token has no iat"
+      }
+    },
+    {
+      "id": "es256-empty-scope",
+      "expect": "unspecified",
+      "why": "§9.2 scope REQUIRED; an empty value is not addressed",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.invalid_claim"
+      },
+      "atlas-go": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      }
+    },
+    {
+      "id": "es256-aud-array",
+      "expect": "unspecified",
+      "why": "RFC 7519 §4.1.3 allows an array; §9.2 does not say",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      },
+      "atlas-go": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      }
+    },
+    {
+      "id": "es256-iat-future",
+      "expect": "unspecified",
+      "why": "no iat check in §12.2",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.issued_in_future"
+      },
+      "atlas-go": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      }
+    },
+    {
+      "id": "es256-typ-media-type",
+      "expect": "unspecified",
+      "why": "§9.1 value txntoken+jwt; RFC 7515 §4.1.9 equivalence",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "accept",
+        "tctx_rctx_carried": true
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
+      }
+    },
+    {
+      "id": "es256-no-typ",
+      "expect": "reject",
+      "why": "§9.1 typ MUST be present",
+      "alg": "ES256",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.wrong_type"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
+      }
+    },
+    {
+      "id": "alg-none",
+      "expect": "reject",
+      "why": "§12.2 signature",
+      "alg": "none",
+      "visado": {
+        "verdict": "reject",
+        "error": "txn.unsupported_alg"
+      },
+      "atlas-go": {
+        "verdict": "reject",
+        "error": "atlas: the transaction token is invalid, expired, or for another trust domain"
+      }
+    }
+  ]
+}

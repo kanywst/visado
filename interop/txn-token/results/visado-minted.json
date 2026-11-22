@@ -1,0 +1,318 @@
+{
+  "cases": [
+    {
+      "expect": "accept",
+      "id": "es256-valid",
+      "token": "eyJ0eXAiOiJ0eG50b2tlbitqd3QiLCJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiJ9.eyJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsImlhdCI6MTgwMDAwMDAwMCwiYXVkIjoidHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJleHAiOjE4MDAwMDAzMDAsInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiIsInN1YiI6InVzZXJAdHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2dhdGV3YXkiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsImN1c3RvbWVyX3R5cGUiOnsiZ2VvIjoiVVMiLCJsZXZlbCI6IlZJUCJ9LCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwicmN0eCI6eyJhdXRobiI6InVybjppZXRmOnJmYzo2NzQ5IiwicmVxX2lwIjoiMTk4LjUxLjEwMC43In19.gAZTbGYGcW8AnJqiihXT_i2NXXPvSPetzDqvezG7aUilotuI59bhsRQKcn5eq2Gco3qiyPYgZveTIPl7ebCxRA",
+      "visado": {
+        "id": "es256-valid",
+        "rctx": {
+          "authn": "urn:ietf:rfc:6749",
+          "req_ip": "198.51.100.7"
+        },
+        "tctx": {
+          "action": "BUY",
+          "customer_type": {
+            "geo": "US",
+            "level": "VIP"
+          },
+          "quantity": "100",
+          "ticker": "MSFT"
+        },
+        "verdict": "accept"
+      },
+      "why": "§9.2 all REQUIRED claims, tctx and rctx"
+    },
+    {
+      "expect": "accept",
+      "id": "ed25519-valid",
+      "token": "eyJ0eXAiOiJ0eG50b2tlbitqd3QiLCJhbGciOiJFZDI1NTE5Iiwia2lkIjoidmlzYWRvLWVkMjU1MTkifQ.eyJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsImlhdCI6MTgwMDAwMDAwMCwiYXVkIjoidHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJleHAiOjE4MDAwMDAzMDAsInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiIsInN1YiI6InVzZXJAdHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2dhdGV3YXkiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsImN1c3RvbWVyX3R5cGUiOnsiZ2VvIjoiVVMiLCJsZXZlbCI6IlZJUCJ9LCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwicmN0eCI6eyJhdXRobiI6InVybjppZXRmOnJmYzo2NzQ5IiwicmVxX2lwIjoiMTk4LjUxLjEwMC43In19.sJ4OUMlajSrlUhEq_R1ovW2U7G4UNq0C-EcBySmCRJy1bpbtCPbTUrvx8Xo63YwdSf32Zv5iNDEAsIoipjePDA",
+      "visado": {
+        "id": "ed25519-valid",
+        "rctx": {
+          "authn": "urn:ietf:rfc:6749",
+          "req_ip": "198.51.100.7"
+        },
+        "tctx": {
+          "action": "BUY",
+          "customer_type": {
+            "geo": "US",
+            "level": "VIP"
+          },
+          "quantity": "100",
+          "ticker": "MSFT"
+        },
+        "verdict": "accept"
+      },
+      "why": "alg Ed25519 (RFC 9864); draft-11 names no algorithm"
+    },
+    {
+      "expect": "accept",
+      "id": "eddsa-valid",
+      "token": "eyJ0eXAiOiJ0eG50b2tlbitqd3QiLCJhbGciOiJFZERTQSIsImtpZCI6InZpc2Fkby1lZGRzYSJ9.eyJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsImlhdCI6MTgwMDAwMDAwMCwiYXVkIjoidHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJleHAiOjE4MDAwMDAzMDAsInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiIsInN1YiI6InVzZXJAdHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2dhdGV3YXkiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsImN1c3RvbWVyX3R5cGUiOnsiZ2VvIjoiVVMiLCJsZXZlbCI6IlZJUCJ9LCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwicmN0eCI6eyJhdXRobiI6InVybjppZXRmOnJmYzo2NzQ5IiwicmVxX2lwIjoiMTk4LjUxLjEwMC43In19.CjPM9sziuzTbEjq5XsMOKelPuG4rCSstdocRhpfW8Of9zZP-im0604q4G4q36oht_iSVSEfTW1PW6m2hCd4vAw",
+      "visado": {
+        "id": "eddsa-valid",
+        "rctx": {
+          "authn": "urn:ietf:rfc:6749",
+          "req_ip": "198.51.100.7"
+        },
+        "tctx": {
+          "action": "BUY",
+          "customer_type": {
+            "geo": "US",
+            "level": "VIP"
+          },
+          "quantity": "100",
+          "ticker": "MSFT"
+        },
+        "verdict": "accept"
+      },
+      "why": "alg EdDSA (RFC 8037)"
+    },
+    {
+      "expect": "accept",
+      "id": "es256-no-iss",
+      "token": "eyJ0eXAiOiJ0eG50b2tlbitqd3QiLCJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiJ9.eyJpYXQiOjE4MDAwMDAwMDAsImF1ZCI6InRydXN0LWRvbWFpbi5leGFtcGxlIiwiZXhwIjoxODAwMDAwMzAwLCJ0eG4iOiI5NzA1Mzk2My03NzFkLTQ5Y2MtYTRlMy0yMGFhZDM5OWMzMTIiLCJzdWIiOiJ1c2VyQHRydXN0LWRvbWFpbi5leGFtcGxlIiwic2NvcGUiOiJ0cmFkZS5zdG9ja3MiLCJyZXFfd2wiOiJzcGlmZmU6Ly90cnVzdC1kb21haW4uZXhhbXBsZS9nYXRld2F5IiwidGN0eCI6eyJhY3Rpb24iOiJCVVkiLCJjdXN0b21lcl90eXBlIjp7ImdlbyI6IlVTIiwibGV2ZWwiOiJWSVAifSwicXVhbnRpdHkiOiIxMDAiLCJ0aWNrZXIiOiJNU0ZUIn0sInJjdHgiOnsiYXV0aG4iOiJ1cm46aWV0ZjpyZmM6Njc0OSIsInJlcV9pcCI6IjE5OC41MS4xMDAuNyJ9fQ.tN64YxB8HBlxSWQ2suT70AqnEEa4HXbcqQ-wLclfAhyfN9eZWurlq9aU1l1jmnq-4iaGg8PNkfVQnFOxQpX4KQ",
+      "visado": {
+        "id": "es256-no-iss",
+        "rctx": {
+          "authn": "urn:ietf:rfc:6749",
+          "req_ip": "198.51.100.7"
+        },
+        "tctx": {
+          "action": "BUY",
+          "customer_type": {
+            "geo": "US",
+            "level": "VIP"
+          },
+          "quantity": "100",
+          "ticker": "MSFT"
+        },
+        "verdict": "accept"
+      },
+      "why": "§9.2 iss OPTIONAL"
+    },
+    {
+      "expect": "reject",
+      "id": "es256-expired",
+      "token": "eyJ0eXAiOiJ0eG50b2tlbitqd3QiLCJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiJ9.eyJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsImlhdCI6MTc5OTk5OTQwMCwiYXVkIjoidHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJleHAiOjE3OTk5OTk3MDAsInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiIsInN1YiI6InVzZXJAdHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2dhdGV3YXkiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsImN1c3RvbWVyX3R5cGUiOnsiZ2VvIjoiVVMiLCJsZXZlbCI6IlZJUCJ9LCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwicmN0eCI6eyJhdXRobiI6InVybjppZXRmOnJmYzo2NzQ5IiwicmVxX2lwIjoiMTk4LjUxLjEwMC43In19.t3_MzRlsTNEvWzkgY_L_uvaPK-UUAyzhSrk-4iNDIpOrq8VbRKa-BcaBxkBIZjt3OsVEfuBWCRsbnQN6RJyE1w",
+      "visado": {
+        "detail": "token has expired",
+        "error": "txn.expired",
+        "id": "es256-expired",
+        "verdict": "reject"
+      },
+      "why": "§12.2 not expired"
+    },
+    {
+      "expect": "reject",
+      "id": "es256-exp-equals-now",
+      "token": "eyJ0eXAiOiJ0eG50b2tlbitqd3QiLCJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiJ9.eyJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsImlhdCI6MTc5OTk5OTcwMCwiYXVkIjoidHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJleHAiOjE4MDAwMDAwMDAsInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiIsInN1YiI6InVzZXJAdHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2dhdGV3YXkiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsImN1c3RvbWVyX3R5cGUiOnsiZ2VvIjoiVVMiLCJsZXZlbCI6IlZJUCJ9LCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwicmN0eCI6eyJhdXRobiI6InVybjppZXRmOnJmYzo2NzQ5IiwicmVxX2lwIjoiMTk4LjUxLjEwMC43In19.WmvMB1O00Y1aqYSXtJQo0Bte1vZSlB42bDHBtw6lbWJX7pTa1TZqAk4_wEPiz0xUgs72z_YvwLGBCCgPX7eWAA",
+      "visado": {
+        "detail": "token has expired",
+        "error": "txn.expired",
+        "id": "es256-exp-equals-now",
+        "verdict": "reject"
+      },
+      "why": "RFC 7519 §4.1.4: now must be before exp (leeway allowed)"
+    },
+    {
+      "expect": "reject",
+      "id": "es256-wrong-aud",
+      "token": "eyJ0eXAiOiJ0eG50b2tlbitqd3QiLCJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiJ9.eyJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsImlhdCI6MTgwMDAwMDAwMCwiYXVkIjoib3RoZXItZG9tYWluLmV4YW1wbGUiLCJleHAiOjE4MDAwMDAzMDAsInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiIsInN1YiI6InVzZXJAdHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2dhdGV3YXkiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsImN1c3RvbWVyX3R5cGUiOnsiZ2VvIjoiVVMiLCJsZXZlbCI6IlZJUCJ9LCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwicmN0eCI6eyJhdXRobiI6InVybjppZXRmOnJmYzo2NzQ5IiwicmVxX2lwIjoiMTk4LjUxLjEwMC43In19.3cipFj6VQNsuWAnb9aPqI3zwJSl14IrZLQ1KmLFpmYBSq1vgq0aGHpheSJz93A48HasE8Bdbg3ovp5lflU9Cjw",
+      "visado": {
+        "detail": "audience is not this trust domain",
+        "error": "txn.audience_mismatch",
+        "id": "es256-wrong-aud",
+        "verdict": "reject"
+      },
+      "why": "§9.2 aud, §12.2 trust domain"
+    },
+    {
+      "expect": "reject",
+      "id": "es256-tampered",
+      "token": "eyJ0eXAiOiJ0eG50b2tlbitqd3QiLCJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiJ9.eyJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsImlhdCI6MTgwMDAwMDAwMCwiYXVkIjoidHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJleHAiOjE4MDAwMDAzMDAsInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiIsInN1YiI6InVzZXJAdHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2dhdGV3YXkiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsImN1c3RvbWVyX3R5cGUiOnsiZ2VvIjoiVVMiLCJsZXZlbCI6IlZJUCJ9LCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwicmN0eCI6eyJhdXRobiI6InVybjppZXRmOnJmYzo2NzQ5IiwicmVxX2lwIjoiMTk4LjUxLjEwMC43In19.gQZTbGYGcW8AnJqiihXT_i2NXXPvSPetzDqvezG7aUilotuI59bhsRQKcn5eq2Gco3qiyPYgZveTIPl7ebCxRA",
+      "visado": {
+        "detail": "signature verification failed",
+        "error": "txn.bad_signature",
+        "id": "es256-tampered",
+        "verdict": "reject"
+      },
+      "why": "§12.2 signature"
+    },
+    {
+      "expect": "reject",
+      "id": "es256-missing-scope",
+      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiIsInR5cCI6InR4bnRva2VuK2p3dCJ9.eyJhdWQiOiJ0cnVzdC1kb21haW4uZXhhbXBsZSIsImV4cCI6MTgwMDAwMDMwMCwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsInJjdHgiOnsiYXV0aG4iOiJ1cm46aWV0ZjpyZmM6Njc0OSIsInJlcV9pcCI6IjE5OC41MS4xMDAuNyJ9LCJyZXFfd2wiOiJzcGlmZmU6Ly90cnVzdC1kb21haW4uZXhhbXBsZS9nYXRld2F5Iiwic3ViIjoidXNlckB0cnVzdC1kb21haW4uZXhhbXBsZSIsInRjdHgiOnsiYWN0aW9uIjoiQlVZIiwiY3VzdG9tZXJfdHlwZSI6eyJnZW8iOiJVUyIsImxldmVsIjoiVklQIn0sInF1YW50aXR5IjoiMTAwIiwidGlja2VyIjoiTVNGVCJ9LCJ0eG4iOiI5NzA1Mzk2My03NzFkLTQ5Y2MtYTRlMy0yMGFhZDM5OWMzMTIifQ.ikiMkAyw0TDkhF3dHP7Qv2UVQcJE0w_iZXs9krZscvO-K6dKX46xReqiQm2kOg4dhIzLQfwK6JaUF2DYQnExOQ",
+      "visado": {
+        "detail": "invalid json: missing field `scope`",
+        "error": "txn.malformed",
+        "id": "es256-missing-scope",
+        "verdict": "reject"
+      },
+      "why": "§9.2 scope REQUIRED"
+    },
+    {
+      "expect": "reject",
+      "id": "es256-missing-req_wl",
+      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiIsInR5cCI6InR4bnRva2VuK2p3dCJ9.eyJhdWQiOiJ0cnVzdC1kb21haW4uZXhhbXBsZSIsImV4cCI6MTgwMDAwMDMwMCwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsInJjdHgiOnsiYXV0aG4iOiJ1cm46aWV0ZjpyZmM6Njc0OSIsInJlcV9pcCI6IjE5OC41MS4xMDAuNyJ9LCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInN1YiI6InVzZXJAdHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsImN1c3RvbWVyX3R5cGUiOnsiZ2VvIjoiVVMiLCJsZXZlbCI6IlZJUCJ9LCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwidHhuIjoiOTcwNTM5NjMtNzcxZC00OWNjLWE0ZTMtMjBhYWQzOTljMzEyIn0.Bff-9ZHdKVUxORHdUpOASuDnfvV1G-jMZqJshqGfd_4cKWAa2Fs8ADSjptC9Cf-mDCBmt4SvM-jrHmqwKX7wdw",
+      "visado": {
+        "detail": "invalid json: missing field `req_wl`",
+        "error": "txn.malformed",
+        "id": "es256-missing-req_wl",
+        "verdict": "reject"
+      },
+      "why": "§9.2 req_wl REQUIRED"
+    },
+    {
+      "expect": "reject",
+      "id": "es256-missing-txn",
+      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiIsInR5cCI6InR4bnRva2VuK2p3dCJ9.eyJhdWQiOiJ0cnVzdC1kb21haW4uZXhhbXBsZSIsImV4cCI6MTgwMDAwMDMwMCwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsInJjdHgiOnsiYXV0aG4iOiJ1cm46aWV0ZjpyZmM6Njc0OSIsInJlcV9pcCI6IjE5OC41MS4xMDAuNyJ9LCJyZXFfd2wiOiJzcGlmZmU6Ly90cnVzdC1kb21haW4uZXhhbXBsZS9nYXRld2F5Iiwic2NvcGUiOiJ0cmFkZS5zdG9ja3MiLCJzdWIiOiJ1c2VyQHRydXN0LWRvbWFpbi5leGFtcGxlIiwidGN0eCI6eyJhY3Rpb24iOiJCVVkiLCJjdXN0b21lcl90eXBlIjp7ImdlbyI6IlVTIiwibGV2ZWwiOiJWSVAifSwicXVhbnRpdHkiOiIxMDAiLCJ0aWNrZXIiOiJNU0ZUIn19.yfvUlRPWAvayHeDtxVOOihyqDlwmvwYgUU1U1H231itkDF0gdTdLM-08GOcR9gVp53HnSjmHXnXgvZK2BZ7sCg",
+      "visado": {
+        "detail": "invalid json: missing field `txn`",
+        "error": "txn.malformed",
+        "id": "es256-missing-txn",
+        "verdict": "reject"
+      },
+      "why": "§9.2 txn REQUIRED"
+    },
+    {
+      "expect": "reject",
+      "id": "es256-missing-iat",
+      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiIsInR5cCI6InR4bnRva2VuK2p3dCJ9.eyJhdWQiOiJ0cnVzdC1kb21haW4uZXhhbXBsZSIsImV4cCI6MTgwMDAwMDMwMCwiaXNzIjoiaHR0cHM6Ly90dHMudHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJyY3R4Ijp7ImF1dGhuIjoidXJuOmlldGY6cmZjOjY3NDkiLCJyZXFfaXAiOiIxOTguNTEuMTAwLjcifSwicmVxX3dsIjoic3BpZmZlOi8vdHJ1c3QtZG9tYWluLmV4YW1wbGUvZ2F0ZXdheSIsInNjb3BlIjoidHJhZGUuc3RvY2tzIiwic3ViIjoidXNlckB0cnVzdC1kb21haW4uZXhhbXBsZSIsInRjdHgiOnsiYWN0aW9uIjoiQlVZIiwiY3VzdG9tZXJfdHlwZSI6eyJnZW8iOiJVUyIsImxldmVsIjoiVklQIn0sInF1YW50aXR5IjoiMTAwIiwidGlja2VyIjoiTVNGVCJ9LCJ0eG4iOiI5NzA1Mzk2My03NzFkLTQ5Y2MtYTRlMy0yMGFhZDM5OWMzMTIifQ.VKGg_pFZxRxyvEiOQFmSw0TLNPJPXlT31ufZY7Duo-3yQ3EvGdDymrwI5nsxTMssTxBzeFMcKZ32mQHEgXdbQA",
+      "visado": {
+        "detail": "invalid json: missing field `iat`",
+        "error": "txn.malformed",
+        "id": "es256-missing-iat",
+        "verdict": "reject"
+      },
+      "why": "§9.2 iat REQUIRED"
+    },
+    {
+      "expect": "unspecified",
+      "id": "es256-empty-scope",
+      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiIsInR5cCI6InR4bnRva2VuK2p3dCJ9.eyJhdWQiOiJ0cnVzdC1kb21haW4uZXhhbXBsZSIsImV4cCI6MTgwMDAwMDMwMCwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsInJjdHgiOnsiYXV0aG4iOiJ1cm46aWV0ZjpyZmM6Njc0OSIsInJlcV9pcCI6IjE5OC41MS4xMDAuNyJ9LCJyZXFfd2wiOiJzcGlmZmU6Ly90cnVzdC1kb21haW4uZXhhbXBsZS9nYXRld2F5Iiwic2NvcGUiOiIiLCJzdWIiOiJ1c2VyQHRydXN0LWRvbWFpbi5leGFtcGxlIiwidGN0eCI6eyJhY3Rpb24iOiJCVVkiLCJjdXN0b21lcl90eXBlIjp7ImdlbyI6IlVTIiwibGV2ZWwiOiJWSVAifSwicXVhbnRpdHkiOiIxMDAiLCJ0aWNrZXIiOiJNU0ZUIn0sInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiJ9.AsVFMWaQFVwhoYGdte_ga1Rom1n9DeNjLy7r-gER_IZWL89adYxlOCi-z0zFEl8y6_vtZ7D_sBgw0lWfIGvPng",
+      "visado": {
+        "detail": "invalid claim `scope`",
+        "error": "txn.invalid_claim",
+        "id": "es256-empty-scope",
+        "verdict": "reject"
+      },
+      "why": "§9.2 scope REQUIRED; an empty value is not addressed"
+    },
+    {
+      "expect": "unspecified",
+      "id": "es256-aud-array",
+      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiIsInR5cCI6InR4bnRva2VuK2p3dCJ9.eyJhdWQiOlsidHJ1c3QtZG9tYWluLmV4YW1wbGUiXSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdHRzLnRydXN0LWRvbWFpbi5leGFtcGxlIiwicmN0eCI6eyJhdXRobiI6InVybjppZXRmOnJmYzo2NzQ5IiwicmVxX2lwIjoiMTk4LjUxLjEwMC43In0sInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2dhdGV3YXkiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInN1YiI6InVzZXJAdHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsImN1c3RvbWVyX3R5cGUiOnsiZ2VvIjoiVVMiLCJsZXZlbCI6IlZJUCJ9LCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwidHhuIjoiOTcwNTM5NjMtNzcxZC00OWNjLWE0ZTMtMjBhYWQzOTljMzEyIn0.qqs43yVZnEMDRBthl07zavO_6JUcViSsyQ79J79g6jGL_pIgR1hajJJXMoLqjVtEj0tNiGv7zyJ5bGc5r1ziyw",
+      "visado": {
+        "id": "es256-aud-array",
+        "rctx": {
+          "authn": "urn:ietf:rfc:6749",
+          "req_ip": "198.51.100.7"
+        },
+        "tctx": {
+          "action": "BUY",
+          "customer_type": {
+            "geo": "US",
+            "level": "VIP"
+          },
+          "quantity": "100",
+          "ticker": "MSFT"
+        },
+        "verdict": "accept"
+      },
+      "why": "RFC 7519 §4.1.3 allows an array; §9.2 does not say"
+    },
+    {
+      "expect": "unspecified",
+      "id": "es256-iat-future",
+      "token": "eyJ0eXAiOiJ0eG50b2tlbitqd3QiLCJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiJ9.eyJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsImlhdCI6MTgwMDAwMDMwMCwiYXVkIjoidHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJleHAiOjE4MDAwMDA2MDAsInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiIsInN1YiI6InVzZXJAdHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2dhdGV3YXkiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsImN1c3RvbWVyX3R5cGUiOnsiZ2VvIjoiVVMiLCJsZXZlbCI6IlZJUCJ9LCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwicmN0eCI6eyJhdXRobiI6InVybjppZXRmOnJmYzo2NzQ5IiwicmVxX2lwIjoiMTk4LjUxLjEwMC43In19._-xW_ToFJKgE9NmUpPmiuFznaeKYy7HhYBMqdBKTG0ImSX091vL6KU8K1E8vTUukZ-xFFUAZXSdWpwGdJNhfWg",
+      "visado": {
+        "detail": "token issued in the future",
+        "error": "txn.issued_in_future",
+        "id": "es256-iat-future",
+        "verdict": "reject"
+      },
+      "why": "no iat check in §12.2"
+    },
+    {
+      "expect": "unspecified",
+      "id": "es256-typ-media-type",
+      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiIsInR5cCI6ImFwcGxpY2F0aW9uL3R4bnRva2VuK2p3dCJ9.eyJhdWQiOiJ0cnVzdC1kb21haW4uZXhhbXBsZSIsImV4cCI6MTgwMDAwMDMwMCwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsInJjdHgiOnsiYXV0aG4iOiJ1cm46aWV0ZjpyZmM6Njc0OSIsInJlcV9pcCI6IjE5OC41MS4xMDAuNyJ9LCJyZXFfd2wiOiJzcGlmZmU6Ly90cnVzdC1kb21haW4uZXhhbXBsZS9nYXRld2F5Iiwic2NvcGUiOiJ0cmFkZS5zdG9ja3MiLCJzdWIiOiJ1c2VyQHRydXN0LWRvbWFpbi5leGFtcGxlIiwidGN0eCI6eyJhY3Rpb24iOiJCVVkiLCJjdXN0b21lcl90eXBlIjp7ImdlbyI6IlVTIiwibGV2ZWwiOiJWSVAifSwicXVhbnRpdHkiOiIxMDAiLCJ0aWNrZXIiOiJNU0ZUIn0sInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiJ9.PV5tfD6-Ce1u0IW7uHDzqjm70Vw05pEJ09rXq1YuDYw7t0en8uHGQwvnkyVFM6bkas9cYMCKdTiYrBJCp6QCkw",
+      "visado": {
+        "id": "es256-typ-media-type",
+        "rctx": {
+          "authn": "urn:ietf:rfc:6749",
+          "req_ip": "198.51.100.7"
+        },
+        "tctx": {
+          "action": "BUY",
+          "customer_type": {
+            "geo": "US",
+            "level": "VIP"
+          },
+          "quantity": "100",
+          "ticker": "MSFT"
+        },
+        "verdict": "accept"
+      },
+      "why": "§9.1 value txntoken+jwt; RFC 7515 §4.1.9 equivalence"
+    },
+    {
+      "expect": "reject",
+      "id": "es256-no-typ",
+      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6InZpc2Fkby1lczI1NiJ9.eyJhdWQiOiJ0cnVzdC1kb21haW4uZXhhbXBsZSIsImV4cCI6MTgwMDAwMDMwMCwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsInJjdHgiOnsiYXV0aG4iOiJ1cm46aWV0ZjpyZmM6Njc0OSIsInJlcV9pcCI6IjE5OC41MS4xMDAuNyJ9LCJyZXFfd2wiOiJzcGlmZmU6Ly90cnVzdC1kb21haW4uZXhhbXBsZS9nYXRld2F5Iiwic2NvcGUiOiJ0cmFkZS5zdG9ja3MiLCJzdWIiOiJ1c2VyQHRydXN0LWRvbWFpbi5leGFtcGxlIiwidGN0eCI6eyJhY3Rpb24iOiJCVVkiLCJjdXN0b21lcl90eXBlIjp7ImdlbyI6IlVTIiwibGV2ZWwiOiJWSVAifSwicXVhbnRpdHkiOiIxMDAiLCJ0aWNrZXIiOiJNU0ZUIn0sInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiJ9.4stdg92aQnRUZljs2z_Kfxq9UnuzrfcHXhuEvYxs36YyTAnI0O3dwRYg-nholvoaOt3-bJuXpJZMb72L3M-vKw",
+      "visado": {
+        "detail": "unexpected token type ``, expected `txntoken+jwt`",
+        "error": "txn.wrong_type",
+        "id": "es256-no-typ",
+        "verdict": "reject"
+      },
+      "why": "§9.1 typ MUST be present"
+    },
+    {
+      "expect": "reject",
+      "id": "alg-none",
+      "token": "eyJhbGciOiJub25lIiwidHlwIjoidHhudG9rZW4rand0In0.eyJpc3MiOiJodHRwczovL3R0cy50cnVzdC1kb21haW4uZXhhbXBsZSIsImlhdCI6MTgwMDAwMDAwMCwiYXVkIjoidHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJleHAiOjE4MDAwMDAzMDAsInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiIsInN1YiI6InVzZXJAdHJ1c3QtZG9tYWluLmV4YW1wbGUiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2dhdGV3YXkiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsImN1c3RvbWVyX3R5cGUiOnsiZ2VvIjoiVVMiLCJsZXZlbCI6IlZJUCJ9LCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwicmN0eCI6eyJhdXRobiI6InVybjppZXRmOnJmYzo2NzQ5IiwicmVxX2lwIjoiMTk4LjUxLjEwMC43In19.",
+      "visado": {
+        "detail": "unsupported algorithm `none`",
+        "error": "txn.unsupported_alg",
+        "id": "alg-none",
+        "verdict": "reject"
+      },
+      "why": "§12.2 signature"
+    }
+  ],
+  "issuer": "https://tts.trust-domain.example",
+  "keys": [
+    {
+      "alg": "ES256",
+      "crv": "P-256",
+      "kid": "visado-es256",
+      "kty": "EC",
+      "use": "sig",
+      "x": "dDGxjwVayHOx63102HFq0ePfBpCLAMwvkBFT-OtkKBg",
+      "y": "SGfA_asznGxJCjmucE0ptbTC8SRDUKKQWWIs9JtCEVU"
+    },
+    {
+      "alg": "Ed25519",
+      "crv": "Ed25519",
+      "kid": "visado-ed25519",
+      "kty": "OKP",
+      "use": "sig",
+      "x": "XiEsCYDks5_AlyETSqAhCTdO39JgwNPQPLUByNZUV6k"
+    },
+    {
+      "alg": "EdDSA",
+      "crv": "Ed25519",
+      "kid": "visado-eddsa",
+      "kty": "OKP",
+      "use": "sig",
+      "x": "F8t5-ytBIPKx7GXkGY1uCLKOgT_rAeSkAIObheGAgM4"
+    }
+  ],
+  "minter": "visado",
+  "now": 1800000000,
+  "trust_domain": "trust-domain.example",
+  "version": "0.3.0"
+}
