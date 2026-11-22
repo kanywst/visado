@@ -1,6 +1,6 @@
 # Lab
 
-Envoy and [agentgateway](https://agentgateway.dev/) call visado through ext_authz. visado asks [OPA with the AuthZEN plugin](https://github.com/kanywst/opa-authzen-plugin) (or [Cerbos](#a-second-pdp-cerbos)), and allowed requests reach an echo server that returns the headers it received. [SPIRE](https://spiffe.io/) v1.16.0 issues the workloads' WITs, X.509-SVIDs and JWT-SVIDs. [Keycloak](https://www.keycloak.org/) 26.8.2, the resource authorization server, issues OAuth access tokens, bearer and DPoP-bound.
+Envoy and [agentgateway](https://agentgateway.dev/) call visado through ext_authz. visado asks [OPA with the AuthZEN plugin](https://github.com/kanywst/opa-authzen-plugin) (or [Cerbos](#a-second-pdp-cerbos)), and allowed requests reach an echo server that returns the headers it received. [SPIRE](https://spiffe.io/) v1.16.0 issues the workloads' WITs, X.509-SVIDs and JWT-SVIDs. [Keycloak](https://www.keycloak.org/) 26.8.2, the resource authorization server, issues OAuth access tokens, bearer and DPoP-bound, and redeems ID-JAGs that [Casdoor](https://casdoor.org/) v4.26.0 issues for the user.
 
 Envoy listens on two ports: `10000` (plain HTTP) and `10443` (mTLS). agentgateway v1.7.0 listens on `10001` (plain HTTP) in front of the same upstream.
 
@@ -48,11 +48,21 @@ Keycloak 26.8.2 (`start-dev`) imports the `lab` realm from `keycloak/realm.json`
 
 - `keycloak-jwks` runs before visado. It waits for the realm, fetches its JWKS and keeps the `sig` keys (Keycloak also lists an `RSA-OAEP` encryption key). `visado.toml` trusts them as a second `[[oauth_issuers]]` entry; with two issuers each has a `subject_prefix` (`idp:`, `keycloak:`). visado reads the keys at startup, so restart it after Keycloak rotates its key.
 - A token request with a `DPoP` header gets a DPoP-bound token (`token_type` `DPoP`). `lab_methods token-proof` makes the proof for the token endpoint with a fixed ES256 key, and `lab_methods dpop-with` the proof for the request to Envoy with the same key. Keycloak writes `cnf` as `{"jkt": ..., "kc-jkt-type": "DPoP"}`; visado accepts that `kc-jkt-type` next to `jkt`.
-- The client secret and the realm are demo values. `start-dev` keeps the realm in an in-container database, so it is imported again on every start.
+- `agent-a` may also use the JWT authorization grant (RFC 7523) with assertions from the identity provider `casdoor`, which Keycloak 26.8 checks as an ID-JAG when the assertion's `typ` is `oauth-id-jag+jwt` (the experimental feature `identity-assertion-jwt`, turned on in `compose.yaml`). Keycloak refuses an ID-JAG it has already redeemed.
+- The client secret, the admin password and the realm are demo values. `start-dev` keeps the realm in a database inside the container: a new container imports it again, a restarted one keeps it.
+
+## Casdoor and ID-JAG
+
+Casdoor v4.26.0 is bob's identity provider. It issues ID-JAGs (draft-ietf-oauth-identity-assertion-authz-grant) by token exchange: `requested_token_type` `urn:ietf:params:oauth:token-type:id-jag`, an ID token as the subject token, and the Keycloak issuer as the `audience`. Casdoor v4.27.0 and later issue ID-JAGs only with a commercial edition license, hence v4.26.0.
+
+- `casdoor/init_data.json` creates the organization `lab`, the application `agent-a` (password and token exchange grants), an application `keycloak-lab` whose client ID is the Keycloak issuer (Casdoor only issues ID-JAGs for an audience it knows as an application), the users bob and eve, and a permission that lets bob, not eve, get ID-JAGs for `keycloak-lab`. The issuer is `origin`, `http://casdoor.td.example:8190`.
+- The ID-JAG carries `typ` `oauth-id-jag+jwt`, `iss`, `sub` (bob's Casdoor ID), `aud` (the Keycloak issuer), `client_id` `agent-a`, `jti`, `iat` and `exp` (300 s). Keycloak checks `client_id` against the client that redeems it and finds the user by `sub` among the users linked to `casdoor`.
+- Casdoor gives each user a random ID when it imports them, so `casdoor-link` makes the link once both are up: it signs bob in at Casdoor, reads `sub` from the ID token, and adds it to Keycloak's bob as a federated identity through the admin API. Recreate `keycloak` and `casdoor` together; a link to an old Casdoor ID fails the job.
+- `demo.sh` signs bob in (password grant), exchanges the ID token for an ID-JAG as agent-a, and redeems it at Keycloak with a DPoP proof. The access token names Keycloak's bob as `sub` and agent-a as `azp`, bound to agent-a's DPoP key.
 
 ### Not in the lab yet
 
-- Dex issuing ID-JAGs (draft-ietf-oauth-identity-assertion-authz-grant) by token exchange: implemented on Dex's `master` ([dexidp/dex#4611](https://github.com/dexidp/dex/pull/4611)), not in a release (v2.46.1 is the latest). The other side is released: Keycloak 26.8 accepts an ID-JAG with the jwt-bearer grant (RFC 7523) as the experimental feature `identity-assertion-jwt`. Once a Dex release issues ID-JAGs, the chain is Dex, then an ID-JAG, then Keycloak's jwt-bearer grant, then an access token for visado.
+- Dex issuing ID-JAGs: implemented on Dex's `master` ([dexidp/dex#4611](https://github.com/dexidp/dex/pull/4611)), not in a release (v2.46.1 is the latest). Casdoor plays that role until a Dex release has it.
 - RFC 8693 `act` chains from Keycloak: Keycloak 26.8 adds `act` in token exchange only with the preview feature `token-exchange-delegation`, which needs a `may_act` claim in the subject token from a user's consent to a delegation scope and fine-grained admin permissions. The lab does not set that up.
 
 `visado.toml` sets `[dpop] require_nonce = true`, so every DPoP proof must carry a nonce visado issued (RFC 9449 §9). The lab runs one visado, so the nonce key is made at startup.
@@ -95,6 +105,12 @@ Keycloak 26.8.2 (`start-dev`) imports the `lab` realm from `keycloak/realm.json`
 | Keycloak: agent-a's DPoP-bound token with its proof | 200 |
 | Keycloak: the DPoP-bound token as `Bearer` | 401 `token.dpop_bound` |
 | Keycloak: the DPoP-bound token with a proof by another key | 401 `dpop.binding` |
+| Casdoor: token exchange of bob's ID token for an ID-JAG for Keycloak | An ID-JAG (`typ` `oauth-id-jag+jwt`) |
+| Casdoor: the same for eve, who has no permission | `invalid_target` |
+| Keycloak: the ID-JAG redeemed a second time | `invalid_grant` |
+| ID-JAG: bob's Keycloak token through agent-a, with its DPoP proof and visado's nonce | 200 |
+| ID-JAG: the same token on the admin API | 403 from the PDP: no `roles.write` |
+| ID-JAG: the same token as `Bearer` | 401 `token.dpop_bound` |
 
 ## agentgateway
 

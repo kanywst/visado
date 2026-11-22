@@ -1,0 +1,92 @@
+{
+  "organizations": [
+    {
+      "owner": "admin",
+      "name": "lab",
+      "displayName": "lab",
+      "websiteUrl": "http://tools.td.example",
+      "passwordType": "plain",
+      "passwordOptions": ["AtLeast6"],
+      "defaultApplication": "agent-a",
+      "defaultTokenFormat": "JWT",
+      "languages": ["en"],
+      "initScore": 0,
+      "enableSoftDeletion": false,
+      "isProfilePublic": false
+    }
+  ],
+  "applications": [
+    {
+      "owner": "admin",
+      "name": "agent-a",
+      "displayName": "agent-a",
+      "organization": "lab",
+      "cert": "cert-built-in",
+      "enablePassword": true,
+      "enableSignUp": false,
+      "clientId": "agent-a",
+      "clientSecret": "agent-a-casdoor-secret",
+      "signinMethods": [{ "name": "Password", "displayName": "Password", "rule": "All" }],
+      "grantTypes": ["password", "urn:ietf:params:oauth:grant-type:token-exchange"],
+      "redirectUris": ["http://tools.td.example/callback"],
+      "tokenFormat": "JWT",
+      "expireInHours": 1
+    },
+    {
+      "owner": "admin",
+      "name": "keycloak-lab",
+      "displayName": "Keycloak, lab realm",
+      "organization": "lab",
+      "cert": "cert-built-in",
+      "enablePassword": false,
+      "enableSignUp": false,
+      "clientId": "http://keycloak.td.example:8180/realms/lab",
+      "clientSecret": "unused-keycloak-lab-secret",
+      "grantTypes": [],
+      "redirectUris": [],
+      "tokenFormat": "JWT",
+      "expireInHours": 1
+    }
+  ],
+  "users": [
+    {
+      "owner": "lab",
+      "name": "bob",
+      "id": "b0b0b0b0-0000-4000-8000-000000000001",
+      "type": "normal-user",
+      "password": "bob-lab-password",
+      "displayName": "bob",
+      "email": "bob@td.example",
+      "isAdmin": false,
+      "signupApplication": "agent-a"
+    },
+    {
+      "owner": "lab",
+      "name": "eve",
+      "id": "e0e0e0e0-0000-4000-8000-000000000002",
+      "type": "normal-user",
+      "password": "eve-lab-password",
+      "displayName": "eve",
+      "email": "eve@td.example",
+      "isAdmin": false,
+      "signupApplication": "agent-a"
+    }
+  ],
+  "permissions": [
+    {
+      "owner": "lab",
+      "name": "bob-to-keycloak",
+      "displayName": "bob may get ID-JAGs for Keycloak",
+      "model": "built-in/user-model-built-in",
+      "resourceType": "Application",
+      "resources": ["keycloak-lab"],
+      "actions": ["Read"],
+      "effect": "Allow",
+      "isEnabled": true,
+      "state": "Approved",
+      "users": ["lab/bob"],
+      "roles": [],
+      "groups": []
+    }
+  ]
+}

@@ -59,6 +59,7 @@ services:
       jaeger: { condition: service_started }
       wit-config: { condition: service_completed_successfully }
       keycloak-jwks: { condition: service_completed_successfully }
+      casdoor-link: { condition: service_completed_successfully }
 
   # SPIRE v1.16.0 with experimental WIT-SVIDs. The agent attests with a join
   # token; agent-a, agent-b and agent-z are Unix users in the agent container,
@@ -137,9 +138,14 @@ services:
   # call it as keycloak.td.example:8180.
   keycloak:
     image: quay.io/keycloak/keycloak:26.8.2
-    command: ["start-dev", "--import-realm"]
+    # identity-assertion-jwt (experimental) lets the JWT authorization grant
+    # (RFC 7523) take an ID-JAG from Casdoor.
+    command: ["start-dev", "--import-realm", "--features=identity-assertion-jwt"]
     environment:
       KC_HOSTNAME: http://keycloak.td.example:8180
+      # Demo credentials, used by casdoor-link.
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin-lab-password
     volumes:
       - ./keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
     ports:
@@ -155,6 +161,34 @@ services:
       - keycloak-jwks:/out
     depends_on:
       keycloak: { condition: service_started }
+
+  # Casdoor v4.26.0, the user's IdP: it issues ID-JAGs
+  # (draft-ietf-oauth-identity-assertion-authz-grant) by token exchange, which
+  # agent-a redeems at Keycloak. v4.27.0 and later need a commercial license
+  # for ID-JAGs. The issuer is fixed by origin; published on the host's
+  # loopback address for demo.sh.
+  casdoor:
+    image: casbin/casdoor:v4.26.0
+    environment:
+      driverName: sqlite
+      dataSourceName: file:/tmp/casdoor.db?cache=shared
+      origin: http://casdoor.td.example:8190
+    volumes:
+      - ./casdoor/init_data.json:/init_data.json:ro
+    ports:
+      - "127.0.0.1:8190:8000"
+
+  # Links bob in Keycloak to bob's Casdoor ID, which Casdoor picks at import.
+  casdoor-link:
+    build: ./spire
+    command: ["/lab/link.sh"]
+    environment:
+      KEYCLOAK_ADMIN_PASSWORD: admin-lab-password
+    volumes:
+      - ./casdoor/link.sh:/lab/link.sh:ro
+    depends_on:
+      keycloak: { condition: service_started }
+      casdoor: { condition: service_started }
 
   pdp:
     image: ghcr.io/kanywst/opa-authzen-plugin:0.12.1
