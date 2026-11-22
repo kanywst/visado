@@ -2627,6 +2627,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "visado-interop"
+version = "0.3.0"
+dependencies = [
+ "base64 0.23.1",
+ "serde_json",
+ "visado-chain-aat",
+ "visado-chain-asor",
+ "visado-credentials",
+ "visado-testkit",
+ "visado-txn-token",
+ "wimsey-httpsig",
+ "wimsey-identifier",
+ "wimsey-jose",
+ "wimsey-wit",
+ "wimsey-wpt",
+]
+
+[[package]]
 name = "visado-testkit"
 version = "0.3.0"
 dependencies = [

@@ -1,0 +1,756 @@
+{
+  "J.1": "PERMIT",
+  "J.10": {
+    "step": "4d",
+    "verdict": "DENY"
+  },
+  "J.10.b": {
+    "step": "4g",
+    "verdict": "DENY"
+  },
+  "J.10.c": {
+    "step": "4e",
+    "verdict": "DENY"
+  },
+  "J.10.d": {
+    "step": "4m",
+    "verdict": "DENY"
+  },
+  "J.10.e": {
+    "step": "4d",
+    "verdict": "DENY"
+  },
+  "J.10.f": "PERMIT",
+  "J.11": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.11.b": {
+    "step": "4p1",
+    "verdict": "DENY"
+  },
+  "J.11.c": {
+    "step": "4p2",
+    "verdict": "DENY"
+  },
+  "J.11.d": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.12": {
+    "step": "4q",
+    "verdict": "DENY"
+  },
+  "J.12.b": {
+    "step": "4q",
+    "verdict": "DENY"
+  },
+  "J.13": {
+    "step": "4h",
+    "verdict": "DENY"
+  },
+  "J.13.b": {
+    "step": "4j",
+    "verdict": "DENY"
+  },
+  "J.13.c": {
+    "step": "4i",
+    "verdict": "DENY"
+  },
+  "J.13.d": {
+    "step": "4k",
+    "verdict": "DENY"
+  },
+  "J.13.e": {
+    "step": "4l",
+    "verdict": "DENY"
+  },
+  "J.13.f": "PERMIT",
+  "J.14": {
+    "step": "3b",
+    "verdict": "DENY"
+  },
+  "J.14.b": {
+    "step": "3a",
+    "verdict": "DENY"
+  },
+  "J.14.c": {
+    "step": "3b",
+    "verdict": "DENY"
+  },
+  "J.15.1": "PERMIT",
+  "J.15.2": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.15.3": "PERMIT",
+  "J.15.4": "PERMIT",
+  "J.15.5": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.15.6": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.16.1": "PERMIT",
+  "J.16.2": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.16.3": {
+    "step": "4o",
+    "verdict": "DENY"
+  },
+  "J.16.4": "PERMIT",
+  "J.16.5": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.16.6": "PERMIT",
+  "J.16.7": "PERMIT",
+  "J.16.8": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.17.1": "PERMIT",
+  "J.17.2": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.17.3": "PERMIT",
+  "J.17.4": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.17.5": "PERMIT",
+  "J.17.6": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.17.7": "PERMIT",
+  "J.17.8": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.18.1": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.18.2": "PERMIT",
+  "J.19.1": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.19.10": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.19.11": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.19.12": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.19.13": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.19.14": "PERMIT",
+  "J.19.15": {
+    "step": "4p2",
+    "verdict": "DENY"
+  },
+  "J.19.2": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.19.3": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.19.4": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.19.5": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.19.6": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.19.7": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.19.8": "PERMIT",
+  "J.19.9": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.2": {
+    "step": "2c",
+    "verdict": "DENY"
+  },
+  "J.20.1": {
+    "step": "7b",
+    "verdict": "DENY"
+  },
+  "J.20.10": {
+    "step": "7i",
+    "verdict": "DENY"
+  },
+  "J.20.11": {
+    "step": "7f",
+    "verdict": "DENY"
+  },
+  "J.20.12": {
+    "step": "7b",
+    "verdict": "DENY"
+  },
+  "J.20.13": {
+    "step": "7c",
+    "verdict": "DENY"
+  },
+  "J.20.14": {
+    "step": "7c",
+    "verdict": "DENY"
+  },
+  "J.20.15": {
+    "step": "7g",
+    "verdict": "DENY"
+  },
+  "J.20.16": "PERMIT",
+  "J.20.17": {
+    "step": "7f",
+    "verdict": "DENY"
+  },
+  "J.20.2": {
+    "step": "7c",
+    "verdict": "DENY"
+  },
+  "J.20.3": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.20.4": {
+    "step": "7g",
+    "verdict": "DENY"
+  },
+  "J.20.5": {
+    "step": "7f",
+    "verdict": "DENY"
+  },
+  "J.20.6": {
+    "step": "7e",
+    "verdict": "DENY"
+  },
+  "J.20.7": {
+    "step": "7c",
+    "verdict": "DENY"
+  },
+  "J.20.8": {
+    "step": "7c",
+    "verdict": "DENY"
+  },
+  "J.20.9": "PERMIT",
+  "J.21.1": {
+    "step": "3d",
+    "verdict": "DENY"
+  },
+  "J.21.10": {
+    "step": "3m",
+    "verdict": "DENY"
+  },
+  "J.21.11": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.21.12": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.21.13": {
+    "step": "3b",
+    "verdict": "DENY"
+  },
+  "J.21.14": {
+    "step": "3g",
+    "verdict": "DENY"
+  },
+  "J.21.15": {
+    "step": "3i",
+    "verdict": "DENY"
+  },
+  "J.21.16": {
+    "step": "3i",
+    "verdict": "DENY"
+  },
+  "J.21.17": {
+    "step": "3i",
+    "verdict": "DENY"
+  },
+  "J.21.18": {
+    "step": "3i",
+    "verdict": "DENY"
+  },
+  "J.21.19": "PERMIT",
+  "J.21.2": {
+    "step": "3c",
+    "verdict": "DENY"
+  },
+  "J.21.20": {
+    "step": "3j",
+    "verdict": "DENY"
+  },
+  "J.21.21": {
+    "step": "3l",
+    "verdict": "DENY"
+  },
+  "J.21.22": {
+    "step": "3k",
+    "verdict": "DENY"
+  },
+  "J.21.23": "PERMIT",
+  "J.21.3": {
+    "step": "3l",
+    "verdict": "DENY"
+  },
+  "J.21.4": {
+    "step": "3f",
+    "verdict": "DENY"
+  },
+  "J.21.5": {
+    "step": "3h",
+    "verdict": "DENY"
+  },
+  "J.21.6": {
+    "step": "3k",
+    "verdict": "DENY"
+  },
+  "J.21.7": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.21.8": {
+    "step": "3m",
+    "verdict": "DENY"
+  },
+  "J.21.9": {
+    "step": "3c",
+    "verdict": "DENY"
+  },
+  "J.22.1": "PERMIT",
+  "J.22.10": "PERMIT",
+  "J.22.11": {
+    "step": "4p2",
+    "verdict": "DENY"
+  },
+  "J.22.12": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.22.13": "PERMIT",
+  "J.22.14": {
+    "step": "4p2",
+    "verdict": "DENY"
+  },
+  "J.22.15": {
+    "step": "4p2",
+    "verdict": "DENY"
+  },
+  "J.22.16": {
+    "step": "4p2",
+    "verdict": "DENY"
+  },
+  "J.22.17": "PERMIT",
+  "J.22.18": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.22.19": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.22.2": "PERMIT",
+  "J.22.20": "PERMIT",
+  "J.22.21": "PERMIT",
+  "J.22.22": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.22.23": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.22.3": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.22.4": "PERMIT",
+  "J.22.5": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.22.6": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.22.7": "PERMIT",
+  "J.22.8": {
+    "step": "4p3",
+    "verdict": "DENY"
+  },
+  "J.22.9": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.23.1": {
+    "step": "1",
+    "verdict": "DENY"
+  },
+  "J.23.2": {
+    "step": "2a",
+    "verdict": "DENY"
+  },
+  "J.23.3": {
+    "step": "2b",
+    "verdict": "DENY"
+  },
+  "J.23.4": {
+    "step": "3b",
+    "verdict": "DENY"
+  },
+  "J.24.1": {
+    "step": "2c",
+    "verdict": "DENY"
+  },
+  "J.24.10": {
+    "step": "4b2",
+    "verdict": "DENY"
+  },
+  "J.24.11": {
+    "step": "4b2",
+    "verdict": "DENY"
+  },
+  "J.24.2": {
+    "step": "4b1",
+    "verdict": "DENY"
+  },
+  "J.24.3": {
+    "step": "4b2",
+    "verdict": "DENY"
+  },
+  "J.24.4": {
+    "step": "4b4",
+    "verdict": "DENY"
+  },
+  "J.24.5": {
+    "step": "4b4",
+    "verdict": "DENY"
+  },
+  "J.24.6": {
+    "step": "4b5",
+    "verdict": "DENY"
+  },
+  "J.24.7": {
+    "step": "4b5",
+    "verdict": "DENY"
+  },
+  "J.24.8": {
+    "step": "4b5",
+    "verdict": "DENY"
+  },
+  "J.24.9": {
+    "step": "4b",
+    "verdict": "DENY"
+  },
+  "J.25.1": "PERMIT",
+  "J.25.10": {
+    "step": "4b3",
+    "verdict": "DENY"
+  },
+  "J.25.2": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.25.3": {
+    "step": "4n",
+    "verdict": "DENY"
+  },
+  "J.25.4": {
+    "step": "4n",
+    "verdict": "DENY"
+  },
+  "J.25.5": {
+    "step": "4n",
+    "verdict": "DENY"
+  },
+  "J.25.6": {
+    "step": "4n",
+    "verdict": "DENY"
+  },
+  "J.25.7": {
+    "step": "3m",
+    "verdict": "DENY"
+  },
+  "J.25.8": {
+    "step": "4n",
+    "verdict": "DENY"
+  },
+  "J.25.9": {
+    "step": "3m",
+    "verdict": "DENY"
+  },
+  "J.26.1": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.26.10": "PERMIT",
+  "J.26.11": "PERMIT",
+  "J.26.12": "PERMIT",
+  "J.26.2": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.26.3": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.26.4": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.26.5": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.26.6": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.26.7": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.26.8": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.26.9": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.27.1": "PERMIT",
+  "J.27.2": "PERMIT",
+  "J.27.3": "PERMIT",
+  "J.27.4": "PERMIT",
+  "J.27.5": {
+    "step": "6c",
+    "verdict": "DENY"
+  },
+  "J.27.6": "PERMIT",
+  "J.3": "PERMIT",
+  "J.4": {
+    "step": "4b",
+    "verdict": "DENY"
+  },
+  "J.4.b": {
+    "step": "4b",
+    "verdict": "DENY"
+  },
+  "J.4.c": {
+    "step": "4c",
+    "verdict": "DENY"
+  },
+  "J.5": {
+    "step": "3e",
+    "verdict": "DENY"
+  },
+  "J.6.1": {
+    "step": "7d",
+    "verdict": "DENY"
+  },
+  "J.6.10": {
+    "step": "6c",
+    "verdict": "DENY"
+  },
+  "J.6.11": {
+    "step": "6c",
+    "verdict": "DENY"
+  },
+  "J.6.2": {
+    "step": "7d",
+    "verdict": "DENY"
+  },
+  "J.6.3": "PERMIT",
+  "J.6.4": {
+    "step": "7d",
+    "verdict": "DENY"
+  },
+  "J.6.5": {
+    "step": "7h",
+    "verdict": "DENY"
+  },
+  "J.6.6": "PERMIT",
+  "J.6.7": {
+    "step": "7h",
+    "verdict": "DENY"
+  },
+  "J.6.8": "PERMIT",
+  "J.6.9": {
+    "step": "6c",
+    "verdict": "DENY"
+  },
+  "J.7.1": {
+    "step": "7a",
+    "verdict": "DENY"
+  },
+  "J.7.10": {
+    "step": "7a",
+    "verdict": "DENY"
+  },
+  "J.7.11": {
+    "step": "7a",
+    "verdict": "DENY"
+  },
+  "J.7.12": "PERMIT",
+  "J.7.13": "PERMIT",
+  "J.7.14": "PERMIT",
+  "J.7.15": {
+    "step": "3a",
+    "verdict": "DENY"
+  },
+  "J.7.2": {
+    "step": "7a",
+    "verdict": "DENY"
+  },
+  "J.7.3": {
+    "step": "3a",
+    "verdict": "DENY"
+  },
+  "J.7.4": {
+    "step": "3a",
+    "verdict": "DENY"
+  },
+  "J.7.5": {
+    "step": "3a",
+    "verdict": "DENY"
+  },
+  "J.7.6": {
+    "step": "3a",
+    "verdict": "DENY"
+  },
+  "J.7.7": {
+    "step": "4a",
+    "verdict": "DENY"
+  },
+  "J.7.8": {
+    "step": "4a",
+    "verdict": "DENY"
+  },
+  "J.7.9": {
+    "step": "4a",
+    "verdict": "DENY"
+  },
+  "J.8.1": "PERMIT",
+  "J.8.10": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.8.11": "PERMIT",
+  "J.8.12": "PERMIT",
+  "J.8.13": "PERMIT",
+  "J.8.14": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.8.15": "PERMIT",
+  "J.8.16": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.8.17": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.8.18": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.8.19": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.8.2": "PERMIT",
+  "J.8.20": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.8.21": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.8.22": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.8.23": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.8.24": {
+    "step": "4o",
+    "verdict": "DENY"
+  },
+  "J.8.3": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.8.4": {
+    "step": "4p4",
+    "verdict": "DENY"
+  },
+  "J.8.5": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.8.6": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.8.7": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.8.8": "PERMIT",
+  "J.8.9": {
+    "step": "3n",
+    "verdict": "DENY"
+  },
+  "J.9.1": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.9.2": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.9.3": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.9.4": "PERMIT",
+  "J.9.5": {
+    "step": "6b",
+    "verdict": "DENY"
+  },
+  "J.9.6": {
+    "step": "6b",
+    "verdict": "DENY"
+  }
+}

@@ -11,6 +11,7 @@ members = [
     "crates/testkit",
     "crates/extauthz",
     "crates/server",
+    "interop/harness",
 ]
 exclude = ["fuzz"]
 
