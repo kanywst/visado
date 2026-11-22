@@ -27,7 +27,7 @@ WIMSE credentials (WIT, WPT, HTTP signatures per draft-ietf-wimse-http-signature
 | Lifetime extension on replacement | MAY, SHOULD limit (§13.15) | Caller passes `max_exp` to cap it |
 | Missing REQUIRED claim | Not specified as an error class | Reported as `txn.malformed` (the claim set does not parse) |
 | `req_wl` with several workloads | Ambiguous (§9.2) | Opaque string, replaced on each replacement |
-| Signature algorithms | Not restricted | `Ed25519`, `EdDSA`, `ES256` only |
+| Signature algorithms | Not restricted; no mandatory-to-implement algorithm. The only example is `RS256` (§9.1) | Minted with `Ed25519`, `EdDSA` or `ES256`. Verified with those and `RS256` (RSA keys of at least 2048 bits, `KeySet::with_rsa_key`), so tokens from an RSA-signing TTS such as kontxt verify |
 | Subject token type for a WIT | No URN defined | Not handled in this crate; the service decides |
 
 ## AAT: known divergences and choices

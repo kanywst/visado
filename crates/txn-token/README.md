@@ -10,7 +10,7 @@ let keys = KeySet::new().with_key("k1", signing_key.verifying_key());
 let verified = verify(&token, &keys, &Validation::new("trust-domain.example", now))?;
 ```
 
-- Signatures: `Ed25519`, `EdDSA`, `ES256`, through [`wimsey-jose`](https://crates.io/crates/wimsey-jose).
+- Signatures: `Ed25519`, `EdDSA`, `ES256`, through [`wimsey-jose`](https://crates.io/crates/wimsey-jose). Verification also takes `RS256` with RSA keys of at least 2048 bits.
 - Errors carry stable codes (`txn.expired`, `txn.scope_escalation`, ...) shared with the [conformance vectors](https://github.com/kanywst/visado/tree/main/conformance).
 - Where the draft leaves a choice open, see [SPEC-MAP.md](https://github.com/kanywst/visado/blob/main/SPEC-MAP.md).
 

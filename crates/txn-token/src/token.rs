@@ -7,7 +7,7 @@ use wimsey_jose::{Algorithm, JoseError, SIGNATURE_LEN, SigningKey};
 
 use crate::claims::TxnTokenClaims;
 use crate::error::TxnTokenError;
-use crate::keys::KeySet;
+use crate::keys::{Key, KeySet};
 
 /// The JOSE `typ` of a Transaction Token (§9.1).
 pub const TYP: &str = "txntoken+jwt";
@@ -18,6 +18,10 @@ pub const HEADER: &str = "Txn-Token";
 /// The largest compact serialization accepted, in bytes. Checked before any
 /// decoding.
 pub const MAX_TOKEN_LEN: usize = 16 * 1024;
+
+/// `RS256` (RFC 7518 §3.3), verified with keys added by
+/// [`KeySet::with_rsa_key`]. Minting is `Ed25519`, `EdDSA` or `ES256` only.
+const RS256: &str = "RS256";
 
 #[derive(Serialize, Deserialize)]
 struct Header {
@@ -136,31 +140,58 @@ pub fn verify(
     if !wimsey_jose::typ_conveys(&header.typ, TYP) {
         return Err(TxnTokenError::WrongType { found: header.typ });
     }
-    let alg = Algorithm::parse(&header.alg).map_err(|e| match e {
-        JoseError::UnsupportedAlg { found } | JoseError::ForbiddenAlg { found } => {
-            TxnTokenError::UnsupportedAlg { found }
-        }
-        _ => TxnTokenError::UnsupportedAlg {
-            found: header.alg.clone(),
-        },
-    })?;
-    if header.crit.is_some() {
-        return Err(TxnTokenError::UnsupportedCritical);
-    }
-    let key = keys
-        .get(header.kid.as_deref())
-        .ok_or(TxnTokenError::UnknownKey)?;
-    if !alg.same_signature_as(key.algorithm()) {
-        return Err(TxnTokenError::AlgorithmMismatch);
-    }
-
-    let signature = decode(signature_b64)?;
-    if signature.len() != SIGNATURE_LEN {
-        return Err(TxnTokenError::Malformed);
-    }
     let signing_input = &token[..header_b64.len() + 1 + claims_b64.len()];
-    key.verify(signing_input.as_bytes(), &signature)
-        .map_err(|_| TxnTokenError::InvalidSignature)?;
+    if header.alg == RS256 {
+        if header.crit.is_some() {
+            return Err(TxnTokenError::UnsupportedCritical);
+        }
+        let Key::Rsa(key) = keys
+            .find(header.kid.as_deref())
+            .ok_or(TxnTokenError::UnknownKey)?
+        else {
+            return Err(TxnTokenError::AlgorithmMismatch);
+        };
+        if decode(signature_b64)?.len() != key.len {
+            return Err(TxnTokenError::Malformed);
+        }
+        let ok = jsonwebtoken::crypto::verify(
+            signature_b64,
+            signing_input.as_bytes(),
+            &key.key,
+            jsonwebtoken::Algorithm::RS256,
+        )
+        .unwrap_or(false);
+        if !ok {
+            return Err(TxnTokenError::InvalidSignature);
+        }
+    } else {
+        let alg = Algorithm::parse(&header.alg).map_err(|e| match e {
+            JoseError::UnsupportedAlg { found } | JoseError::ForbiddenAlg { found } => {
+                TxnTokenError::UnsupportedAlg { found }
+            }
+            _ => TxnTokenError::UnsupportedAlg {
+                found: header.alg.clone(),
+            },
+        })?;
+        if header.crit.is_some() {
+            return Err(TxnTokenError::UnsupportedCritical);
+        }
+        let Key::Jose(key) = keys
+            .find(header.kid.as_deref())
+            .ok_or(TxnTokenError::UnknownKey)?
+        else {
+            return Err(TxnTokenError::AlgorithmMismatch);
+        };
+        if !alg.same_signature_as(key.algorithm()) {
+            return Err(TxnTokenError::AlgorithmMismatch);
+        }
+        let signature = decode(signature_b64)?;
+        if signature.len() != SIGNATURE_LEN {
+            return Err(TxnTokenError::Malformed);
+        }
+        key.verify(signing_input.as_bytes(), &signature)
+            .map_err(|_| TxnTokenError::InvalidSignature)?;
+    }
 
     let claims: TxnTokenClaims = serde_json::from_slice(&decode(claims_b64)?)?;
     claims.check()?;
