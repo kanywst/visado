@@ -48,7 +48,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 - Implementation Status entries in the drafts visado implements.
 - Research write-up, then the release announcement.
 - **Gate:** at least one cross-implementation interop result published.
-- **Status:** not started.
+- **Status:** in progress; the gate is met. [docs/interop.md](docs/interop.md) publishes runs against independent implementations, reproducible from [interop/](interop/): AAT with tenuo (229/229 vectors, and visado-minted chains 9/9 in tenuo's verifier), asor with attenu-guard (both directions), Transaction Tokens with authgent, atlas-go and kontxt, and WIMSE credentials with wit-wpt-go, go-spiffe and the Cofide PoC. The research write-up is [docs/research/08-findings.md](docs/research/08-findings.md). Remaining: the IETF 128 hackathon, Implementation Status entries (each needs the draft's authors), reporting the divergences in docs/interop.md upstream, and the release announcement.
 
 ## Phase 7: CNCF Sandbox
 
