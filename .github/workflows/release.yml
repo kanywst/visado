@@ -168,9 +168,19 @@ jobs:
           ls -1
 
       - name: build provenance
+        id: provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist/*.tar.gz
+
+      # The attestation also lives in GitHub's attestation store, but a copy on
+      # the release lets people verify offline, and is where OpenSSF Scorecard
+      # looks for provenance. The file is the Sigstore bundle, one JSON object
+      # per line, which `gh attestation verify --bundle` reads directly.
+      - name: attach the provenance to the release
+        env:
+          BUNDLE: ${{ steps.provenance.outputs.bundle-path }}
+        run: cp "$BUNDLE" "dist/visado-$TAG-provenance.intoto.jsonl"
 
       - name: publish
         env:

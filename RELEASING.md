@@ -38,7 +38,7 @@ Cut a release at least every six weeks, even if it only carries dependency updat
 | --- | --- |
 | `guard` | Stops unless the tag, the `visado` package version and a `## [X.Y.Z]` changelog section agree |
 | `build` | Builds `visado` for x86-64 and arm64 Linux and macOS |
-| `publish` | SPDX SBOM, `SHA256SUMS`, a cosign keyless bundle per asset, SLSA build provenance, then the GitHub release |
+| `publish` | SPDX SBOM, `SHA256SUMS`, a cosign keyless bundle per asset, SLSA build provenance (also attached as `visado-vX.Y.Z-provenance.intoto.jsonl`), then the GitHub release |
 | `crates-io` | Publishes the crates, only when the repository variable `PUBLISH_CRATES` is `true` and `CARGO_REGISTRY_TOKEN` is set |
 
 To retry a release whose `publish` job failed: `gh workflow run release.yml -f tag=vX.Y.Z`. Every step is idempotent. A dispatched run signs under the branch it ran from, and the release notes name that identity.
