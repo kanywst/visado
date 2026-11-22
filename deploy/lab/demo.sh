@@ -487,7 +487,7 @@ expect_audit "audit: a request without credentials" \
    and .remediation == "reauthenticate"'
 records=$(audit_records)
 record_count=$(grep -c . <<<"$records" || true)
-members='["audit_version","seq","prev","id","txn","time","agent","auth_method","sender_constrained","principal","chain_profile","chain_issuer","chain_hops","chain_actors","resource","tool","action","decision","status","reason","detail","pdp","remediation","hash"]'
+members='["audit_version","seq","prev","id","txn","time","agent","auth_method","sender_constrained","principal","chain_profile","chain_issuer","chain_hops","chain_actors","depth_semantics","resource","tool","action","decision","status","reason","detail","pdp","remediation","hash"]'
 complete=$(jq -c --argjson m "$members" 'select((keys | sort) == ($m | sort))' <<<"$records" | grep -c . || true)
 expect "audit: every record has every member" "$complete of $record_count" \
   "$((record_count > 0 ? record_count : 1)) of $record_count"

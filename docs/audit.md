@@ -3,7 +3,7 @@
 visado writes one audit record per decision, allowed or denied, to stdout as a JSON log line whose `target` is `visado::audit`. The record is the line's `fields` object:
 
 ```json
-{"timestamp":"2026-11-22T09:14:03.120Z","level":"INFO","target":"visado::audit","fields":{"audit_version":1,"seq":41,"prev":"9f2c…","id":"0b7e…","txn":"0b7e…","time":1795338843,"agent":"spiffe://td.example/agent-b","auth_method":"wit-wpt","sender_constrained":true,"principal":"bob","chain_profile":"aat-02","chain_issuer":"https://aat.td.example","chain_hops":2,"chain_actors":"[\"Lm1…\",\"q9X…\"]","resource":"http://tools.td.example/mcp","tool":"delete_file","action":"POST","decision":"deny","status":403,"reason":"aat.invocation_denied","detail":"","pdp":"not_asked","remediation":"refused","hash":"5d01…"}}
+{"timestamp":"2026-11-22T09:14:03.120Z","level":"INFO","target":"visado::audit","fields":{"audit_version":1,"seq":41,"prev":"9f2c…","id":"0b7e…","txn":"0b7e…","time":1795338843,"agent":"spiffe://td.example/agent-b","auth_method":"wit-wpt","sender_constrained":true,"principal":"bob","chain_profile":"aat-02","chain_issuer":"https://aat.td.example","chain_hops":2,"chain_actors":"[\"Lm1…\",\"q9X…\"]","depth_semantics":"aat-holder-cap","resource":"http://tools.td.example/mcp","tool":"delete_file","action":"POST","decision":"deny","status":403,"reason":"aat.invocation_denied","detail":"","pdp":"not_asked","remediation":"refused","hash":"5d01…"}}
 ```
 
 The chain view (`/chain`) is a debugging aid kept in memory. This log is the audit trail.
@@ -28,6 +28,7 @@ The order below is the schema order, which the hash uses. Every member is always
 | `chain_issuer` | string | The chain's trust anchor |
 | `chain_hops` | integer | Hops in the chain; 0 without one |
 | `chain_actors` | string | The hop actors, first hop first, as a JSON array of strings (key thumbprints, names or subjects) |
+| `depth_semantics` | string | How the chain's depth bound was read: `aat-holder-cap`, `asor-strict` or `uncapped`; empty without a chain |
 | `resource` | string | `scheme://authority/path`, without the query |
 | `tool` | string | `params.name` of a JSON-RPC `tools/call` body; otherwise empty |
 | `action` | string | The HTTP method |
@@ -46,7 +47,7 @@ draft-ietf-wimse-aims §11 asks for these items. Each maps to members:
 | AIMS item | Members |
 | --- | --- |
 | Agent id | `agent` |
-| Delegating subject | `principal`, and the delegation in `chain_profile`, `chain_issuer`, `chain_hops`, `chain_actors` |
+| Delegating subject | `principal`, and the delegation in `chain_profile`, `chain_issuer`, `chain_hops`, `chain_actors`, `depth_semantics` |
 | Resource or tool | `resource`, `tool` |
 | Action and decision | `action`, `decision`, `status` |
 | Timestamp and correlation id | `time`, `txn` (also `id`) |

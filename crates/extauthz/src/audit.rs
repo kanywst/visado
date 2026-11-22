@@ -58,6 +58,9 @@ pub struct AuditRecord {
     pub chain_hops: u32,
     /// The hop actors, first hop first, as a JSON array of strings.
     pub chain_actors: String,
+    /// How the chain's depth bound was read (`aat-holder-cap`,
+    /// `asor-strict` or `uncapped`); empty without a chain.
+    pub depth_semantics: String,
     /// The resource: `scheme://authority/path`, without the query.
     pub resource: String,
     /// The MCP tool of a JSON-RPC `tools/call` body, otherwise empty.
@@ -116,6 +119,7 @@ impl Serialize for Ordered<'_> {
         m.serialize_field("chain_issuer", &r.chain_issuer)?;
         m.serialize_field("chain_hops", &r.chain_hops)?;
         m.serialize_field("chain_actors", &r.chain_actors)?;
+        m.serialize_field("depth_semantics", &r.depth_semantics)?;
         m.serialize_field("resource", &r.resource)?;
         m.serialize_field("tool", &r.tool)?;
         m.serialize_field("action", &r.action)?;
@@ -232,6 +236,7 @@ fn emit(r: &AuditRecord) {
         chain_issuer = %r.chain_issuer,
         chain_hops = r.chain_hops,
         chain_actors = %r.chain_actors,
+        depth_semantics = %r.depth_semantics,
         resource = %r.resource,
         tool = %r.tool,
         action = %r.action,
@@ -265,6 +270,7 @@ mod tests {
             chain_issuer: String::new(),
             chain_hops: 0,
             chain_actors: "[]".into(),
+            depth_semantics: String::new(),
             resource: "http://tools.td.example/tickets".into(),
             tool: String::new(),
             action: "GET".into(),
@@ -362,7 +368,7 @@ mod tests {
         assert_eq!(
             record("a").digest().unwrap(),
             super::hex(&<sha2::Sha256 as sha2::Digest>::digest(
-                br#"{"audit_version":1,"seq":0,"prev":"","id":"a","txn":"t","time":1,"agent":"spiffe://td.example/agent-a","auth_method":"wit-wpt","sender_constrained":true,"principal":"bob","chain_profile":"","chain_issuer":"","chain_hops":0,"chain_actors":"[]","resource":"http://tools.td.example/tickets","tool":"","action":"GET","decision":"allow","status":200,"reason":"ok","detail":"","pdp":"allow","remediation":"none"}"#
+                br#"{"audit_version":1,"seq":0,"prev":"","id":"a","txn":"t","time":1,"agent":"spiffe://td.example/agent-a","auth_method":"wit-wpt","sender_constrained":true,"principal":"bob","chain_profile":"","chain_issuer":"","chain_hops":0,"chain_actors":"[]","depth_semantics":"","resource":"http://tools.td.example/tickets","tool":"","action":"GET","decision":"allow","status":200,"reason":"ok","detail":"","pdp":"allow","remediation":"none"}"#
             ))
         );
     }

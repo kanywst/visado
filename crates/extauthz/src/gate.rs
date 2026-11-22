@@ -1377,6 +1377,7 @@ fn audit_record(
             u32::try_from(c.hops.len() + c.hops_omitted).unwrap_or(u32::MAX)
         }),
         chain_actors: serde_json::to_string(&actors).unwrap_or_else(|_| "[]".into()),
+        depth_semantics: trail.depth_semantics.unwrap_or_default().to_owned(),
         resource: bounded(&resource_id(input)),
         tool: mcp_tool(input).unwrap_or_default(),
         action: bounded(&input.method),

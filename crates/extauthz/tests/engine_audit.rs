@@ -115,5 +115,5 @@ async fn the_audit_record_names_the_depth_semantics() {
     assert!(matches!(&outcome, Outcome::Allow { .. }), "{outcome:?}");
 
     let text = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
-    assert!(text.contains("depth_semantics=\"uncapped\""), "{text}");
+    assert!(text.contains("depth_semantics=uncapped "), "{text}");
 }

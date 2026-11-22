@@ -27,7 +27,7 @@ const BASE: &str = "https://tools.td.example";
 const AGENT: &str = "spiffe://td.example/agent-b";
 
 /// The members of the record, in schema order (docs/audit.md).
-const MEMBERS: [&str; 24] = [
+const MEMBERS: [&str; 25] = [
     "audit_version",
     "seq",
     "prev",
@@ -42,6 +42,7 @@ const MEMBERS: [&str; 24] = [
     "chain_issuer",
     "chain_hops",
     "chain_actors",
+    "depth_semantics",
     "resource",
     "tool",
     "action",
@@ -251,6 +252,7 @@ fn check_allowed(allowed: &AuditRecord) {
         allowed.chain_actors,
         r#"["spiffe://td.example/agent-a","spiffe://td.example/agent-b"]"#
     );
+    assert_eq!(allowed.depth_semantics, "uncapped");
     assert_eq!(allowed.resource, format!("{BASE}/mcp"));
     assert_eq!(allowed.tool, "read_file");
     assert_eq!(allowed.action, "POST");
@@ -268,6 +270,7 @@ fn check_refused(refused: &AuditRecord) {
     assert_eq!(refused.chain_profile, "");
     assert_eq!(refused.chain_hops, 0);
     assert_eq!(refused.chain_actors, "[]");
+    assert_eq!(refused.depth_semantics, "");
     assert_eq!(refused.decision, "deny");
     assert_eq!(refused.status, 403);
     assert_eq!(refused.reason, "pdp.deny");
