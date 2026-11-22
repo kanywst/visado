@@ -11,3 +11,4 @@ Background research behind [the scope](../scope.md) and [the design](../design.m
 | [05-threats.md](05-threats.md) | Incidents, spec threat models, STRIDE for visado, demo scenarios |
 | [06-idp-and-spire.md](06-idp-and-spire.md) | Dex ID-JAG issuance, Keycloak as Resource AS, other IdPs, SPIRE WIT-SVIDs |
 | [07-observability-ui-launch.md](07-observability-ui-launch.md) | OpenTelemetry, audit formats, the chain view, launch and CNCF hygiene |
+| [08-findings.md](08-findings.md) | Spec gaps and interop results from building visado (2026-11-22) |
