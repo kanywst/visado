@@ -1,0 +1,333 @@
+{
+  "cases": [
+    {
+      "as_is": {
+        "agrees": false,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      },
+      "expect": "accept",
+      "id": "ed25519/wpt/valid",
+      "own_format_wpt": {
+        "agrees": false,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "ed25519/wpt/expired_wit",
+      "own_format_wpt": {
+        "agrees": true,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "ed25519/wpt/untrusted_issuer",
+      "own_format_wpt": {
+        "agrees": true,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "ed25519/wpt/wit_signature_tampered",
+      "own_format_wpt": {
+        "agrees": true,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "ed25519/wpt/wth_mismatch",
+      "own_format_wpt": {
+        "agrees": true,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "ed25519/wpt/other_audience",
+      "own_format_wpt": {
+        "agrees": true,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "ed25519/wpt/wpt_signature_tampered",
+      "own_format_wpt": {
+        "agrees": true,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "ed25519/wpt/expired_wpt",
+      "own_format_wpt": {
+        "agrees": true,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": false,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      },
+      "expect": "accept",
+      "id": "ed25519/wpt/wit_no_kid",
+      "own_format_wpt": {
+        "agrees": false,
+        "error": "parsing WIT JWT: unexpected signature algorithm \"Ed25519\"; expected [\"ES256\"]",
+        "verdict": "reject"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": false,
+        "error": "parsing WPT JWT: unexpected signature algorithm \"ES256\"; expected [\"EdDSA\"]",
+        "verdict": "reject"
+      },
+      "expect": "accept",
+      "id": "es256/wpt/valid"
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "parsing WPT JWT: unexpected signature algorithm \"ES256\"; expected [\"EdDSA\"]",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "es256/wpt/expired_wit"
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "validating WIT JWT: go-jose/go-jose: error in cryptographic primitive",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "es256/wpt/untrusted_issuer"
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "validating WIT JWT: go-jose/go-jose: error in cryptographic primitive",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "es256/wpt/wit_signature_tampered"
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "parsing WPT JWT: unexpected signature algorithm \"ES256\"; expected [\"EdDSA\"]",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "es256/wpt/wth_mismatch"
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "parsing WPT JWT: unexpected signature algorithm \"ES256\"; expected [\"EdDSA\"]",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "es256/wpt/other_audience"
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "parsing WPT JWT: unexpected signature algorithm \"ES256\"; expected [\"EdDSA\"]",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "es256/wpt/wpt_signature_tampered"
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "parsing WPT JWT: unexpected signature algorithm \"ES256\"; expected [\"EdDSA\"]",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "es256/wpt/expired_wpt"
+    },
+    {
+      "as_is": {
+        "agrees": false,
+        "error": "parsing WPT JWT: unexpected signature algorithm \"ES256\"; expected [\"EdDSA\"]",
+        "verdict": "reject"
+      },
+      "expect": "accept",
+      "id": "es256/wpt/wit_no_kid"
+    },
+    {
+      "as_is": {
+        "agrees": false,
+        "error": "validating WPT JWT: Time.UnmarshalJSON: input is not a JSON string",
+        "verdict": "reject"
+      },
+      "expect": "accept",
+      "id": "es256-eddsa/wpt/valid",
+      "own_format_wpt": {
+        "agrees": true,
+        "verdict": "accept"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "validating WPT JWT: Time.UnmarshalJSON: input is not a JSON string",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "es256-eddsa/wpt/expired_wit",
+      "own_format_wpt": {
+        "agrees": false,
+        "verdict": "accept"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "validating WIT JWT: go-jose/go-jose: error in cryptographic primitive",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "es256-eddsa/wpt/untrusted_issuer",
+      "own_format_wpt": {
+        "agrees": true,
+        "error": "validating WIT JWT: go-jose/go-jose: error in cryptographic primitive",
+        "verdict": "reject"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "validating WIT JWT: go-jose/go-jose: error in cryptographic primitive",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "es256-eddsa/wpt/wit_signature_tampered",
+      "own_format_wpt": {
+        "agrees": true,
+        "error": "validating WIT JWT: go-jose/go-jose: error in cryptographic primitive",
+        "verdict": "reject"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "validating WPT JWT: Time.UnmarshalJSON: input is not a JSON string",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "es256-eddsa/wpt/wth_mismatch",
+      "own_format_wpt": {
+        "agrees": true,
+        "error": "WPT WTH claim does not match WIT",
+        "verdict": "reject"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "validating WPT JWT: Time.UnmarshalJSON: input is not a JSON string",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "es256-eddsa/wpt/other_audience",
+      "own_format_wpt": {
+        "agrees": false,
+        "verdict": "accept"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "validating WPT JWT: go-jose/go-jose: error in cryptographic primitive",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "es256-eddsa/wpt/wpt_signature_tampered",
+      "own_format_wpt": {
+        "agrees": true,
+        "error": "validating WPT JWT: go-jose/go-jose: error in cryptographic primitive",
+        "verdict": "reject"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": true,
+        "error": "validating WPT JWT: Time.UnmarshalJSON: input is not a JSON string",
+        "verdict": "reject"
+      },
+      "expect": "reject",
+      "id": "es256-eddsa/wpt/expired_wpt",
+      "own_format_wpt": {
+        "agrees": false,
+        "verdict": "accept"
+      }
+    },
+    {
+      "as_is": {
+        "agrees": false,
+        "error": "validating WPT JWT: Time.UnmarshalJSON: input is not a JSON string",
+        "verdict": "reject"
+      },
+      "expect": "accept",
+      "id": "es256-eddsa/wpt/wit_no_kid",
+      "own_format_wpt": {
+        "agrees": true,
+        "verdict": "accept"
+      }
+    }
+  ],
+  "verifier": "github.com/strideynet/wit-wpt-go ValidateWPT"
+}

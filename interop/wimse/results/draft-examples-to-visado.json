@@ -1,0 +1,47 @@
+{
+  "cases": [
+    {
+      "agrees": true,
+      "caller": "wimse://example.com/specific-workload",
+      "expect": "accept",
+      "id": "wpt-02/figure-5",
+      "method": "WitWpt",
+      "verdict": "accept"
+    },
+    {
+      "agrees": false,
+      "code": "wpt.invalid",
+      "error": "invalid WPT: proof lifetime exceeds the configured maximum",
+      "expect": "accept",
+      "id": "wpt-02/figure-5/early",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "wpt.invalid",
+      "error": "invalid WPT: proof has expired",
+      "expect": "reject",
+      "id": "wpt-02/figure-5/expired",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "wpt.invalid",
+      "error": "invalid WPT: the proof's `alg` does not match the confirmation key's algorithm",
+      "expect": "reject",
+      "id": "creds-03/figure-2+wpt-02/figure-2",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "caller": "wimse://example.com/specific-workload",
+      "expect": "accept",
+      "id": "creds-03/figure-2+visado-wpt",
+      "method": "WitWpt",
+      "verdict": "accept"
+    }
+  ],
+  "now": 1745509980,
+  "verifier": "visado",
+  "version": "0.3.0"
+}

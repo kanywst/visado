@@ -1,0 +1,273 @@
+{
+  "cases": [
+    {
+      "expect": "accept",
+      "httpsign_draft08": {
+        "agrees": true,
+        "verdict": "accept"
+      },
+      "id": "ed25519/httpsig/valid",
+      "sig_expect": "accept"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "verdict": "accept"
+      },
+      "id": "ed25519/httpsig/expired_wit",
+      "sig_expect": "accept"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "verdict": "accept"
+      },
+      "id": "ed25519/httpsig/untrusted_issuer",
+      "sig_expect": "accept"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "verdict": "accept"
+      },
+      "id": "ed25519/httpsig/other_audience",
+      "sig_expect": "accept"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "error": "failed Ed25519 verification",
+        "verdict": "reject"
+      },
+      "id": "ed25519/httpsig/signature_tampered",
+      "sig_expect": "reject"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "error": "digest mismatch for scheme sha-256",
+        "verdict": "reject"
+      },
+      "id": "ed25519/httpsig/body_changed",
+      "sig_expect": "reject"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "error": "failed Ed25519 verification",
+        "verdict": "reject"
+      },
+      "id": "ed25519/httpsig/covered_header_changed",
+      "sig_expect": "reject"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "error": "failed Ed25519 verification",
+        "verdict": "reject"
+      },
+      "id": "ed25519/httpsig/query_changed",
+      "sig_expect": "reject"
+    },
+    {
+      "expect": "accept",
+      "httpsign_draft08": {
+        "agrees": true,
+        "verdict": "accept"
+      },
+      "id": "es256/httpsig/valid",
+      "poc_server": {
+        "agrees": false,
+        "error": "actual signature does not cover all required fields",
+        "verdict": "reject"
+      },
+      "sig_expect": "accept"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "verdict": "accept"
+      },
+      "id": "es256/httpsig/expired_wit",
+      "poc_server": {
+        "agrees": true,
+        "error": "actual signature does not cover all required fields",
+        "verdict": "reject"
+      },
+      "sig_expect": "accept"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "verdict": "accept"
+      },
+      "id": "es256/httpsig/untrusted_issuer",
+      "poc_server": {
+        "agrees": true,
+        "error": "actual signature does not cover all required fields",
+        "verdict": "reject"
+      },
+      "sig_expect": "accept"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "verdict": "accept"
+      },
+      "id": "es256/httpsig/other_audience",
+      "poc_server": {
+        "agrees": true,
+        "error": "actual signature does not cover all required fields",
+        "verdict": "reject"
+      },
+      "sig_expect": "accept"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "error": "bad signature, check key or signature value",
+        "verdict": "reject"
+      },
+      "id": "es256/httpsig/signature_tampered",
+      "poc_server": {
+        "agrees": true,
+        "error": "actual signature does not cover all required fields",
+        "verdict": "reject"
+      },
+      "sig_expect": "reject"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "error": "digest mismatch for scheme sha-256",
+        "verdict": "reject"
+      },
+      "id": "es256/httpsig/body_changed",
+      "poc_server": {
+        "agrees": true,
+        "error": "actual signature does not cover all required fields",
+        "verdict": "reject"
+      },
+      "sig_expect": "reject"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "error": "bad signature, check key or signature value",
+        "verdict": "reject"
+      },
+      "id": "es256/httpsig/covered_header_changed",
+      "poc_server": {
+        "agrees": true,
+        "error": "actual signature does not cover all required fields",
+        "verdict": "reject"
+      },
+      "sig_expect": "reject"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "error": "bad signature, check key or signature value",
+        "verdict": "reject"
+      },
+      "id": "es256/httpsig/query_changed",
+      "poc_server": {
+        "agrees": true,
+        "error": "actual signature does not cover all required fields",
+        "verdict": "reject"
+      },
+      "sig_expect": "reject"
+    },
+    {
+      "expect": "accept",
+      "httpsign_draft08": {
+        "agrees": true,
+        "verdict": "accept"
+      },
+      "id": "es256-eddsa/httpsig/valid",
+      "sig_expect": "accept"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "verdict": "accept"
+      },
+      "id": "es256-eddsa/httpsig/expired_wit",
+      "sig_expect": "accept"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "verdict": "accept"
+      },
+      "id": "es256-eddsa/httpsig/untrusted_issuer",
+      "sig_expect": "accept"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "verdict": "accept"
+      },
+      "id": "es256-eddsa/httpsig/other_audience",
+      "sig_expect": "accept"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "error": "failed Ed25519 verification",
+        "verdict": "reject"
+      },
+      "id": "es256-eddsa/httpsig/signature_tampered",
+      "sig_expect": "reject"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "error": "digest mismatch for scheme sha-256",
+        "verdict": "reject"
+      },
+      "id": "es256-eddsa/httpsig/body_changed",
+      "sig_expect": "reject"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "error": "failed Ed25519 verification",
+        "verdict": "reject"
+      },
+      "id": "es256-eddsa/httpsig/covered_header_changed",
+      "sig_expect": "reject"
+    },
+    {
+      "expect": "reject",
+      "httpsign_draft08": {
+        "agrees": true,
+        "error": "failed Ed25519 verification",
+        "verdict": "reject"
+      },
+      "id": "es256-eddsa/httpsig/query_changed",
+      "sig_expect": "reject"
+    }
+  ],
+  "verifier": "github.com/cofide/wimse-s2s-httpsig-poc server check, github.com/yaronf/httpsign"
+}

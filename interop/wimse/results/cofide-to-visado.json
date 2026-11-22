@@ -1,0 +1,99 @@
+{
+  "cases": [
+    {
+      "agrees": true,
+      "code": "httpsig.invalid",
+      "error": "invalid signed request: the WIMSE profile forbids the `alg` signature parameter",
+      "expect": "reject",
+      "id": "cofide/poc/valid",
+      "rfc9421_only": {
+        "verdict": "accept"
+      },
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "httpsig.invalid",
+      "error": "invalid signed request: the WIMSE profile forbids the `alg` signature parameter",
+      "expect": "reject",
+      "id": "cofide/poc/body_changed",
+      "rfc9421_only": {
+        "verdict": "accept"
+      },
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "httpsig.invalid",
+      "error": "invalid signed request: the WIMSE profile forbids the `alg` signature parameter",
+      "expect": "reject",
+      "id": "cofide/poc/covered_header_changed",
+      "rfc9421_only": {
+        "error": "signature verification failed",
+        "verdict": "reject"
+      },
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "httpsig.invalid",
+      "error": "invalid signed request: the WIMSE profile forbids the `alg` signature parameter",
+      "expect": "reject",
+      "id": "cofide/poc/signature_tampered",
+      "rfc9421_only": {
+        "error": "signature verification failed",
+        "verdict": "reject"
+      },
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "httpsig.invalid",
+      "error": "invalid signed request: the WIMSE profile forbids the `alg` signature parameter",
+      "expect": "reject",
+      "id": "cofide/draft-08/valid",
+      "rfc9421_only": {
+        "verdict": "accept"
+      },
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "httpsig.invalid",
+      "error": "invalid signed request: the WIMSE profile forbids the `alg` signature parameter",
+      "expect": "reject",
+      "id": "cofide/draft-08/body_changed",
+      "rfc9421_only": {
+        "verdict": "accept"
+      },
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "httpsig.invalid",
+      "error": "invalid signed request: the WIMSE profile forbids the `alg` signature parameter",
+      "expect": "reject",
+      "id": "cofide/draft-08/covered_header_changed",
+      "rfc9421_only": {
+        "error": "signature verification failed",
+        "verdict": "reject"
+      },
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "httpsig.invalid",
+      "error": "invalid signed request: the WIMSE profile forbids the `alg` signature parameter",
+      "expect": "reject",
+      "id": "cofide/draft-08/signature_tampered",
+      "rfc9421_only": {
+        "error": "signature verification failed",
+        "verdict": "reject"
+      },
+      "verdict": "reject"
+    }
+  ],
+  "now": 1795321459,
+  "verifier": "visado",
+  "version": "0.3.0"
+}

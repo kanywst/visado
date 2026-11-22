@@ -1,0 +1,23 @@
+{
+  "cases": [
+    {
+      "agrees": true,
+      "caller": "wimse://example.com/specific-workload",
+      "expect": "accept",
+      "id": "wg-examples/valid",
+      "method": "WitWpt",
+      "verdict": "accept"
+    },
+    {
+      "agrees": true,
+      "code": "wpt.invalid",
+      "error": "invalid WPT: audience mismatch",
+      "expect": "reject",
+      "id": "wg-examples/other_target",
+      "verdict": "reject"
+    }
+  ],
+  "now": 1745509980,
+  "verifier": "visado",
+  "version": "0.3.0"
+}

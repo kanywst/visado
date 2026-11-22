@@ -1,0 +1,63 @@
+{
+  "cases": [
+    {
+      "agrees": false,
+      "code": "wpt.invalid",
+      "error": "invalid WPT: unexpected token type `wimse-proof+jwt`, expected `wpt+jwt`",
+      "expect": "accept",
+      "id": "wit-wpt-go@e8fa345/valid",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "wit.invalid",
+      "error": "invalid WIT: token has expired",
+      "expect": "reject",
+      "id": "wit-wpt-go@e8fa345/expired_wit",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "wit.invalid",
+      "error": "invalid WIT: signature verification failed",
+      "expect": "reject",
+      "id": "wit-wpt-go@e8fa345/untrusted_issuer",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "wpt.invalid",
+      "error": "invalid WPT: unexpected token type `wimse-proof+jwt`, expected `wpt+jwt`",
+      "expect": "reject",
+      "id": "wit-wpt-go@e8fa345/wth_mismatch",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "wpt.invalid",
+      "error": "invalid WPT: unexpected token type `wimse-proof+jwt`, expected `wpt+jwt`",
+      "expect": "reject",
+      "id": "wit-wpt-go@e8fa345/other_audience",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "wpt.invalid",
+      "error": "invalid WPT: unexpected token type `wimse-proof+jwt`, expected `wpt+jwt`",
+      "expect": "reject",
+      "id": "wit-wpt-go@e8fa345/wpt_signature_tampered",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "caller": "spiffe://td.example/agent-a",
+      "expect": "accept",
+      "id": "wit-wpt-go@e8fa345/valid+visado_wpt",
+      "method": "WitWpt",
+      "verdict": "accept"
+    }
+  ],
+  "now": 1795321453,
+  "verifier": "visado",
+  "version": "0.3.0"
+}

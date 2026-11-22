@@ -1,0 +1,1537 @@
+{
+  "implementation": "visado",
+  "now": 1800000000,
+  "suites": [
+    {
+      "cases": [
+        {
+          "expect": "accept",
+          "id": "ed25519/wpt/valid",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "valid",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "caller": "spiffe://td.example/agent-a",
+            "method": "WitWpt",
+            "verdict": "accept"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4Ijoid0ZERlkzcEUtb1lwX19QTXpPSXdETE5pcGoyWjJWX0ZRVVVtYjBNeVJGbyJ9fX0.FK1GWeDyWpgwBhU0Hacvq3k74vyFnxCRNYHw9jFzeEMYqkpNRmu0wZU-wmYhe434fXQXFupMwa1WDOY28YS-BQ",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWQyNTUxOSJ9.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVkMjU1MTktMTgwMDAwMDAwMC1ZMjhZUy1CUSIsInd0aCI6IjlYeUdWUTBidFZOem1hd2hUNnMyVTc5ZDhSOFNIeUVHT3I2akNSNzZNd0kifQ.ulyPkuSZz6Au2uZb0inPPDuIQMa1j46K_9B8p6zKLTcABW7mZp1UMETrBTliZzqujcOv6Y-VOeXZhi3M5YmQAA"
+        },
+        {
+          "expect": "reject",
+          "id": "ed25519/wpt/expired_wit",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "expired_wit",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wit.invalid",
+            "error": "invalid WIT: token has expired",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk4Nzk1LCJleHAiOjE3OTk5OTkzOTUsImp0aSI6IndpdC1leHBpcmVkIiwiY25mIjp7Imp3ayI6eyJhbGciOiJFZDI1NTE5Iiwia3R5IjoiT0tQIiwiY3J2IjoiRWQyNTUxOSIsIngiOiJ3RkRGWTNwRS1vWXBfX1BNek9Jd0RMTmlwajJaMlZfRlFVVW1iME15UkZvIn19fQ.Jz04hYNDZkN_2rJ5sC6Pi8EerTdpbQB2bs1jCHvn78aRu95qH8IrQeRKVgmWeBs9iB2ZJew0MlvlKiRNqV5pDw",
+          "wit_expect": "reject",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWQyNTUxOSJ9.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVkMjU1MTktMTgwMDAwMDAwMC1STnFWNXBEdyIsInd0aCI6IkNZRXhucEJnZlFHY3NVQkpNX3kyMVJDV0dJLWk0d3ltWHpEQUpoczdpb1kifQ.a4P7MjN4JKUAfHE_9N0wpkHIO2PjehFr2D7eMKtILbe10BwrwYpFERhyy1ytJ_r1gXjzNjwMM_s32gmjlnb5Bw"
+        },
+        {
+          "expect": "reject",
+          "id": "ed25519/wpt/untrusted_issuer",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "untrusted_issuer",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wit.invalid",
+            "error": "invalid WIT: signature verification failed",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC1yb2d1ZSIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4Ijoid0ZERlkzcEUtb1lwX19QTXpPSXdETE5pcGoyWjJWX0ZRVVVtYjBNeVJGbyJ9fX0.Bib2oua3XQxQjnxHhS2TZ4yzBALx2Y-zweRkXSoG1m5O2obPtTq3TUxBSJkIa--tbiayoNj4DD89W05nGaU1AA",
+          "wit_expect": "reject",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWQyNTUxOSJ9.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVkMjU1MTktMTgwMDAwMDAwMC01bkdhVTFBQSIsInd0aCI6ImlpeXhOSkhIYWJCRnlXQjdrUFY2NTBKLVN1Wnl3cTlNT0cyT20ydnFRaWMifQ.scwcRsP0W-9KvDTqGOWEOwHTNeHfdI8SEp4h6KJix5nVJ1ZbYx_UGq1jj4CcgmPs16_1DlNiXR7aWJ6g5q6DCw"
+        },
+        {
+          "expect": "reject",
+          "id": "ed25519/wpt/wit_signature_tampered",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "wit_signature_tampered",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wit.invalid",
+            "error": "invalid WIT: signature verification failed",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4Ijoid0ZERlkzcEUtb1lwX19QTXpPSXdETE5pcGoyWjJWX0ZRVVVtYjBNeVJGbyJ9fX0.AK1GWeDyWpgwBhU0Hacvq3k74vyFnxCRNYHw9jFzeEMYqkpNRmu0wZU-wmYhe434fXQXFupMwa1WDOY28YS-BQ",
+          "wit_expect": "reject",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWQyNTUxOSJ9.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVkMjU1MTktMTgwMDAwMDAwMC1ZMjhZUy1CUSIsInd0aCI6IjVwQkpLZ1hlX0dRVFVzaTlaYTdLVlpmRm52RnNuNUd2bWlFTktEVDQ0eEkifQ.nlQups_HSjVBHR5UShlglgwDKIudAU1ot-cT0bNkntSPgLR0vzHiUdMVl5GFAMtgaCa4bZuERk1bTKigdRXXDg"
+        },
+        {
+          "expect": "reject",
+          "id": "ed25519/wpt/wth_mismatch",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "wth_mismatch",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wpt.invalid",
+            "error": "invalid WPT: WIT binding mismatch",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4Ijoid0ZERlkzcEUtb1lwX19QTXpPSXdETE5pcGoyWjJWX0ZRVVVtYjBNeVJGbyJ9fX0.FK1GWeDyWpgwBhU0Hacvq3k74vyFnxCRNYHw9jFzeEMYqkpNRmu0wZU-wmYhe434fXQXFupMwa1WDOY28YS-BQ",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWQyNTUxOSJ9.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVkMjU1MTktMTgwMDAwMDAwMC1Rb21iWW1DQSIsInd0aCI6Im1MTzFrdFJZcFNjZnBCbktvdUlXei14andkUzZIYWs5TGFQNVlBc1hJN1EifQ.xDS_7ME6oOIrD-psaMsvS2gtLTtoXi5dGetoNGVMd0is-eqnZzzgB_amIlD2kgpal1v5vXdd7LMH3JklwozTBA"
+        },
+        {
+          "expect": "reject",
+          "id": "ed25519/wpt/other_audience",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "other_audience",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wpt.invalid",
+            "error": "invalid WPT: audience mismatch",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4Ijoid0ZERlkzcEUtb1lwX19QTXpPSXdETE5pcGoyWjJWX0ZRVVVtYjBNeVJGbyJ9fX0.FK1GWeDyWpgwBhU0Hacvq3k74vyFnxCRNYHw9jFzeEMYqkpNRmu0wZU-wmYhe434fXQXFupMwa1WDOY28YS-BQ",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWQyNTUxOSJ9.eyJhdWQiOiJodHRwczovL290aGVyLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVkMjU1MTktMTgwMDAwMDAwMC1ZMjhZUy1CUSIsInd0aCI6IjlYeUdWUTBidFZOem1hd2hUNnMyVTc5ZDhSOFNIeUVHT3I2akNSNzZNd0kifQ.tPSHxdy7-mSW1Y2r0Huo753ZfkQ6B-um9Eo6244zDhSubE7mmGPOVu-KLuXbGlbhMNzccciZfp2dY-IYhobOBw"
+        },
+        {
+          "expect": "reject",
+          "id": "ed25519/wpt/wpt_signature_tampered",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "wpt_signature_tampered",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wpt.invalid",
+            "error": "invalid WPT: signature verification failed",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4Ijoid0ZERlkzcEUtb1lwX19QTXpPSXdETE5pcGoyWjJWX0ZRVVVtYjBNeVJGbyJ9fX0.FK1GWeDyWpgwBhU0Hacvq3k74vyFnxCRNYHw9jFzeEMYqkpNRmu0wZU-wmYhe434fXQXFupMwa1WDOY28YS-BQ",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWQyNTUxOSJ9.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVkMjU1MTktMTgwMDAwMDAwMC1ZMjhZUy1CUSIsInd0aCI6IjlYeUdWUTBidFZOem1hd2hUNnMyVTc5ZDhSOFNIeUVHT3I2akNSNzZNd0kifQ.AlyPkuSZz6Au2uZb0inPPDuIQMa1j46K_9B8p6zKLTcABW7mZp1UMETrBTliZzqujcOv6Y-VOeXZhi3M5YmQAA"
+        },
+        {
+          "expect": "reject",
+          "id": "ed25519/wpt/expired_wpt",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "expired_wpt",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wpt.invalid",
+            "error": "invalid WPT: proof has expired",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4Ijoid0ZERlkzcEUtb1lwX19QTXpPSXdETE5pcGoyWjJWX0ZRVVVtYjBNeVJGbyJ9fX0.FK1GWeDyWpgwBhU0Hacvq3k74vyFnxCRNYHw9jFzeEMYqkpNRmu0wZU-wmYhe434fXQXFupMwa1WDOY28YS-BQ",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWQyNTUxOSJ9.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTc5OTk5OTg2MCwianRpIjoianRpLWVkMjU1MTktMTc5OTk5OTgwMC1ZMjhZUy1CUSIsInd0aCI6IjlYeUdWUTBidFZOem1hd2hUNnMyVTc5ZDhSOFNIeUVHT3I2akNSNzZNd0kifQ.w3gy1VfgIDD_nR5p0JgrJDR_hrqRFEU6rrJuc6-W7e0rIzVHWzeRCJKqFAq5-QiQZIcS8ZnoLOdtTjKD_B1EAw"
+        },
+        {
+          "expect": "accept",
+          "id": "ed25519/wpt/wit_no_kid",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "wit_no_kid",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "caller": "spiffe://td.example/agent-a",
+            "method": "WitWpt",
+            "verdict": "accept"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC1uby1raWQiLCJjbmYiOnsiandrIjp7ImFsZyI6IkVkMjU1MTkiLCJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6IndGREZZM3BFLW9ZcF9fUE16T0l3RExOaXBqMloyVl9GUVVVbWIwTXlSRm8ifX19.fpus0mzmHgc4fZ_ODq_pPqG1PHyrG1JA6H3GUdqTAjCA3fBRb1VQbgIwQyCQ5F9Dx-rIo-gUvZUf08_UjMebDQ",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWQyNTUxOSJ9.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVkMjU1MTktMTgwMDAwMDAwMC1fVWpNZWJEUSIsInd0aCI6ImllOUpkQkktcHh3UWtmblhMU1RhU0tsVjlqTXpCR2VYVWpSNzZpZll4S2MifQ.OCIiUdvj7L2RJJpyucf6GgB4tR-eY38BYGilKXi63fg6jvIMlX8NX6O1-p8pBjPZJD-_TCTK7Bg9F42JsGasBg"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "accept",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-ed25519-valid-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:i7ZBR0Z60US1dg4J2VKLoa7gEt5gfEl3eZAceclGaLBs4zXzWmect6Xi1RMkA2xMpSi+ROdey24AADze79eqBQ==:"
+            ]
+          ],
+          "id": "ed25519/httpsig/valid",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "valid",
+          "sig_expect": "accept",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "caller": "spiffe://td.example/agent-a",
+            "method": "WitHttpSig",
+            "verdict": "accept"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4Ijoid0ZERlkzcEUtb1lwX19QTXpPSXdETE5pcGoyWjJWX0ZRVVVtYjBNeVJGbyJ9fX0.FK1GWeDyWpgwBhU0Hacvq3k74vyFnxCRNYHw9jFzeEMYqkpNRmu0wZU-wmYhe434fXQXFupMwa1WDOY28YS-BQ",
+          "wit_expect": "accept"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-ed25519-expired_wit-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:TIyXEOiEXWVni5PqwpSeof3sAQHAL3GYizzd4mWkjZE1Qsdp+HB8XlCZ/o4bQluzzSv/vINXsBroCFfTA3WOBQ==:"
+            ]
+          ],
+          "id": "ed25519/httpsig/expired_wit",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "expired_wit",
+          "sig_expect": "accept",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: invalid WIT: token has expired",
+            "rfc9421_only": {
+              "verdict": "accept"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk4Nzk1LCJleHAiOjE3OTk5OTkzOTUsImp0aSI6IndpdC1leHBpcmVkIiwiY25mIjp7Imp3ayI6eyJhbGciOiJFZDI1NTE5Iiwia3R5IjoiT0tQIiwiY3J2IjoiRWQyNTUxOSIsIngiOiJ3RkRGWTNwRS1vWXBfX1BNek9Jd0RMTmlwajJaMlZfRlFVVW1iME15UkZvIn19fQ.Jz04hYNDZkN_2rJ5sC6Pi8EerTdpbQB2bs1jCHvn78aRu95qH8IrQeRKVgmWeBs9iB2ZJew0MlvlKiRNqV5pDw",
+          "wit_expect": "reject"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-ed25519-untrusted_issuer-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:5m192STdveA+XbGnN+hXtwU/gXPBbrDhc9com5nkX0AH1V3kEeDcA6jSRHH6wyRP7qiEdRRlLCDgtaUtV7/AAA==:"
+            ]
+          ],
+          "id": "ed25519/httpsig/untrusted_issuer",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "untrusted_issuer",
+          "sig_expect": "accept",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: invalid WIT: signature verification failed",
+            "rfc9421_only": {
+              "verdict": "accept"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC1yb2d1ZSIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4Ijoid0ZERlkzcEUtb1lwX19QTXpPSXdETE5pcGoyWjJWX0ZRVVVtYjBNeVJGbyJ9fX0.Bib2oua3XQxQjnxHhS2TZ4yzBALx2Y-zweRkXSoG1m5O2obPtTq3TUxBSJkIa--tbiayoNj4DD89W05nGaU1AA",
+          "wit_expect": "reject"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-ed25519-other_audience-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://other.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:/D5IqK/4mF+N94QHG/nTzyXs2nDb1yoNUSqPeNObv9HmBLhCZwin6ylElv3X5oWMx+KQfhnetjw3GI646w/CDw==:"
+            ]
+          ],
+          "id": "ed25519/httpsig/other_audience",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "other_audience",
+          "sig_expect": "accept",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: audience mismatch",
+            "rfc9421_only": {
+              "verdict": "accept"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4Ijoid0ZERlkzcEUtb1lwX19QTXpPSXdETE5pcGoyWjJWX0ZRVVVtYjBNeVJGbyJ9fX0.FK1GWeDyWpgwBhU0Hacvq3k74vyFnxCRNYHw9jFzeEMYqkpNRmu0wZU-wmYhe434fXQXFupMwa1WDOY28YS-BQ",
+          "wit_expect": "accept"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-ed25519-signature_tampered-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:AlDsH+aBLLiPKhGj16Ccby4OwdLDH7tlnUkqS71YEkvOTWrb/fPHO3JUNtBPs3xGqKQ5Rl5mHI0r6Dl3q4rMAg==:"
+            ]
+          ],
+          "id": "ed25519/httpsig/signature_tampered",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "signature_tampered",
+          "sig_expect": "reject",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: signature verification failed",
+            "rfc9421_only": {
+              "error": "signature verification failed",
+              "verdict": "reject"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4Ijoid0ZERlkzcEUtb1lwX19QTXpPSXdETE5pcGoyWjJWX0ZRVVVtYjBNeVJGbyJ9fX0.FK1GWeDyWpgwBhU0Hacvq3k74vyFnxCRNYHw9jFzeEMYqkpNRmu0wZU-wmYhe434fXQXFupMwa1WDOY28YS-BQ",
+          "wit_expect": "accept"
+        },
+        {
+          "body": "{\"title\":\"swapped\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-ed25519-body_changed-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:SlVuOtwPijOzm1OWbCq8z/woh3fQm3svSEdFZ0JXcd0mKUcBBKkjOYEub2DqEAzlQ2/2MiKNwrlc8bBpPAsbCg==:"
+            ]
+          ],
+          "id": "ed25519/httpsig/body_changed",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "body_changed",
+          "sig_expect": "reject",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: content-digest does not match the body",
+            "rfc9421_only": {
+              "verdict": "accept"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4Ijoid0ZERlkzcEUtb1lwX19QTXpPSXdETE5pcGoyWjJWX0ZRVVVtYjBNeVJGbyJ9fX0.FK1GWeDyWpgwBhU0Hacvq3k74vyFnxCRNYHw9jFzeEMYqkpNRmu0wZU-wmYhe434fXQXFupMwa1WDOY28YS-BQ",
+          "wit_expect": "accept"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "text/plain"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-ed25519-covered_header_changed-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:0VGAor1dXP5FiDM5uWI4auG/3nz++rSkm4l4GojujXErOubDdvmmoIv1FATsbiWnDDmf8iAdMV0TMjSKVIbRDg==:"
+            ]
+          ],
+          "id": "ed25519/httpsig/covered_header_changed",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "covered_header_changed",
+          "sig_expect": "reject",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: signature verification failed",
+            "rfc9421_only": {
+              "error": "signature verification failed",
+              "verdict": "reject"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4Ijoid0ZERlkzcEUtb1lwX19QTXpPSXdETE5pcGoyWjJWX0ZRVVVtYjBNeVJGbyJ9fX0.FK1GWeDyWpgwBhU0Hacvq3k74vyFnxCRNYHw9jFzeEMYqkpNRmu0wZU-wmYhe434fXQXFupMwa1WDOY28YS-BQ",
+          "wit_expect": "accept"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-ed25519-query_changed-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:QuhvBM1/sBsZzRXD76HDmmpPn6DQi/ghyKiP8rWy05zovdNU2vHbdWSbRf8IYD1EnG8iPSHvQrJbkcY9jEmNBQ==:"
+            ]
+          ],
+          "id": "ed25519/httpsig/query_changed",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "query_changed",
+          "sig_expect": "reject",
+          "uri": "https://tools.td.example/tickets?a=2",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: signature verification failed",
+            "rfc9421_only": {
+              "error": "signature verification failed",
+              "verdict": "reject"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRWQyNTUxOSIsImtpZCI6IndpdC0xIn0.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4Ijoid0ZERlkzcEUtb1lwX19QTXpPSXdETE5pcGoyWjJWX0ZRVVVtYjBNeVJGbyJ9fX0.FK1GWeDyWpgwBhU0Hacvq3k74vyFnxCRNYHw9jFzeEMYqkpNRmu0wZU-wmYhe434fXQXFupMwa1WDOY28YS-BQ",
+          "wit_expect": "accept"
+        }
+      ],
+      "issuers": [
+        {
+          "iss": "https://wit.td.example",
+          "jwks": {
+            "keys": [
+              {
+                "alg": "Ed25519",
+                "crv": "Ed25519",
+                "kid": "wit-1",
+                "kty": "OKP",
+                "x": "SAdaWX5yGhVuLgeZ3lzAxTJNxufq8c3UYlCGjsUyFd0"
+              }
+            ]
+          },
+          "trust_domain": "td.example"
+        }
+      ],
+      "pop_private_jwk": {
+        "alg": "Ed25519",
+        "crv": "Ed25519",
+        "d": "UVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVE",
+        "kty": "OKP",
+        "x": "wFDFY3pE-oYp__PMzOIwDLNipj2Z2V_FQUUmb0MyRFo"
+      },
+      "suite": "ed25519"
+    },
+    {
+      "cases": [
+        {
+          "expect": "accept",
+          "id": "es256/wpt/valid",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "valid",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "caller": "spiffe://td.example/agent-a",
+            "method": "WitWpt",
+            "verdict": "accept"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRVMyNTYiLCJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlRkVDAxa3lBTzdyTDY0TGJTdWt5UGtVV2lWTWhfYUdHS1F6cktadGg4Y2ciLCJ5Ijoib2ZseUh6MXV6c2l3X3V5eWlFSV80TWhZam0wcGdxenRJXzJsV25WMW41QSJ9fX0.HEa2tE2ES7hNR2_v33xihYzLBROOSo07WyFMtB08FKdgDRVWG-YWFywFtilqpW4nt8GiKNMrAhx8mNjd77UGTg",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRVMyNTYifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LTE4MDAwMDAwMDAtamQ3N1VHVGciLCJ3dGgiOiIzbnEtZF81T0N5b1hOTUh4MjBaNnNHbkhzWDZtMUpCSHZYZEZGZG1JVk9jIn0.39bkJI445M9SqZiBOC9rFgCQYe2FpOiYfTLXCvMiCZEc_eWf0XDyMbfS7ULgu1NZcKhubN0Gi5WiZigyTPuzHw"
+        },
+        {
+          "expect": "reject",
+          "id": "es256/wpt/expired_wit",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "expired_wit",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wit.invalid",
+            "error": "invalid WIT: token has expired",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk4Nzk1LCJleHAiOjE3OTk5OTkzOTUsImp0aSI6IndpdC1leHBpcmVkIiwiY25mIjp7Imp3ayI6eyJhbGciOiJFUzI1NiIsImt0eSI6IkVDIiwiY3J2IjoiUC0yNTYiLCJ4IjoiVGRUMDFreUFPN3JMNjRMYlN1a3lQa1VXaVZNaF9hR0dLUXpyS1p0aDhjZyIsInkiOiJvZmx5SHoxdXpzaXdfdXl5aUVJXzRNaFlqbTBwZ3F6dElfMmxXblYxbjVBIn19fQ.1WTxkgocfu8Uo-4Xd_XrUM6GtUn4LaoG0HjPJAKp460Hr1HkCAiP1_duW1l6m7SMeXJdmVjcK-eBxRhCnVB9AQ",
+          "wit_expect": "reject",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRVMyNTYifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LTE4MDAwMDAwMDAtaENuVkI5QVEiLCJ3dGgiOiItYlJNdEdZSGM5NVJVMW9YMmVBNGtVQlh6N3B1SjNvNHF4NllYNkFfQlpNIn0.PFyRYPq2lu2vYMB7a86SxTkNSNQchtqvEIFoMhpNSXBj78BIwSrqirg_x5SCI_aRaaMtXapqYv1s2RgQO0HcmQ"
+        },
+        {
+          "expect": "reject",
+          "id": "es256/wpt/untrusted_issuer",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "untrusted_issuer",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wit.invalid",
+            "error": "invalid WIT: signature verification failed",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC1yb2d1ZSIsImNuZiI6eyJqd2siOnsiYWxnIjoiRVMyNTYiLCJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlRkVDAxa3lBTzdyTDY0TGJTdWt5UGtVV2lWTWhfYUdHS1F6cktadGg4Y2ciLCJ5Ijoib2ZseUh6MXV6c2l3X3V5eWlFSV80TWhZam0wcGdxenRJXzJsV25WMW41QSJ9fX0.weJJT5Ng6r7ON2DIU5ZcR68PVyERvIh3B4YZeWAroBB0Exr5zxYTuJhiBI-ZRvUkbMz_qg5t6aTdcZLKBaNt1w",
+          "wit_expect": "reject",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRVMyNTYifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LTE4MDAwMDAwMDAtTEtCYU50MXciLCJ3dGgiOiJ4Z2luQnhpeGt1OXJTX0k0cjFQSXpzR0FIR21jY3V0RTZQNzlpb0tWQUhvIn0.FjrzgweldS0lFqKT2bmKIGVPlIJq4WT7nm8F6T6it9ozVfLk2dJJKjuSr_3DdegjqajoDlWwLOXI6L4sAYZTfA"
+        },
+        {
+          "expect": "reject",
+          "id": "es256/wpt/wit_signature_tampered",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "wit_signature_tampered",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wit.invalid",
+            "error": "invalid WIT: signature verification failed",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRVMyNTYiLCJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlRkVDAxa3lBTzdyTDY0TGJTdWt5UGtVV2lWTWhfYUdHS1F6cktadGg4Y2ciLCJ5Ijoib2ZseUh6MXV6c2l3X3V5eWlFSV80TWhZam0wcGdxenRJXzJsV25WMW41QSJ9fX0.AEa2tE2ES7hNR2_v33xihYzLBROOSo07WyFMtB08FKdgDRVWG-YWFywFtilqpW4nt8GiKNMrAhx8mNjd77UGTg",
+          "wit_expect": "reject",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRVMyNTYifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LTE4MDAwMDAwMDAtamQ3N1VHVGciLCJ3dGgiOiJreklNbjV5ZkhFUDBkQ29aTFJwNXd4OThaRkNmUDZUNGxEMkM2eFhMTEE0In0.XPUfqhQLWBODcbZDWdhMRbeqBRjfG7RuI1yDfK37fusGAnIlh7gp_DLs3OdHOGFEOawz6NphA5XJPKIuzIcHpg"
+        },
+        {
+          "expect": "reject",
+          "id": "es256/wpt/wth_mismatch",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "wth_mismatch",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wpt.invalid",
+            "error": "invalid WPT: WIT binding mismatch",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRVMyNTYiLCJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlRkVDAxa3lBTzdyTDY0TGJTdWt5UGtVV2lWTWhfYUdHS1F6cktadGg4Y2ciLCJ5Ijoib2ZseUh6MXV6c2l3X3V5eWlFSV80TWhZam0wcGdxenRJXzJsV25WMW41QSJ9fX0.HEa2tE2ES7hNR2_v33xihYzLBROOSo07WyFMtB08FKdgDRVWG-YWFywFtilqpW4nt8GiKNMrAhx8mNjd77UGTg",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRVMyNTYifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LTE4MDAwMDAwMDAtNHdvdFY2ZVEiLCJ3dGgiOiJWT1JPR0VZd2gwUVNQb3RzcDd0aGIwZkJrUjhDdjk3OVYyWU5OWjh3S25RIn0.SNMKmivZcwu8iq9r-6Hql_PcfnZaxhljD1-_DVTTPN60QElLhFgsWAcqf9gdQVxpAxcgETj8DtizB7hUT8MDRQ"
+        },
+        {
+          "expect": "reject",
+          "id": "es256/wpt/other_audience",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "other_audience",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wpt.invalid",
+            "error": "invalid WPT: audience mismatch",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRVMyNTYiLCJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlRkVDAxa3lBTzdyTDY0TGJTdWt5UGtVV2lWTWhfYUdHS1F6cktadGg4Y2ciLCJ5Ijoib2ZseUh6MXV6c2l3X3V5eWlFSV80TWhZam0wcGdxenRJXzJsV25WMW41QSJ9fX0.HEa2tE2ES7hNR2_v33xihYzLBROOSo07WyFMtB08FKdgDRVWG-YWFywFtilqpW4nt8GiKNMrAhx8mNjd77UGTg",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRVMyNTYifQ.eyJhdWQiOiJodHRwczovL290aGVyLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LTE4MDAwMDAwMDAtamQ3N1VHVGciLCJ3dGgiOiIzbnEtZF81T0N5b1hOTUh4MjBaNnNHbkhzWDZtMUpCSHZYZEZGZG1JVk9jIn0.dI999b1v27Z52N26nNE9TEnDCuRNdyS-xfHFCKnoIoUW65DuvaJ1rbzvTopIM_WDt5mCjwLWI9pDMRPKjDz0dQ"
+        },
+        {
+          "expect": "reject",
+          "id": "es256/wpt/wpt_signature_tampered",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "wpt_signature_tampered",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wpt.invalid",
+            "error": "invalid WPT: signature verification failed",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRVMyNTYiLCJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlRkVDAxa3lBTzdyTDY0TGJTdWt5UGtVV2lWTWhfYUdHS1F6cktadGg4Y2ciLCJ5Ijoib2ZseUh6MXV6c2l3X3V5eWlFSV80TWhZam0wcGdxenRJXzJsV25WMW41QSJ9fX0.HEa2tE2ES7hNR2_v33xihYzLBROOSo07WyFMtB08FKdgDRVWG-YWFywFtilqpW4nt8GiKNMrAhx8mNjd77UGTg",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRVMyNTYifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LTE4MDAwMDAwMDAtamQ3N1VHVGciLCJ3dGgiOiIzbnEtZF81T0N5b1hOTUh4MjBaNnNHbkhzWDZtMUpCSHZYZEZGZG1JVk9jIn0.A9bkJI445M9SqZiBOC9rFgCQYe2FpOiYfTLXCvMiCZEc_eWf0XDyMbfS7ULgu1NZcKhubN0Gi5WiZigyTPuzHw"
+        },
+        {
+          "expect": "reject",
+          "id": "es256/wpt/expired_wpt",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "expired_wpt",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wpt.invalid",
+            "error": "invalid WPT: proof has expired",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRVMyNTYiLCJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlRkVDAxa3lBTzdyTDY0TGJTdWt5UGtVV2lWTWhfYUdHS1F6cktadGg4Y2ciLCJ5Ijoib2ZseUh6MXV6c2l3X3V5eWlFSV80TWhZam0wcGdxenRJXzJsV25WMW41QSJ9fX0.HEa2tE2ES7hNR2_v33xihYzLBROOSo07WyFMtB08FKdgDRVWG-YWFywFtilqpW4nt8GiKNMrAhx8mNjd77UGTg",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRVMyNTYifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTc5OTk5OTg2MCwianRpIjoianRpLWVzMjU2LTE3OTk5OTk4MDAtamQ3N1VHVGciLCJ3dGgiOiIzbnEtZF81T0N5b1hOTUh4MjBaNnNHbkhzWDZtMUpCSHZYZEZGZG1JVk9jIn0.nxBA2PTaPTuCoC5k7fRCBPMkUhXaHWttw5ADxeWTI7po_Grr4qd264oHEyHygT2tcoczd5WizTPYYZ9coS1Syw"
+        },
+        {
+          "expect": "accept",
+          "id": "es256/wpt/wit_no_kid",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "wit_no_kid",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "caller": "spiffe://td.example/agent-a",
+            "method": "WitWpt",
+            "verdict": "accept"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYifQ.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC1uby1raWQiLCJjbmYiOnsiandrIjp7ImFsZyI6IkVTMjU2Iiwia3R5IjoiRUMiLCJjcnYiOiJQLTI1NiIsIngiOiJUZFQwMWt5QU83ckw2NExiU3VreVBrVVdpVk1oX2FHR0tRenJLWnRoOGNnIiwieSI6Im9mbHlIejF1enNpd191eXlpRUlfNE1oWWptMHBncXp0SV8ybFduVjFuNUEifX19.2ZjD7zIW8LkaV-vhVDui4eIjvftPhlRZ36qoug8_jKunng6M3cZWBzB1lthr1mbr9pSzg7gm6-4VI8T3HaokGw",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRVMyNTYifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LTE4MDAwMDAwMDAtVDNIYW9rR3ciLCJ3dGgiOiJpaTFyUlJ3MG9FNkk4N2drNkFkT184bFZyS1JZTS04dmpMemlnRFBSbTVjIn0.shgp5M_bjW8H8xpvF7SXwZb3UyqhLRg2H-2Zr6qLCzA9T7gocsy7yIlj4h3PN3fz3XvYHRPBn5oHXxUPtxGJGA"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "accept",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-valid-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:SLg/GiJl2yYJWKAn3iqV/HzPfWBGimpUnNoqVHBuW1UyQ0QumvsSmfmgzBkvW7U0KRCxaO7pFhXR0O9hUVQarw==:"
+            ]
+          ],
+          "id": "es256/httpsig/valid",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "valid",
+          "sig_expect": "accept",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "caller": "spiffe://td.example/agent-a",
+            "method": "WitHttpSig",
+            "verdict": "accept"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRVMyNTYiLCJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlRkVDAxa3lBTzdyTDY0TGJTdWt5UGtVV2lWTWhfYUdHS1F6cktadGg4Y2ciLCJ5Ijoib2ZseUh6MXV6c2l3X3V5eWlFSV80TWhZam0wcGdxenRJXzJsV25WMW41QSJ9fX0.HEa2tE2ES7hNR2_v33xihYzLBROOSo07WyFMtB08FKdgDRVWG-YWFywFtilqpW4nt8GiKNMrAhx8mNjd77UGTg",
+          "wit_expect": "accept"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-expired_wit-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:nyI7aD8ZRysHn9sN/qhAxvJ2/gZuRCsBc7fbk/zpXKZXGC5doX/heopP6sylOWRXMIFF/Jlff7glvVKDZ2gt1w==:"
+            ]
+          ],
+          "id": "es256/httpsig/expired_wit",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "expired_wit",
+          "sig_expect": "accept",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: invalid WIT: token has expired",
+            "rfc9421_only": {
+              "verdict": "accept"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk4Nzk1LCJleHAiOjE3OTk5OTkzOTUsImp0aSI6IndpdC1leHBpcmVkIiwiY25mIjp7Imp3ayI6eyJhbGciOiJFUzI1NiIsImt0eSI6IkVDIiwiY3J2IjoiUC0yNTYiLCJ4IjoiVGRUMDFreUFPN3JMNjRMYlN1a3lQa1VXaVZNaF9hR0dLUXpyS1p0aDhjZyIsInkiOiJvZmx5SHoxdXpzaXdfdXl5aUVJXzRNaFlqbTBwZ3F6dElfMmxXblYxbjVBIn19fQ.1WTxkgocfu8Uo-4Xd_XrUM6GtUn4LaoG0HjPJAKp460Hr1HkCAiP1_duW1l6m7SMeXJdmVjcK-eBxRhCnVB9AQ",
+          "wit_expect": "reject"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-untrusted_issuer-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:RG7a3yLWf5aHYGsV1QbE9YGxrsQToZq4gop6tyl/EEKriN6cGnu5vqYFmdT3RP+Ki4wPnsu2cnb8QHFtXz8dwQ==:"
+            ]
+          ],
+          "id": "es256/httpsig/untrusted_issuer",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "untrusted_issuer",
+          "sig_expect": "accept",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: invalid WIT: signature verification failed",
+            "rfc9421_only": {
+              "verdict": "accept"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC1yb2d1ZSIsImNuZiI6eyJqd2siOnsiYWxnIjoiRVMyNTYiLCJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlRkVDAxa3lBTzdyTDY0TGJTdWt5UGtVV2lWTWhfYUdHS1F6cktadGg4Y2ciLCJ5Ijoib2ZseUh6MXV6c2l3X3V5eWlFSV80TWhZam0wcGdxenRJXzJsV25WMW41QSJ9fX0.weJJT5Ng6r7ON2DIU5ZcR68PVyERvIh3B4YZeWAroBB0Exr5zxYTuJhiBI-ZRvUkbMz_qg5t6aTdcZLKBaNt1w",
+          "wit_expect": "reject"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-other_audience-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://other.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:7U8nx33CNSzSohBuslYoT79RpXlE1+3p6wqdWZWhwkqF6s+zqCWYsV/MW3Hjia819xowQAQFanAfue7rCslDDg==:"
+            ]
+          ],
+          "id": "es256/httpsig/other_audience",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "other_audience",
+          "sig_expect": "accept",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: audience mismatch",
+            "rfc9421_only": {
+              "verdict": "accept"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRVMyNTYiLCJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlRkVDAxa3lBTzdyTDY0TGJTdWt5UGtVV2lWTWhfYUdHS1F6cktadGg4Y2ciLCJ5Ijoib2ZseUh6MXV6c2l3X3V5eWlFSV80TWhZam0wcGdxenRJXzJsV25WMW41QSJ9fX0.HEa2tE2ES7hNR2_v33xihYzLBROOSo07WyFMtB08FKdgDRVWG-YWFywFtilqpW4nt8GiKNMrAhx8mNjd77UGTg",
+          "wit_expect": "accept"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-signature_tampered-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:ATq6etALIg6ytKVO/ySma5SzeN4ANQSRWScDcBVw2m+mK2iioyE7m7V4BgvL1h3W6/UGyHRhXIaEtRxIUdE3+A==:"
+            ]
+          ],
+          "id": "es256/httpsig/signature_tampered",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "signature_tampered",
+          "sig_expect": "reject",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: signature verification failed",
+            "rfc9421_only": {
+              "error": "signature verification failed",
+              "verdict": "reject"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRVMyNTYiLCJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlRkVDAxa3lBTzdyTDY0TGJTdWt5UGtVV2lWTWhfYUdHS1F6cktadGg4Y2ciLCJ5Ijoib2ZseUh6MXV6c2l3X3V5eWlFSV80TWhZam0wcGdxenRJXzJsV25WMW41QSJ9fX0.HEa2tE2ES7hNR2_v33xihYzLBROOSo07WyFMtB08FKdgDRVWG-YWFywFtilqpW4nt8GiKNMrAhx8mNjd77UGTg",
+          "wit_expect": "accept"
+        },
+        {
+          "body": "{\"title\":\"swapped\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-body_changed-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:YxsQaS81qGzVahkwdrpE6TxSVCldMk0KRGH72otxt4fd5emP8taNBHlp9H2EmedAxmEMZ49gr+Wr99gplGa76Q==:"
+            ]
+          ],
+          "id": "es256/httpsig/body_changed",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "body_changed",
+          "sig_expect": "reject",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: content-digest does not match the body",
+            "rfc9421_only": {
+              "verdict": "accept"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRVMyNTYiLCJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlRkVDAxa3lBTzdyTDY0TGJTdWt5UGtVV2lWTWhfYUdHS1F6cktadGg4Y2ciLCJ5Ijoib2ZseUh6MXV6c2l3X3V5eWlFSV80TWhZam0wcGdxenRJXzJsV25WMW41QSJ9fX0.HEa2tE2ES7hNR2_v33xihYzLBROOSo07WyFMtB08FKdgDRVWG-YWFywFtilqpW4nt8GiKNMrAhx8mNjd77UGTg",
+          "wit_expect": "accept"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "text/plain"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-covered_header_changed-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:xmXBRL19GMfu0zifngNFx0cya3ZQfL/rGvaq8ubi4AoPj/s/OYXaJeSWHD5sF2T7ftja5H5ZjkVjbAtf5MpWDA==:"
+            ]
+          ],
+          "id": "es256/httpsig/covered_header_changed",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "covered_header_changed",
+          "sig_expect": "reject",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: signature verification failed",
+            "rfc9421_only": {
+              "error": "signature verification failed",
+              "verdict": "reject"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRVMyNTYiLCJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlRkVDAxa3lBTzdyTDY0TGJTdWt5UGtVV2lWTWhfYUdHS1F6cktadGg4Y2ciLCJ5Ijoib2ZseUh6MXV6c2l3X3V5eWlFSV80TWhZam0wcGdxenRJXzJsV25WMW41QSJ9fX0.HEa2tE2ES7hNR2_v33xihYzLBROOSo07WyFMtB08FKdgDRVWG-YWFywFtilqpW4nt8GiKNMrAhx8mNjd77UGTg",
+          "wit_expect": "accept"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-query_changed-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:oWs4UsWrTnPdXoO2ZcY6NTLdp3MM6UDbMAAz7hbvQXJfQz4syPvHeWWUyCQ4ptkG4HoARgEBUMYuaA31XbUYEw==:"
+            ]
+          ],
+          "id": "es256/httpsig/query_changed",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "query_changed",
+          "sig_expect": "reject",
+          "uri": "https://tools.td.example/tickets?a=2",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: signature verification failed",
+            "rfc9421_only": {
+              "error": "signature verification failed",
+              "verdict": "reject"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRVMyNTYiLCJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IlRkVDAxa3lBTzdyTDY0TGJTdWt5UGtVV2lWTWhfYUdHS1F6cktadGg4Y2ciLCJ5Ijoib2ZseUh6MXV6c2l3X3V5eWlFSV80TWhZam0wcGdxenRJXzJsV25WMW41QSJ9fX0.HEa2tE2ES7hNR2_v33xihYzLBROOSo07WyFMtB08FKdgDRVWG-YWFywFtilqpW4nt8GiKNMrAhx8mNjd77UGTg",
+          "wit_expect": "accept"
+        }
+      ],
+      "issuers": [
+        {
+          "iss": "https://wit.td.example",
+          "jwks": {
+            "keys": [
+              {
+                "alg": "ES256",
+                "crv": "P-256",
+                "kid": "wit-1",
+                "kty": "EC",
+                "x": "UadYCDOJjqGxg8vXNQpAmQeMbvHB4Y6XDNdoMDXyXn0",
+                "y": "ARBSJxKwtafP8IFoVIaYSpTmgx7axG5zYPqdg0p6gaE"
+              }
+            ]
+          },
+          "trust_domain": "td.example"
+        }
+      ],
+      "pop_private_jwk": {
+        "alg": "ES256",
+        "crv": "P-256",
+        "d": "UlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlI",
+        "kty": "EC",
+        "x": "TdT01kyAO7rL64LbSukyPkUWiVMh_aGGKQzrKZth8cg",
+        "y": "oflyHz1uzsiw_uyyiEI_4MhYjm0pgqztI_2lWnV1n5A"
+      },
+      "suite": "es256"
+    },
+    {
+      "cases": [
+        {
+          "expect": "accept",
+          "id": "es256-eddsa/wpt/valid",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "valid",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "caller": "spiffe://td.example/agent-a",
+            "method": "WitWpt",
+            "verdict": "accept"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWREU0EiLCJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6Ii1Bek0zT1N1SEFldUlJb3EzNW1qRUs1Q0ItQXdiNkFqWVJDd2FDZTd1TkEifX19.igQ9TzMH8415PPBoDopzh86pveE27L6_tiRkHjMVyBdpe04jXBlJohgxN_KRZ9Ffsr1sfTredUNrRR7DfaRUDA",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWREU0EifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LWVkZHNhLTE4MDAwMDAwMDAtN0RmYVJVREEiLCJ3dGgiOiJpcTN6WVd0cWZCeUZiUmVIcDl6RkJiRGZfbDRXbk40RUozN1R1REQ0dTU0In0.gDk3OFLeyoEDHUbqTNTSQmxIMSMVfUyFBZMhDkYz0dXhTS0Lp1BINruLVp4cE33H7RSz7hY-d4YhEUns4yzIBg"
+        },
+        {
+          "expect": "reject",
+          "id": "es256-eddsa/wpt/expired_wit",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "expired_wit",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wit.invalid",
+            "error": "invalid WIT: token has expired",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk4Nzk1LCJleHAiOjE3OTk5OTkzOTUsImp0aSI6IndpdC1leHBpcmVkIiwiY25mIjp7Imp3ayI6eyJhbGciOiJFZERTQSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4IjoiLUF6TTNPU3VIQWV1SUlvcTM1bWpFSzVDQi1Bd2I2QWpZUkN3YUNlN3VOQSJ9fX0.0G33BtAv5TuiZDvg-Y-bjQ9vk_J29B5iMgHD1NW6yuFD_estQh4bUVPvMeEW0WeZ9R4wQJ7SL55NWJUImar5uw",
+          "wit_expect": "reject",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWREU0EifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LWVkZHNhLTE4MDAwMDAwMDAtVUltYXI1dXciLCJ3dGgiOiJDRW5oSFJqSmpPdGpoRWpwSnp3VnEwR2U3Y182bEZJZGhfbGtoa2pBNm8wIn0.ROZ7Yfuzaeetc1mY5fle2BNaGOROwPWwx6pqtdpkr0tXLtNvyawixrHoYEYhM0e8SrrDQcQmxrvbSFNnaXvwCg"
+        },
+        {
+          "expect": "reject",
+          "id": "es256-eddsa/wpt/untrusted_issuer",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "untrusted_issuer",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wit.invalid",
+            "error": "invalid WIT: signature verification failed",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC1yb2d1ZSIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWREU0EiLCJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6Ii1Bek0zT1N1SEFldUlJb3EzNW1qRUs1Q0ItQXdiNkFqWVJDd2FDZTd1TkEifX19.wctK5WE_a4yVVCNVmbFNjCxsJo-e4w57xOVqUUcTzsttZkhX433y0FcI0SM21WzB5-dkw6F9CRZ1mi_RUSiexw",
+          "wit_expect": "reject",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWREU0EifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LWVkZHNhLTE4MDAwMDAwMDAtX1JVU2lleHciLCJ3dGgiOiJXd0o2Tmc4cnNvOWVSUjVQVHlWRzdtQjdxcHZsR0FjZTFhUnYtanlJdVI0In0.5rcOI_sZuaCOxaFhCV9Uv5ZpOuy5aLavdtlp_TbX8qczD52Hbe6Ucp3Wtb4YpadcbZpiYUOhMg2vpozToZ7WAA"
+        },
+        {
+          "expect": "reject",
+          "id": "es256-eddsa/wpt/wit_signature_tampered",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "wit_signature_tampered",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wit.invalid",
+            "error": "invalid WIT: signature verification failed",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWREU0EiLCJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6Ii1Bek0zT1N1SEFldUlJb3EzNW1qRUs1Q0ItQXdiNkFqWVJDd2FDZTd1TkEifX19.AgQ9TzMH8415PPBoDopzh86pveE27L6_tiRkHjMVyBdpe04jXBlJohgxN_KRZ9Ffsr1sfTredUNrRR7DfaRUDA",
+          "wit_expect": "reject",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWREU0EifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LWVkZHNhLTE4MDAwMDAwMDAtN0RmYVJVREEiLCJ3dGgiOiJjcTZJU004Rk54MVVsV2l0OWdlMVJxWDM5XzZBelYwMHU5THRwZ1p0YVlvIn0.jkeQWHu1wP0Z2FXTD6XqW-lYDTjGp5euLf8xJIFrNAtgehTx7KZ4yTKyPicQCW1mdmJ5jl2fDWGKt0G9Zu-WBg"
+        },
+        {
+          "expect": "reject",
+          "id": "es256-eddsa/wpt/wth_mismatch",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "wth_mismatch",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wpt.invalid",
+            "error": "invalid WPT: WIT binding mismatch",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWREU0EiLCJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6Ii1Bek0zT1N1SEFldUlJb3EzNW1qRUs1Q0ItQXdiNkFqWVJDd2FDZTd1TkEifX19.igQ9TzMH8415PPBoDopzh86pveE27L6_tiRkHjMVyBdpe04jXBlJohgxN_KRZ9Ffsr1sfTredUNrRR7DfaRUDA",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWREU0EifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LWVkZHNhLTE4MDAwMDAwMDAtLVVYVlBYMVEiLCJ3dGgiOiJkQ1JDUlJlTFdBM2J4UjU2UkExQ0E3MVBsLWlpekhmSnlfUmdZSTNtRWdVIn0.y9S3InR07Kjp3N0pULa5UgeO8TDPU6tVvUMu4Ip6LpYxBo-MTEBpPT1liwL5rgYyO7xsheGWytveXIIKoWnaBA"
+        },
+        {
+          "expect": "reject",
+          "id": "es256-eddsa/wpt/other_audience",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "other_audience",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wpt.invalid",
+            "error": "invalid WPT: audience mismatch",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWREU0EiLCJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6Ii1Bek0zT1N1SEFldUlJb3EzNW1qRUs1Q0ItQXdiNkFqWVJDd2FDZTd1TkEifX19.igQ9TzMH8415PPBoDopzh86pveE27L6_tiRkHjMVyBdpe04jXBlJohgxN_KRZ9Ffsr1sfTredUNrRR7DfaRUDA",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWREU0EifQ.eyJhdWQiOiJodHRwczovL290aGVyLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LWVkZHNhLTE4MDAwMDAwMDAtN0RmYVJVREEiLCJ3dGgiOiJpcTN6WVd0cWZCeUZiUmVIcDl6RkJiRGZfbDRXbk40RUozN1R1REQ0dTU0In0.hJi0meTZIA8DmcKimVxQFi1-YNj2lrJbscE0Qnf-eZ36vZo1RLKid5_GhGhsiZSsO0jub_j4jNFdD36yZ5dwDQ"
+        },
+        {
+          "expect": "reject",
+          "id": "es256-eddsa/wpt/wpt_signature_tampered",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "wpt_signature_tampered",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wpt.invalid",
+            "error": "invalid WPT: signature verification failed",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWREU0EiLCJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6Ii1Bek0zT1N1SEFldUlJb3EzNW1qRUs1Q0ItQXdiNkFqWVJDd2FDZTd1TkEifX19.igQ9TzMH8415PPBoDopzh86pveE27L6_tiRkHjMVyBdpe04jXBlJohgxN_KRZ9Ffsr1sfTredUNrRR7DfaRUDA",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWREU0EifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LWVkZHNhLTE4MDAwMDAwMDAtN0RmYVJVREEiLCJ3dGgiOiJpcTN6WVd0cWZCeUZiUmVIcDl6RkJiRGZfbDRXbk40RUozN1R1REQ0dTU0In0.ADk3OFLeyoEDHUbqTNTSQmxIMSMVfUyFBZMhDkYz0dXhTS0Lp1BINruLVp4cE33H7RSz7hY-d4YhEUns4yzIBg"
+        },
+        {
+          "expect": "reject",
+          "id": "es256-eddsa/wpt/expired_wpt",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "expired_wpt",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "code": "wpt.invalid",
+            "error": "invalid WPT: proof has expired",
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWREU0EiLCJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6Ii1Bek0zT1N1SEFldUlJb3EzNW1qRUs1Q0ItQXdiNkFqWVJDd2FDZTd1TkEifX19.igQ9TzMH8415PPBoDopzh86pveE27L6_tiRkHjMVyBdpe04jXBlJohgxN_KRZ9Ffsr1sfTredUNrRR7DfaRUDA",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWREU0EifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTc5OTk5OTg2MCwianRpIjoianRpLWVzMjU2LWVkZHNhLTE3OTk5OTk4MDAtN0RmYVJVREEiLCJ3dGgiOiJpcTN6WVd0cWZCeUZiUmVIcDl6RkJiRGZfbDRXbk40RUozN1R1REQ0dTU0In0.iRjSaVa9l1STRpSoc3bSqWGzBMqIIb3PP5UCarqL3gA0kYDpqWg-CKliiitgV90J-RiaQwL2SJC7u6Xj_RhgAQ"
+        },
+        {
+          "expect": "accept",
+          "id": "es256-eddsa/wpt/wit_no_kid",
+          "kind": "wpt",
+          "method": "GET",
+          "mutation": "wit_no_kid",
+          "uri": "https://tools.td.example/tickets?status=open",
+          "visado": {
+            "caller": "spiffe://td.example/agent-a",
+            "method": "WitWpt",
+            "verdict": "accept"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYifQ.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC1uby1raWQiLCJjbmYiOnsiandrIjp7ImFsZyI6IkVkRFNBIiwia3R5IjoiT0tQIiwiY3J2IjoiRWQyNTUxOSIsIngiOiItQXpNM09TdUhBZXVJSW9xMzVtakVLNUNCLUF3YjZBallSQ3dhQ2U3dU5BIn19fQ.bMbncgoRP50RwXNHgmx1KMTBpOK7UP1Cb32LjGbaotWNofkKUEM6lQPrw2TAmVVZ6HTvDOajh2U2Qhk8_N794Q",
+          "wit_expect": "accept",
+          "wpt": "eyJ0eXAiOiJ3cHQrand0IiwiYWxnIjoiRWREU0EifQ.eyJhdWQiOiJodHRwczovL3Rvb2xzLnRkLmV4YW1wbGUvdGlja2V0cyIsImV4cCI6MTgwMDAwMDA2MCwianRpIjoianRpLWVzMjU2LWVkZHNhLTE4MDAwMDAwMDAtazhfTjc5NFEiLCJ3dGgiOiJGNmNGT1RHcmlwZG9VSW5fSnNIbjFSVFlrRGN4MWQyLXRCbTQ1NjNjUTljIn0.G3n6QtNoHSfPZK5ViPgmVlaW0RS33U95LQzFxQ5sy9JXASvW5qIVt9aMXrmunUC5YWM9TBovSf7vlkiwEYTzDQ"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "accept",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-eddsa-valid-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:I9Uy+1rIOyfOwik1z4SCnedcbeyy6WS7ylkrtVpbjLs8asQyaE2luV7vn3u09umSlH+4SlmcEH0PEz5DJFWEAA==:"
+            ]
+          ],
+          "id": "es256-eddsa/httpsig/valid",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "valid",
+          "sig_expect": "accept",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "caller": "spiffe://td.example/agent-a",
+            "method": "WitHttpSig",
+            "verdict": "accept"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWREU0EiLCJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6Ii1Bek0zT1N1SEFldUlJb3EzNW1qRUs1Q0ItQXdiNkFqWVJDd2FDZTd1TkEifX19.igQ9TzMH8415PPBoDopzh86pveE27L6_tiRkHjMVyBdpe04jXBlJohgxN_KRZ9Ffsr1sfTredUNrRR7DfaRUDA",
+          "wit_expect": "accept"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-eddsa-expired_wit-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:ipgrqfD8WgHiT5jkycZKV+xdPCgoCVW8ojej81+kvoI4DA+Yo+TAQIouQvIDDOiFt9zjv0bYybhJyZguvBhJDQ==:"
+            ]
+          ],
+          "id": "es256-eddsa/httpsig/expired_wit",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "expired_wit",
+          "sig_expect": "accept",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: invalid WIT: token has expired",
+            "rfc9421_only": {
+              "verdict": "accept"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk4Nzk1LCJleHAiOjE3OTk5OTkzOTUsImp0aSI6IndpdC1leHBpcmVkIiwiY25mIjp7Imp3ayI6eyJhbGciOiJFZERTQSIsImt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4IjoiLUF6TTNPU3VIQWV1SUlvcTM1bWpFSzVDQi1Bd2I2QWpZUkN3YUNlN3VOQSJ9fX0.0G33BtAv5TuiZDvg-Y-bjQ9vk_J29B5iMgHD1NW6yuFD_estQh4bUVPvMeEW0WeZ9R4wQJ7SL55NWJUImar5uw",
+          "wit_expect": "reject"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-eddsa-untrusted_issuer-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:hRJOjTOWQ4vZ6Iu/mjw1KG37+D9/tzaxy46l+z54EZZs/7r6deAXD7Zcgaya09Au4Pg7xiwMeP7I4HEHGYRsDg==:"
+            ]
+          ],
+          "id": "es256-eddsa/httpsig/untrusted_issuer",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "untrusted_issuer",
+          "sig_expect": "accept",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: invalid WIT: signature verification failed",
+            "rfc9421_only": {
+              "verdict": "accept"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC1yb2d1ZSIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWREU0EiLCJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6Ii1Bek0zT1N1SEFldUlJb3EzNW1qRUs1Q0ItQXdiNkFqWVJDd2FDZTd1TkEifX19.wctK5WE_a4yVVCNVmbFNjCxsJo-e4w57xOVqUUcTzsttZkhX433y0FcI0SM21WzB5-dkw6F9CRZ1mi_RUSiexw",
+          "wit_expect": "reject"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-eddsa-other_audience-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://other.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:x7N55Lmysp2f1oRBWVw7hS7Z5XTgSe6kGmqu3RzUL5PnDQih6AJsVQjmOg862xfvtCAkCSVmiQdM3asZQYUECg==:"
+            ]
+          ],
+          "id": "es256-eddsa/httpsig/other_audience",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "other_audience",
+          "sig_expect": "accept",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: audience mismatch",
+            "rfc9421_only": {
+              "verdict": "accept"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWREU0EiLCJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6Ii1Bek0zT1N1SEFldUlJb3EzNW1qRUs1Q0ItQXdiNkFqWVJDd2FDZTd1TkEifX19.igQ9TzMH8415PPBoDopzh86pveE27L6_tiRkHjMVyBdpe04jXBlJohgxN_KRZ9Ffsr1sfTredUNrRR7DfaRUDA",
+          "wit_expect": "accept"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-eddsa-signature_tampered-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:ArQ+r8JpL5IU1+Zp3m+IQ0BGG9mKbTcGjshwcj80q7uey54Ct3uOEZhf3y/5zugXNQPVoF95xV4vqciUOdllAg==:"
+            ]
+          ],
+          "id": "es256-eddsa/httpsig/signature_tampered",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "signature_tampered",
+          "sig_expect": "reject",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: signature verification failed",
+            "rfc9421_only": {
+              "error": "signature verification failed",
+              "verdict": "reject"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWREU0EiLCJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6Ii1Bek0zT1N1SEFldUlJb3EzNW1qRUs1Q0ItQXdiNkFqWVJDd2FDZTd1TkEifX19.igQ9TzMH8415PPBoDopzh86pveE27L6_tiRkHjMVyBdpe04jXBlJohgxN_KRZ9Ffsr1sfTredUNrRR7DfaRUDA",
+          "wit_expect": "accept"
+        },
+        {
+          "body": "{\"title\":\"swapped\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-eddsa-body_changed-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:VOE1pu3abKMjuhPiGvm1NF/XnMgg2nddJmX9WVj9YykXrXVFin1WfxNo/1X1bdiIDdG6OhsIhgRuXnlzLAmHAg==:"
+            ]
+          ],
+          "id": "es256-eddsa/httpsig/body_changed",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "body_changed",
+          "sig_expect": "reject",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: content-digest does not match the body",
+            "rfc9421_only": {
+              "verdict": "accept"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWREU0EiLCJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6Ii1Bek0zT1N1SEFldUlJb3EzNW1qRUs1Q0ItQXdiNkFqWVJDd2FDZTd1TkEifX19.igQ9TzMH8415PPBoDopzh86pveE27L6_tiRkHjMVyBdpe04jXBlJohgxN_KRZ9Ffsr1sfTredUNrRR7DfaRUDA",
+          "wit_expect": "accept"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "text/plain"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-eddsa-covered_header_changed-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:pxEbbgjCvfaO2aZZ37Am6eaRsb6c5RWR5cqXPOaHYxbR75WV//YvchQjkhjMbmuNkiRNfQxzxIWADeZqxgvGAg==:"
+            ]
+          ],
+          "id": "es256-eddsa/httpsig/covered_header_changed",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "covered_header_changed",
+          "sig_expect": "reject",
+          "uri": "https://tools.td.example/tickets?a=1",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: signature verification failed",
+            "rfc9421_only": {
+              "error": "signature verification failed",
+              "verdict": "reject"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWREU0EiLCJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6Ii1Bek0zT1N1SEFldUlJb3EzNW1qRUs1Q0ItQXdiNkFqWVJDd2FDZTd1TkEifX19.igQ9TzMH8415PPBoDopzh86pveE27L6_tiRkHjMVyBdpe04jXBlJohgxN_KRZ9Ffsr1sfTredUNrRR7DfaRUDA",
+          "wit_expect": "accept"
+        },
+        {
+          "body": "{\"title\":\"interop\"}",
+          "expect": "reject",
+          "headers": [
+            [
+              "content-type",
+              "application/json"
+            ],
+            [
+              "content-digest",
+              "sha-256=:veF3bk1vrUkmw8IMxRbuYEv9hTgxqELzo6aADxf+bJI=:"
+            ],
+            [
+              "content-length",
+              "19"
+            ],
+            [
+              "signature-input",
+              "wimse=(\"@method\" \"@path\" \"@query\" \"content-type\" \"content-digest\" \"workload-identity-token\");created=1800000000;expires=1800000060;nonce=\"nonce-es256-eddsa-query_changed-5f3c9a1e\";tag=\"wimse-workload-to-workload\";wimse-aud=\"https://tools.td.example/tickets\""
+            ],
+            [
+              "signature",
+              "wimse=:j81UgkqlTBtSGkzPSYDm3y2NCXVTkC/BReFnNCFbZfLYYDjj4/AR3PtTv4VaU8kACnEgmYnc81y0ghXQo5zOAA==:"
+            ]
+          ],
+          "id": "es256-eddsa/httpsig/query_changed",
+          "kind": "httpsig",
+          "method": "POST",
+          "mutation": "query_changed",
+          "sig_expect": "reject",
+          "uri": "https://tools.td.example/tickets?a=2",
+          "visado": {
+            "code": "httpsig.invalid",
+            "error": "invalid signed request: signature verification failed",
+            "rfc9421_only": {
+              "error": "signature verification failed",
+              "verdict": "reject"
+            },
+            "verdict": "reject"
+          },
+          "wit": "eyJ0eXAiOiJ3aXQrand0IiwiYWxnIjoiRVMyNTYiLCJraWQiOiJ3aXQtMSJ9.eyJpc3MiOiJodHRwczovL3dpdC50ZC5leGFtcGxlIiwic3ViIjoic3BpZmZlOi8vdGQuZXhhbXBsZS9hZ2VudC1hIiwiaWF0IjoxNzk5OTk5OTk1LCJleHAiOjE4MDAwMDA1OTUsImp0aSI6IndpdC12YWxpZCIsImNuZiI6eyJqd2siOnsiYWxnIjoiRWREU0EiLCJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6Ii1Bek0zT1N1SEFldUlJb3EzNW1qRUs1Q0ItQXdiNkFqWVJDd2FDZTd1TkEifX19.igQ9TzMH8415PPBoDopzh86pveE27L6_tiRkHjMVyBdpe04jXBlJohgxN_KRZ9Ffsr1sfTredUNrRR7DfaRUDA",
+          "wit_expect": "accept"
+        }
+      ],
+      "issuers": [
+        {
+          "iss": "https://wit.td.example",
+          "jwks": {
+            "keys": [
+              {
+                "alg": "ES256",
+                "crv": "P-256",
+                "kid": "wit-1",
+                "kty": "EC",
+                "x": "UadYCDOJjqGxg8vXNQpAmQeMbvHB4Y6XDNdoMDXyXn0",
+                "y": "ARBSJxKwtafP8IFoVIaYSpTmgx7axG5zYPqdg0p6gaE"
+              }
+            ]
+          },
+          "trust_domain": "td.example"
+        }
+      ],
+      "pop_private_jwk": {
+        "alg": "EdDSA",
+        "crv": "Ed25519",
+        "d": "U1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1M",
+        "kty": "OKP",
+        "x": "-AzM3OSuHAeuIIoq35mjEK5CB-Awb6AjYRCwaCe7uNA"
+      },
+      "suite": "es256-eddsa"
+    }
+  ],
+  "version": "0.3.0"
+}
