@@ -227,15 +227,23 @@ call 401/token.dpop_bound "DPoP-bound token sent as Bearer" /tickets dpop /ticke
 # with client_credentials: bearer, and DPoP-bound (RFC 9449) when the token
 # request carries a proof. visado trusts the realm's JWKS (keycloak-jwks).
 KC=http://keycloak.td.example:8180
+# The issuers name the ports published on the host. From the demo container
+# (LAB_IN_COMPOSE) the same names connect to the services instead.
+if [ -n "${LAB_IN_COMPOSE:-}" ]; then
+  kc_at=keycloak:8080 cd_at=casdoor:8000
+else
+  kc_at=127.0.0.1:8180 cd_at=127.0.0.1:8190
+fi
+idp_bin=${bin:-./target/debug/examples}
 KC_TOKEN=$KC/realms/lab/protocol/openid-connect/token
 kc_token() {
-  curl -sf --max-time 30 --resolve keycloak.td.example:8180:127.0.0.1 -u agent-a:agent-a-lab-secret \
+  curl -sf --max-time 30 --connect-to "keycloak.td.example:8180:$kc_at" -u agent-a:agent-a-lab-secret \
     -d grant_type=client_credentials "$@" "$KC_TOKEN" | jq -er .access_token ||
     { echo "FAIL  no access token from Keycloak at $KC_TOKEN" >&2; exit 1; }
 }
 kc_bearer=$(kc_token)
 kc_admin=$(kc_token -d scope=roles.write)
-kc_dpop=$(kc_token -H "DPoP: $(./target/debug/examples/lab_methods token-proof "$KC_TOKEN")")
+kc_dpop=$(kc_token -H "DPoP: $("$idp_bin/lab_methods" token-proof "$KC_TOKEN")")
 kc_jkt=$(jq -rR 'split(".")[1] | gsub("-"; "+") | gsub("_"; "/") | @base64d | fromjson | .cnf.jkt' <<<"$kc_dpop")
 echo "      Keycloak issued agent-a a bearer token and a DPoP-bound token (cnf.jkt $kc_jkt)"
 call 200 "Keycloak: agent-a reads tickets" /tickets bearer "$kc_bearer"
@@ -254,7 +262,7 @@ call 401/dpop.binding "Keycloak: DPoP proof by another key" /tickets dpop_with /
 # a DPoP proof. The access token names bob, DPoP-bound to agent-a's key.
 CD=http://casdoor.td.example:8190
 CD_TOKEN=$CD/api/login/oauth/access_token
-cd_post() { curl -s --max-time 30 --resolve casdoor.td.example:8190:127.0.0.1 -d client_id=agent-a -d client_secret=agent-a-casdoor-secret "$@" "$CD_TOKEN"; }
+cd_post() { curl -s --max-time 30 --connect-to "casdoor.td.example:8190:$cd_at" -d client_id=agent-a -d client_secret=agent-a-casdoor-secret "$@" "$CD_TOKEN"; }
 id_jag() {
   local id_token
   id_token=$(cd_post -d grant_type=password -d username="$1" -d password="$1-lab-password" -d scope=openid | jq -er .id_token) ||
@@ -265,9 +273,9 @@ id_jag() {
     -d audience=http://keycloak.td.example:8180/realms/lab
 }
 redeem() {
-  curl -s --max-time 30 --resolve keycloak.td.example:8180:127.0.0.1 -u agent-a:agent-a-lab-secret \
+  curl -s --max-time 30 --connect-to "keycloak.td.example:8180:$kc_at" -u agent-a:agent-a-lab-secret \
     -d grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer -d assertion="$1" \
-    -H "DPoP: $(./target/debug/examples/lab_methods token-proof "$KC_TOKEN")" "$KC_TOKEN"
+    -H "DPoP: $("$idp_bin/lab_methods" token-proof "$KC_TOKEN")" "$KC_TOKEN"
 }
 jag=$(id_jag bob | jq -r '.access_token // empty')
 expect "Casdoor: ID-JAG for bob" "$(jq -rR 'split(".")[0] | gsub("-"; "+") | gsub("_"; "/") | @base64d | fromjson | .typ' <<<"$jag" 2>/dev/null)" oauth-id-jag+jwt
