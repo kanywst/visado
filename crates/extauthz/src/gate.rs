@@ -23,7 +23,7 @@ use visado_txn_token::{
 
 use crate::audit::{AUDIT_VERSION, AuditChain, AuditRecord};
 use crate::recent::{
-    ChainSummary, Decision, PdpResult, RequestLog, RequestSummary, actor_parts, bounded,
+    ChainSummary, Decision, PdpResult, RequestLog, RequestSummary, actor_parts, scrubbed,
 };
 
 /// The header carrying an AAT chain, root first, comma-separated.
@@ -245,7 +245,7 @@ impl<P: Pdp> Gate<P> {
     /// Decides on `input` at `now`. `txn` is the identifier used if a new
     /// Transaction Token is minted.
     pub async fn check(&self, input: &CheckInput, now: u64, txn: &str) -> Outcome {
-        let resource = resource_id(input);
+        let resource = crate::audit::scrub_tokens(&resource_id(input));
         let span = tracing::info_span!(
             "visado.authorize",
             otel.name = %format!("visado.authorize {resource}"),
@@ -911,6 +911,8 @@ struct Trail {
     /// invariant engine bounds the count to
     /// [`visado_chain::invariants::MAX_HOPS`].
     chain_actors: Vec<String>,
+    /// The verified chain's trust anchor, for the audit record.
+    chain_issuer: String,
     /// How the chain's depth bound was read (`del_max_depth`), once the
     /// invariant engine accepted it.
     depth_semantics: Option<&'static str>,
@@ -921,6 +923,7 @@ impl Trail {
     /// every hop's actor for the audit record.
     fn set_chain(&mut self, chain: &NormalizedChain) {
         self.chain = Some(Box::new(ChainSummary::from_chain(chain)));
+        self.chain_issuer.clone_from(&chain.root.issuer);
         self.chain_actors = chain
             .hops
             .iter()
@@ -1336,13 +1339,13 @@ fn summary(
         Ok(allowed) => (&allowed.trail, Decision::Allow, 200, "ok"),
         Err(denied) => (&*denied.trail, Decision::Deny, denied.status, denied.code),
     };
-    let known = |s: &str| (!s.is_empty()).then(|| bounded(s));
+    let known = |s: &str| (!s.is_empty()).then(|| scrubbed(s));
     RequestSummary {
-        id: bounded(id),
+        id: scrubbed(id),
         txn: known(&trail.txn),
         time: now,
-        method: bounded(&input.method),
-        resource: bounded(&resource_id(input)),
+        method: scrubbed(&input.method),
+        resource: scrubbed(&resource_id(input)),
         caller: known(&trail.agent),
         auth_method: trail.method.map(method_name),
         principal: known(&trail.principal),
@@ -1372,7 +1375,7 @@ fn audit_record(
         ),
     };
     let chain = trail.chain.as_deref();
-    let actors: Vec<String> = trail.chain_actors.iter().map(|a| bounded(a)).collect();
+    let actors: Vec<String> = trail.chain_actors.iter().map(|a| scrubbed(a)).collect();
     let remediation = match (decision, status) {
         ("allow", _) => "none",
         (_, 401) => "reauthenticate",
@@ -1383,25 +1386,25 @@ fn audit_record(
         audit_version: AUDIT_VERSION,
         seq: 0,
         prev: String::new(),
-        id: bounded(id),
-        txn: bounded(&trail.txn),
+        id: scrubbed(id),
+        txn: scrubbed(&trail.txn),
         time: now,
-        agent: bounded(&trail.agent),
+        agent: scrubbed(&trail.agent),
         auth_method: trail.method.map(method_name).unwrap_or_default().to_owned(),
         sender_constrained: trail.method.is_some_and(sender_constrained),
-        principal: bounded(&trail.principal),
+        principal: scrubbed(&trail.principal),
         chain_profile: chain.map(|c| c.profile).unwrap_or_default().to_owned(),
-        chain_issuer: chain.map(|c| bounded(&c.issuer)).unwrap_or_default(),
+        chain_issuer: scrubbed(&trail.chain_issuer),
         chain_hops: u32::try_from(actors.len()).unwrap_or(u32::MAX),
         chain_actors: serde_json::to_string(&actors).unwrap_or_else(|_| "[]".into()),
         depth_semantics: trail.depth_semantics.unwrap_or_default().to_owned(),
-        resource: bounded(&resource_id(input)),
-        tool: mcp_tool(input).unwrap_or_default(),
-        action: bounded(&input.method),
+        resource: scrubbed(&resource_id(input)),
+        tool: mcp_tool(input).as_deref().map(scrubbed).unwrap_or_default(),
+        action: scrubbed(&input.method),
         decision: decision.to_owned(),
         status,
         reason: reason.to_owned(),
-        detail: bounded(&crate::audit::scrub_tokens(detail)),
+        detail: scrubbed(detail),
         pdp: match &trail.pdp {
             None => "not_asked".to_owned(),
             Some(PdpResult::Allow) => "allow".to_owned(),
@@ -1422,7 +1425,7 @@ const fn sender_constrained(method: Method) -> bool {
     }
 }
 
-/// The tool of a JSON-RPC `tools/call` body, cut to the summary length.
+/// The tool of a JSON-RPC `tools/call` body.
 fn mcp_tool(input: &CheckInput) -> Option<String> {
     if input
         .body
@@ -1431,7 +1434,7 @@ fn mcp_tool(input: &CheckInput) -> Option<String> {
     {
         return None;
     }
-    invocation(input).map(|(tool, _)| bounded(&tool))
+    invocation(input).map(|(tool, _)| tool)
 }
 
 #[cfg(test)]

@@ -1,5 +1,8 @@
 //! The audit record: one per decision, with the minimum of
-//! draft-ietf-wimse-aims §11, hash-chained, never holding a token.
+//! draft-ietf-wimse-aims §11, hash-chained. No credential header, proof or
+//! body is copied into it, and JWS-looking text that reaches a text member
+//! (a token in the path, a tool name or a `sub`) is replaced by `[token]`
+//! before the member is cut to length.
 //!
 //! The gate writes each [`AuditRecord`] as one event under the
 //! `visado::audit` tracing target, every member of the record a field of the
@@ -22,6 +25,11 @@ use sha2::{Digest, Sha256};
 pub const AUDIT_VERSION: u32 = 1;
 
 /// One decision.
+///
+/// In every text member (`id`, `txn`, `agent`, `principal`, `chain_issuer`,
+/// each element of `chain_actors`, `resource`, `tool`, `action`, `detail`)
+/// the gate replaces JWS-looking text by `[token]`, then cuts the member to
+/// [`MAX_TEXT`](crate::recent::MAX_TEXT) characters.
 ///
 /// Member order is part of the schema: [`digest`](Self::digest) hashes the
 /// members in this order.
@@ -73,8 +81,7 @@ pub struct AuditRecord {
     pub status: u16,
     /// The stable reason code: `ok` for an allow.
     pub reason: String,
-    /// Why, in words, for a denial. Bounded in length, and any JWS-looking
-    /// text is replaced by `[token]`.
+    /// Why, in words, for a denial.
     pub detail: String,
     /// What the PDP said: `allow`, `deny`, `error:<code>`, or `not_asked`.
     pub pdp: String,

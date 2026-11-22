@@ -12,12 +12,13 @@
 //!    and, when DPoP nonces are required, hands out a fresh `DPoP-Nonce` on
 //!    every 401 and after every request with a DPoP proof,
 //! 6. writes one [`audit::AuditRecord`] per decision under the
-//!    `visado::audit` tracing target, hash-chained to the one before. Tokens
-//!    are never logged.
+//!    `visado::audit` tracing target, hash-chained to the one before. No
+//!    credential header, proof or body is logged, and JWS-looking text in
+//!    any logged member (a token in the path, say) is replaced by `[token]`.
 //!
 //! A gate given a [`RequestLog`] also keeps a summary of each recent decision
-//! (identifiers, outcomes and the verified chain, never tokens) for the chain
-//! view.
+//! (identifiers, outcomes and the verified chain, scrubbed the same way) for
+//! the chain view.
 
 pub mod audit;
 mod gate;

@@ -1,9 +1,10 @@
 //! A bounded, in-memory record of recent decisions, for the chain view.
 //!
 //! Each [`RequestSummary`] holds identifiers and outcomes only: never a
-//! token, a proof, a signature, a header value or a body. Strings are cut to
-//! [`MAX_TEXT`] characters and chains to [`MAX_HOPS`] hops, so one entry stays
-//! small whatever the request carried.
+//! token, a proof, a signature, a header value or a body. JWS-looking text
+//! in a string (a token in the path, say) is replaced by `[token]`, strings
+//! are cut to [`MAX_TEXT`] characters and chains to [`MAX_HOPS`] hops, so one
+//! entry stays small whatever the request carried.
 
 use std::collections::VecDeque;
 use std::sync::{Mutex, PoisonError};
@@ -185,12 +186,12 @@ impl ChainSummary {
     #[must_use]
     pub fn from_chain(chain: &NormalizedChain) -> Self {
         let principal = match &chain.principal {
-            Principal::Subject { subject, .. } => Some(bounded(subject)),
+            Principal::Subject { subject, .. } => Some(scrubbed(subject)),
             _ => None,
         };
         Self {
             profile: chain.profile.as_str(),
-            issuer: bounded(&chain.root.issuer),
+            issuer: scrubbed(&chain.root.issuer),
             principal,
             holder_proof: chain.holder_proof,
             hops: chain
@@ -202,8 +203,8 @@ impl ChainSummary {
                     HopSummary {
                         depth: hop.depth,
                         actor_kind,
-                        actor: bounded(actor),
-                        actor_issuer: actor_issuer.map(bounded),
+                        actor: scrubbed(actor),
+                        actor_issuer: actor_issuer.map(scrubbed),
                         assurance: match hop.assurance {
                             Assurance::Verified => "verified",
                             Assurance::Declared => "declared",
@@ -232,6 +233,13 @@ pub(crate) fn actor_parts(actor: &ActorId) -> (&'static str, &str, Option<&str>)
         ActorId::Subject { issuer, subject } => ("subject", subject, Some(issuer)),
         _ => ("unknown", "", None),
     }
+}
+
+/// `text` with every JWS-looking run replaced by `[token]`, then cut to
+/// [`MAX_TEXT`] characters. Scrubbing first means a cut cannot leave the
+/// start of a token too short to be recognized.
+pub(crate) fn scrubbed(text: &str) -> String {
+    bounded(&crate::audit::scrub_tokens(text))
 }
 
 /// `text` cut to [`MAX_TEXT`] characters.
