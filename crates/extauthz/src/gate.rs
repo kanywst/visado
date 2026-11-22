@@ -22,7 +22,9 @@ use visado_txn_token::{
 };
 
 use crate::audit::{AUDIT_VERSION, AuditChain, AuditRecord};
-use crate::recent::{ChainSummary, Decision, PdpResult, RequestLog, RequestSummary, bounded};
+use crate::recent::{
+    ChainSummary, Decision, PdpResult, RequestLog, RequestSummary, actor_parts, bounded,
+};
 
 /// The header carrying an AAT chain, root first, comma-separated.
 pub const AAT_CHAIN_HEADER: &str = "aat-chain";
@@ -321,9 +323,9 @@ impl<P: Pdp> Gate<P> {
             }
             None => None,
         };
-        trail.chain = chain
-            .as_ref()
-            .map(|c| Box::new(ChainSummary::from_chain(c)));
+        if let Some(chain) = &chain {
+            trail.set_chain(chain);
+        }
 
         let inbound = input
             .headers
@@ -901,11 +903,30 @@ struct Trail {
     method: Option<Method>,
     /// What the PDP said, once asked.
     pdp: Option<PdpResult>,
-    /// The verified chain, without its tokens.
+    /// The verified chain, without its tokens, for the chain view.
     chain: Option<Box<ChainSummary>>,
+    /// Every hop's actor, first hop first, for the audit record. Taken from
+    /// the verified chain rather than from [`chain`](Self::chain), so the
+    /// record lists each hop it counts whatever the view keeps; the
+    /// invariant engine bounds the count to
+    /// [`visado_chain::invariants::MAX_HOPS`].
+    chain_actors: Vec<String>,
     /// How the chain's depth bound was read (`del_max_depth`), once the
     /// invariant engine accepted it.
     depth_semantics: Option<&'static str>,
+}
+
+impl Trail {
+    /// Records the verified `chain`: its summary for the chain view and
+    /// every hop's actor for the audit record.
+    fn set_chain(&mut self, chain: &NormalizedChain) {
+        self.chain = Some(Box::new(ChainSummary::from_chain(chain)));
+        self.chain_actors = chain
+            .hops
+            .iter()
+            .map(|hop| actor_parts(&hop.actor).1.to_owned())
+            .collect();
+    }
 }
 
 struct Allowed {
@@ -1351,9 +1372,7 @@ fn audit_record(
         ),
     };
     let chain = trail.chain.as_deref();
-    let actors: Vec<&str> = chain
-        .map(|c| c.hops.iter().map(|h| h.actor.as_str()).collect())
-        .unwrap_or_default();
+    let actors: Vec<String> = trail.chain_actors.iter().map(|a| bounded(a)).collect();
     let remediation = match (decision, status) {
         ("allow", _) => "none",
         (_, 401) => "reauthenticate",
@@ -1373,9 +1392,7 @@ fn audit_record(
         principal: bounded(&trail.principal),
         chain_profile: chain.map(|c| c.profile).unwrap_or_default().to_owned(),
         chain_issuer: chain.map(|c| bounded(&c.issuer)).unwrap_or_default(),
-        chain_hops: chain.map_or(0, |c| {
-            u32::try_from(c.hops.len() + c.hops_omitted).unwrap_or(u32::MAX)
-        }),
+        chain_hops: u32::try_from(actors.len()).unwrap_or(u32::MAX),
         chain_actors: serde_json::to_string(&actors).unwrap_or_else(|_| "[]".into()),
         depth_semantics: trail.depth_semantics.unwrap_or_default().to_owned(),
         resource: bounded(&resource_id(input)),
@@ -1415,4 +1432,82 @@ fn mcp_tool(input: &CheckInput) -> Option<String> {
         return None;
     }
     invocation(input).map(|(tool, _)| bounded(&tool))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Allowed, CheckInput, Trail, audit_record};
+    use crate::recent::MAX_HOPS;
+    use visado_chain::{
+        ActorId, Assurance, Authority, Hop, KeyThumbprint, Link, NormalizedChain, Principal,
+        Profile, SignerBinding, TrustRef, Validity,
+    };
+
+    fn chain(len: u32) -> NormalizedChain {
+        let hops = (0..len)
+            .map(|depth| Hop {
+                id: format!("jti-{depth}"),
+                depth,
+                max_depth: None,
+                actor: ActorId::Name(format!("agent-{depth}")),
+                principal: Principal::Unspecified,
+                delegator: None,
+                signer: KeyThumbprint("signer".into()),
+                signer_binding: SignerBinding::ParentCnf,
+                link: if depth == 0 { Link::Root } else { Link::Nested },
+                authority: Authority {
+                    detail_type: "tool".into(),
+                    json: "{}".into(),
+                },
+                validity: Validity {
+                    issued_at: 0,
+                    expires_at: 1,
+                },
+                audience: None,
+                cnf: None,
+                status: None,
+                assurance: Assurance::Declared,
+            })
+            .collect();
+        NormalizedChain {
+            profile: Profile::Rfc8693Act,
+            principal: Principal::Unspecified,
+            root: TrustRef {
+                issuer: "https://anchor".into(),
+                key: KeyThumbprint("anchor-key".into()),
+            },
+            hops,
+            holder_proof: false,
+        }
+    }
+
+    /// The record lists every hop it counts, even of a chain longer than the
+    /// chain view keeps. The invariant engine refuses such a chain, but the
+    /// record does not depend on that.
+    #[test]
+    fn the_record_lists_every_actor_it_counts() {
+        let len = u32::try_from(MAX_HOPS).unwrap() + 8;
+        let mut trail = Trail::default();
+        trail.set_chain(&chain(len));
+        assert_eq!(trail.chain.as_ref().unwrap().hops.len(), MAX_HOPS);
+        let input = CheckInput {
+            method: "GET".into(),
+            scheme: "https".into(),
+            authority: "tools.example".into(),
+            path: "/".into(),
+            headers: Vec::new(),
+            body: None,
+            peer_certificate: None,
+        };
+        let allowed = Allowed {
+            token: String::new(),
+            trail,
+            dpop_proof: false,
+        };
+        let record = audit_record(&input, 1, "c", &Ok(allowed));
+        let actors: Vec<String> = serde_json::from_str(&record.chain_actors).unwrap();
+        assert_eq!(record.chain_hops, len);
+        assert_eq!(actors.len(), usize::try_from(len).unwrap());
+        assert_eq!(actors.last().map(String::as_str), Some("agent-39"));
+    }
 }

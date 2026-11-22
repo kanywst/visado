@@ -26,8 +26,8 @@ The order below is the schema order, which the hash uses. Every member is always
 | `principal` | string | On whose behalf: the user token's or forwarded transaction's `sub`, or the caller itself |
 | `chain_profile` | string | The verified delegation chain's format (`aat-02`, `asor-03`, `rfc8693-act`); empty without one |
 | `chain_issuer` | string | The chain's trust anchor |
-| `chain_hops` | integer | Hops in the chain; 0 without one |
-| `chain_actors` | string | The hop actors, first hop first, as a JSON array of strings (key thumbprints, names or subjects) |
+| `chain_hops` | integer | Hops in the chain; 0 without one. At most 32: the invariant engine refuses a longer chain |
+| `chain_actors` | string | The actor of every hop, first hop first, as a JSON array of strings (key thumbprints, names or subjects); it has `chain_hops` elements |
 | `depth_semantics` | string | How the chain's depth bound was read: `aat-holder-cap`, `asor-strict` or `uncapped`; empty without a chain |
 | `resource` | string | `scheme://authority/path`, without the query |
 | `tool` | string | `params.name` of a JSON-RPC `tools/call` body; otherwise empty |

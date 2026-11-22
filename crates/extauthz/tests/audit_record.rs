@@ -1,15 +1,14 @@
 //! The audit record as the server writes it: one JSON event per decision
 //! under `visado::audit`, every member of the schema present, the records
-//! hash-chained, and no token in any of them. In its own test binary: a
-//! scoped tracing subscriber does not see events reliably while other tests
-//! run on other threads.
+//! hash-chained, and no token in any of them.
 
 #![allow(clippy::unused_async_trait_impl)]
 
-use std::collections::BTreeSet;
-use std::sync::{Arc, Mutex};
+mod support;
 
-use serde_json::{Value, json};
+use std::collections::BTreeSet;
+
+use serde_json::json;
 use visado_authzen::{Decision, EvaluationRequest, Pdp, PdpError};
 use visado_chain_act::Verifier;
 use visado_credentials::{Authenticator, OAuthIssuer, WitIssuer};
@@ -64,26 +63,6 @@ impl Pdp for PathPdp {
             allowed: !request.resource.id.contains("/admin/"),
             context: None,
         })
-    }
-}
-
-#[derive(Clone, Default)]
-struct Logs(Arc<Mutex<Vec<u8>>>);
-
-impl std::io::Write for Logs {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().unwrap().extend_from_slice(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Logs {
-    type Writer = Self;
-    fn make_writer(&'a self) -> Self {
-        self.clone()
     }
 }
 
@@ -155,13 +134,7 @@ fn request(method: &str, path: &str, jti: &str, user: bool, body: Option<&str>) 
 
 #[tokio::test]
 async fn each_decision_writes_one_complete_chained_record() {
-    let logs = Logs::default();
-    let subscriber = tracing_subscriber::fmt()
-        .json()
-        .with_writer(logs.clone())
-        .with_ansi(false)
-        .finish();
-    let _guard = tracing::subscriber::set_default(subscriber);
+    let capture = support::Capture::start();
     let gate = gate();
 
     let call = r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"read_file","arguments":{"path":"/data/report.pdf"}}}"#;
@@ -190,12 +163,8 @@ async fn each_decision_writes_one_complete_chained_record() {
         "{outcomes:?}"
     );
 
-    let text = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
-    let events: Vec<Value> = text
-        .lines()
-        .map(|l| serde_json::from_str::<Value>(l).unwrap())
-        .filter(|e| e["target"] == "visado::audit")
-        .collect();
+    let text = capture.logs.text();
+    let events = capture.logs.audit_events();
     assert_eq!(
         events.len(),
         inputs.len(),
