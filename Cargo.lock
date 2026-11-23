@@ -2632,6 +2632,7 @@ version = "0.3.0"
 dependencies = [
  "base64 0.23.1",
  "serde_json",
+ "visado-chain",
  "visado-chain-aat",
  "visado-chain-asor",
  "visado-credentials",
