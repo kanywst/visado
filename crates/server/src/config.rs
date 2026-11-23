@@ -621,6 +621,7 @@ impl Config {
     }
 
     fn build(self, base: &Path) -> Result<Loaded, String> {
+        let anchors = self.chain_anchor_thumbprints(base)?;
         let private: PrivateJwk = read_json(&base.join(&self.signing_key.jwk_file))?;
         let signing_key = private
             .to_signing_key()
@@ -656,7 +657,17 @@ impl Config {
             authenticator = authenticator.with_wit_issuer(wit);
         }
         for issuer in self.oauth_issuers {
-            let jwks = read_json(&base.join(&issuer.jwks_file))?;
+            let jwks: jsonwebtoken::jwk::JwkSet = read_json(&base.join(&issuer.jwks_file))?;
+            for key in &jwks.keys {
+                let thumbprint = key.thumbprint(jsonwebtoken::jwk::ThumbprintHash::SHA256);
+                if let Some(anchor) = thumbprint.ok().and_then(|t| anchors.get(&t)) {
+                    return Err(format!(
+                        "oauth_issuers {}: a key in {} is also the {anchor} trust anchor key; a delegation token it signs would verify as an access token, so the two need different keys",
+                        issuer.issuer,
+                        issuer.jwks_file.display(),
+                    ));
+                }
+            }
             let mut oauth = OAuthIssuer::new(issuer.issuer, issuer.audience, jwks);
             if let Some(prefix) = issuer.subject_prefix {
                 oauth = oauth.with_subject_prefix(prefix);
@@ -724,6 +735,28 @@ impl Config {
             asor_status,
             dpop_nonce_keys,
         })
+    }
+}
+
+impl Config {
+    /// The RFC 7638 thumbprint of every `[aat]` and `[asor]` trust anchor key,
+    /// mapped to the section and issuer it is trusted for.
+    fn chain_anchor_thumbprints(&self, base: &Path) -> Result<BTreeMap<String, String>, String> {
+        let sections = [
+            ("aat", self.aat.as_ref().map(|c| &c.trust_anchors)),
+            ("asor", self.asor.as_ref().map(|c| &c.trust_anchors)),
+        ];
+        let mut thumbprints = BTreeMap::new();
+        for (section, anchors) in sections {
+            for anchor in anchors.into_iter().flatten() {
+                let key = anchor_key(base, anchor)?;
+                thumbprints.insert(
+                    visado_chain_aat::jwk_thumbprint(&key),
+                    format!("[{section}] {}", anchor.issuer),
+                );
+            }
+        }
+        Ok(thumbprints)
     }
 }
 
@@ -1490,6 +1523,61 @@ jwks_file = "j"
         assert!(missing.is_some_and(|e| e.contains("could not be fetched")));
         assert_eq!(loaded, Ok(true));
         assert!(other.is_some_and(|e| e.contains("sub is not the uri")));
+    }
+
+    #[test]
+    fn a_chain_anchor_key_is_never_an_oauth_issuer_key() {
+        use visado_testkit::{AAT_ISSUER, ASOR_ISSUER, aat_anchor_key, asor_anchor_key, oauth_key};
+        use wimsey_jose::{Algorithm, Jwk, SigningKey};
+        let dir = std::env::temp_dir().join(format!("visado-anchors-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let key = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../deploy/local/keys/txn-signing.private.jwk.json");
+        std::fs::copy(key, dir.join("k.json")).unwrap();
+        let jwk = |key: &SigningKey| {
+            serde_json::to_string(&Jwk::from_verifying_key(&key.verifying_key())).unwrap()
+        };
+        // The same key as an OAuth issuer publishes it: `EdDSA`, with a kid.
+        let jwks = |key: &SigningKey| {
+            let key = key.clone().with_algorithm(Algorithm::EdDsa).unwrap();
+            let mut jwk =
+                serde_json::to_value(Jwk::from_verifying_key(&key.verifying_key())).unwrap();
+            jwk["kid"] = serde_json::json!("k1");
+            jwk["use"] = serde_json::json!("sig");
+            serde_json::json!({ "keys": [jwk] }).to_string()
+        };
+        std::fs::write(dir.join("asor.json"), jwk(&asor_anchor_key())).unwrap();
+        std::fs::write(dir.join("aat.json"), jwk(&aat_anchor_key())).unwrap();
+        std::fs::write(dir.join("idp.json"), jwks(&oauth_key())).unwrap();
+        std::fs::write(dir.join("asor-idp.json"), jwks(&asor_anchor_key())).unwrap();
+        std::fs::write(dir.join("aat-idp.json"), jwks(&aat_anchor_key())).unwrap();
+        let path = dir.join("visado.toml");
+        let load = |jwks_file: &str| {
+            let tables = format!(
+                "[[oauth_issuers]]\nissuer = \"https://idp\"\naudience = \"a\"\njwks_file = \"{jwks_file}\"\n\
+                 [aat]\naudiences = [\"a\"]\nrequired = true\n\
+                 trust_anchors = [{{ issuer = \"{AAT_ISSUER}\", jwk_file = \"aat.json\" }}]\n\
+                 [asor]\naudiences = [\"a\"]\nrequired = true\n\
+                 trust_anchors = [{{ issuer = \"{ASOR_ISSUER}\", jwk_file = \"asor.json\" }}]\n"
+            );
+            std::fs::write(&path, format!("{BASE}{tables}")).unwrap();
+            Config::load(&path).err()
+        };
+        let distinct = load("idp.json");
+        let asor = load("asor-idp.json");
+        let aat = load("aat-idp.json");
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(distinct, None);
+        assert!(
+            asor.as_ref()
+                .is_some_and(|e| e.contains("[asor] https://asor.td.example trust anchor")),
+            "{asor:?}"
+        );
+        assert!(
+            aat.as_ref()
+                .is_some_and(|e| e.contains("[aat] https://aat.td.example trust anchor")),
+            "{aat:?}"
+        );
     }
 
     #[test]
