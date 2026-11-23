@@ -42,6 +42,12 @@ pub enum AuthError {
     /// `jkt` (such as an mTLS `x5t#S256`), which is not supported.
     #[error("sender-constrained access tokens are not supported")]
     SenderConstrained,
+    /// The access token is a delegation-chain token (an asor Delegation
+    /// Token or an AAT): its `typ`, a chain claim such as `del_depth` or
+    /// `par_hash`, a `status` reference, or an `authorization_details` entry
+    /// of a chain type. Such a token is verified only as part of its chain.
+    #[error("delegation token presented as an access token: {0}")]
+    DelegationToken(String),
     /// A DPoP-bound access token (`cnf.jkt`) was presented without its
     /// proof: as `Authorization: Bearer` or as a user token (RFC 9449 §7.1).
     #[error("DPoP-bound access token presented without a DPoP proof")]
@@ -114,6 +120,7 @@ impl AuthError {
             Self::AccessToken(_) => "token.invalid",
             Self::Expired => "token.expired",
             Self::SenderConstrained => "token.sender_constrained",
+            Self::DelegationToken(_) => "token.delegation",
             Self::DpopBound => "token.dpop_bound",
             Self::DpopProof(_) => "dpop.invalid",
             Self::DpopNonce(e) => e.code(),

@@ -154,6 +154,15 @@ pub(crate) fn verify_bound(
     if !ALGORITHMS.contains(&header.alg) {
         return Err(AuthError::AccessToken("algorithm not allowed".into()));
     }
+    if header
+        .typ
+        .as_deref()
+        .is_some_and(|typ| DELEGATION_TYPS.contains(&typ.to_ascii_lowercase().as_str()))
+    {
+        return Err(AuthError::DelegationToken(
+            "typ names a delegation token".into(),
+        ));
+    }
     let iss = unverified_iss(token)?;
     let issuer = issuers
         .iter()
@@ -181,6 +190,7 @@ pub(crate) fn verify_bound(
     let claims = decode::<Claims>(token, &key, &validation)
         .map_err(invalid)?
         .claims;
+    delegation_claims(token)?;
     if now >= claims.exp.saturating_add(leeway) {
         return Err(AuthError::Expired);
     }
@@ -214,6 +224,64 @@ pub(crate) fn verify_bound(
         key_thumbprint,
     };
     Ok((token, binding))
+}
+
+/// The JOSE `typ` values of AAT tokens and proofs
+/// (draft-niyikiza-oauth-attenuating-agent-tokens-02 §3.5), with and without
+/// the `application/` prefix. An asor Delegation Token uses `at+jwt`, like
+/// any access token, so it is told apart by its claims instead.
+const DELEGATION_TYPS: [&str; 4] = [
+    "aat+jwt",
+    "application/aat+jwt",
+    "aat-pop+jwt",
+    "application/aat-pop+jwt",
+];
+
+/// Claims that only a delegation-chain token carries: the asor and AAT chain
+/// claims (`del_depth`, `del_max_depth`, `par_hash`), the AAT proof claims,
+/// and `status` (a Token Status List reference, which this path does not
+/// check).
+const DELEGATION_CLAIMS: [&str; 9] = [
+    "del_depth",
+    "del_max_depth",
+    "par_hash",
+    "status",
+    "aat_id",
+    "aat_hash",
+    "aat_tool",
+    "aat_aud",
+    "hta",
+];
+
+/// The `authorization_details` types of the delegation-chain formats: asor's
+/// `agent_delegation` and AAT's `attenuating_agent_token`.
+const DELEGATION_DETAIL_TYPES: [&str; 2] = ["agent_delegation", "attenuating_agent_token"];
+
+/// Refuses a verified token that is a link of a delegation chain. Such a
+/// token is checked only on its chain path (status, depth, parent hash,
+/// constraints); accepted here it would skip all of that, and the PDP would
+/// not learn it is a delegation.
+fn delegation_claims(token: &str) -> Result<(), AuthError> {
+    let payload = payload(token)?;
+    if let Some(claim) = DELEGATION_CLAIMS
+        .iter()
+        .find(|claim| payload.contains_key(**claim))
+    {
+        return Err(AuthError::DelegationToken(format!("carries `{claim}`")));
+    }
+    let detail = payload
+        .get("authorization_details")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.get("type")?.as_str())
+        .find(|kind| DELEGATION_DETAIL_TYPES.contains(kind));
+    if let Some(kind) = detail {
+        return Err(AuthError::DelegationToken(format!(
+            "authorization_details type `{kind}`"
+        )));
+    }
+    Ok(())
 }
 
 /// `cnf.jkt` when it is a non-empty string and the only confirmation member.
@@ -256,15 +324,24 @@ fn scp_to_scope(scp: &serde_json::Value) -> Option<String> {
 }
 
 fn unverified_iss(token: &str) -> Result<String, AuthError> {
+    let parsed: UnverifiedIss = serde_json::from_slice(&payload_bytes(token)?)
+        .map_err(|_| AuthError::AccessToken("malformed".into()))?;
+    Ok(parsed.iss)
+}
+
+/// The payload as a JSON object.
+fn payload(token: &str) -> Result<serde_json::Map<String, serde_json::Value>, AuthError> {
+    serde_json::from_slice(&payload_bytes(token)?)
+        .map_err(|_| AuthError::AccessToken("malformed".into()))
+}
+
+fn payload_bytes(token: &str) -> Result<Vec<u8>, AuthError> {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
     let payload = token
         .split('.')
         .nth(1)
         .ok_or_else(|| AuthError::AccessToken("malformed".into()))?;
-    let bytes = URL_SAFE_NO_PAD
+    URL_SAFE_NO_PAD
         .decode(payload)
-        .map_err(|_| AuthError::AccessToken("malformed".into()))?;
-    let parsed: UnverifiedIss =
-        serde_json::from_slice(&bytes).map_err(|_| AuthError::AccessToken("malformed".into()))?;
-    Ok(parsed.iss)
+        .map_err(|_| AuthError::AccessToken("malformed".into()))
 }
