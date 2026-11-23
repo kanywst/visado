@@ -843,7 +843,9 @@ impl ChainProof<'_> {
             .check_and_record(holder, &self.jti, self.until, now)
         {
             Recorded::Fresh => Ok(()),
-            Recorded::Replayed => refused(403, self.replayed, "chain proof jti already accepted"),
+            Recorded::Replayed | Recorded::Stale => {
+                refused(403, self.replayed, "chain proof jti already accepted")
+            }
             Recorded::OverQuota => refused(
                 429,
                 "chain.replay_quota",

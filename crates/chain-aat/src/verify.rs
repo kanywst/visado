@@ -648,7 +648,9 @@ impl Verifier {
         if let Some(cache) = replay {
             match cache.check_and_record(&leaf.holder.thumbprint, &jti, until, now) {
                 Recorded::Fresh => {}
-                Recorded::Replayed => return Err(deny(Step::S7i, "PoP jti already accepted")),
+                Recorded::Replayed | Recorded::Stale => {
+                    return Err(deny(Step::S7i, "PoP jti already accepted"));
+                }
                 Recorded::OverQuota => {
                     return Err(deny(Step::S7i, "PoP jti not recorded: holder over quota"));
                 }

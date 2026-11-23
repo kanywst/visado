@@ -54,7 +54,9 @@ pub(crate) fn verify(
     if let Some(cache) = replay {
         match cache.check_and_record(jkt, &proof.jti, until, now) {
             Recorded::Fresh => {}
-            Recorded::Replayed => return Err(Rejection::Proof("DPoP jti already accepted")),
+            Recorded::Replayed | Recorded::Stale => {
+                return Err(Rejection::Proof("DPoP jti already accepted"));
+            }
             Recorded::OverQuota => {
                 return Err(Rejection::Proof("DPoP jti not recorded: key over quota"));
             }

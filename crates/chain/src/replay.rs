@@ -40,6 +40,11 @@ pub enum Recorded {
     Fresh,
     /// Already recorded for this owner and not expired: a replay.
     Replayed,
+    /// The proof's last acceptable second is before the latest time the
+    /// cache has seen, so its entry may already have been recorded and
+    /// dropped. It cannot be told apart from a replay and is refused like
+    /// one.
+    Stale,
     /// The owner already holds its quota of live entries. Only this owner's
     /// new proofs are refused until some of its entries expire.
     OverQuota,
@@ -71,14 +76,30 @@ pub struct MemoryReplayCache {
     state: Mutex<State>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct State {
+    /// The latest `now` any call has passed. Time never runs backwards for
+    /// the cache: a call with an older `now` (a request that waited, a clock
+    /// stepped back) is handled at this time, so it cannot find an entry
+    /// absent that a later call already dropped.
+    high_water: i64,
     /// Live entries by key, with the expiry and the owner of each.
     live: HashMap<Digest32, (i64, Digest32)>,
     /// The same entries ordered by expiry, so the expired ones come first.
     by_expiry: BTreeSet<(i64, Digest32)>,
     /// How many live entries each owner holds.
     per_owner: HashMap<Digest32, usize>,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            high_water: i64::MIN,
+            live: HashMap::new(),
+            by_expiry: BTreeSet::new(),
+            per_owner: HashMap::new(),
+        }
+    }
 }
 
 impl State {
@@ -164,10 +185,15 @@ impl ReplayCache for MemoryReplayCache {
         let Ok(mut state) = self.state.lock() else {
             return Recorded::Full;
         };
+        let now = now.max(state.high_water);
+        state.high_water = now;
         state.expire(now);
         let key = entry_key(owner, jti);
         if state.live.contains_key(&key) {
             return Recorded::Replayed;
+        }
+        if until < now {
+            return Recorded::Stale;
         }
         let owner = owner_key(owner);
         let held = state.per_owner.get(&owner).copied().unwrap_or(0);
@@ -228,6 +254,26 @@ mod tests {
             Recorded::Fresh,
             "a expired"
         );
+    }
+
+    /// A call with an older `now` than one already seen must not record a
+    /// proof whose entry the later call dropped.
+    #[test]
+    fn an_older_now_cannot_record_a_dropped_entry_again() {
+        let cache = MemoryReplayCache::new(4);
+        assert_eq!(cache.check_and_record("k", "a", 160, 150), Recorded::Fresh);
+        // A later request drops `a`, whose last second was 160.
+        assert_eq!(cache.check_and_record("k", "b", 200, 161), Recorded::Fresh);
+        // A request stamped 160, when `a` was still acceptable, replays it.
+        assert_eq!(cache.check_and_record("k", "a", 160, 160), Recorded::Stale);
+        // The same after the clock steps back.
+        assert_eq!(cache.check_and_record("k", "c", 170, 165), Recorded::Fresh);
+        assert_eq!(cache.check_and_record("k", "d", 200, 100), Recorded::Fresh);
+        assert_eq!(
+            cache.check_and_record("k", "c", 170, 100),
+            Recorded::Replayed
+        );
+        assert_eq!(cache.check_and_record("k", "e", 164, 100), Recorded::Stale);
     }
 
     #[test]

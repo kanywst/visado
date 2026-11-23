@@ -691,7 +691,7 @@ fn record(
     let secs = |t: u64| i64::try_from(t).unwrap_or(i64::MAX);
     match cache.check_and_record(owner, id, secs(until), secs(now)) {
         Recorded::Fresh => Ok(()),
-        Recorded::Replayed => Err(AuthError::Replay),
+        Recorded::Replayed | Recorded::Stale => Err(AuthError::Replay),
         Recorded::OverQuota => Err(AuthError::ReplayQuota),
         Recorded::Full => Err(AuthError::ReplayCacheFull),
     }
