@@ -20,7 +20,7 @@ Some negative tokens have more than one defect (an `exp` before `iat` is also in
 
 | File | Spec |
 | --- | --- |
-| [txn-token/vectors.json](txn-token/vectors.json) | draft-ietf-oauth-transaction-tokens-11: 7 valid and 28 negative tokens (Ed25519, ES256, RS256, `aud` arrays) and four rejected keys (RSA under 2048 bits; RSA exponents 1, 3 and an even one) |
+| [txn-token/vectors.json](txn-token/vectors.json) | draft-ietf-oauth-transaction-tokens-11: 7 valid and 27 negative tokens (Ed25519, ES256, RS256, `aud` arrays) and four rejected keys (RSA under 2048 bits; RSA exponents 1, 3 and an even one) |
 | [aat/aat-jws-vectors.json](aat/aat-jws-vectors.json) | draft-niyikiza-oauth-attenuating-agent-tokens-02 (third-party suite in its own format; see [aat/README.md](aat/README.md)) |
 | [asor/vectors/](asor/vectors/) | draft-asor-wimse-agent-delegation-chain-03 (third-party set in its own format, one file per vector; see [asor/README.md](asor/README.md)) |
 | [asor-status/vectors.json](asor-status/vectors.json) | Step 7 of draft-asor-wimse-agent-delegation-chain-03 with draft-ietf-oauth-status-list-21 (visado's own format and cases; see [asor-status/README.md](asor-status/README.md)) |

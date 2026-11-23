@@ -76,12 +76,12 @@ fn rsa_jwk(bits: u32) -> Value {
     jwk
 }
 
-/// `claims` signed RS256 by the test RSA key of `bits`, under `kid`, with
+/// `claims` signed RS256 by the 2048-bit test RSA key, under `kid`, with
 /// jsonwebtoken rather than this crate's signer. PKCS#1 v1.5 is
 /// deterministic, so the vectors are reproducible.
-fn rs256(bits: u32, kid: &str, claims: &Value) -> String {
+fn rs256(kid: &str, claims: &Value) -> String {
     let der = STANDARD
-        .decode(fixture(&format!("rsa-{bits}.private.der.b64")).trim())
+        .decode(fixture("rsa-2048.private.der.b64").trim())
         .expect("der");
     let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header("RS256", kid)).unwrap());
     let c = URL_SAFE_NO_PAD.encode(serde_json::to_vec(claims).unwrap());
@@ -136,7 +136,7 @@ fn build() -> Value {
         json!({ "id": "typ-full-media-type", "description": "typ spelled as application/txntoken+jwt", "token": ed(Some(("typ", json!("application/txntoken+jwt"))), &base) }),
         json!({ "id": "unknown-claim-ignored", "description": "recipients ignore claims they do not understand (§9.2)", "token": ed(None, &with(base.clone(), "x_vendor", json!({"a": 1}))) }),
         json!({ "id": "no-optional-claims", "description": "tctx and rctx are RECOMMENDED, not REQUIRED", "token": ed(None, &without(without(base.clone(), "tctx"), "rctx")) }),
-        json!({ "id": "rs256", "description": "RS256 with a 2048-bit RSA key, all claims", "token": rs256(2048, "rsa", &base) }),
+        json!({ "id": "rs256", "description": "RS256 with a 2048-bit RSA key, all claims", "token": rs256("rsa", &base) }),
         json!({ "id": "aud-array-one", "description": "aud as a one-element array holding the trust domain (RFC 7519 §4.1.3)", "token": ed(None, &with(base.clone(), "aud", json!([TRUST_DOMAIN]))) }),
     ];
 
@@ -170,8 +170,7 @@ fn build() -> Value {
         ("txn-missing", "txn absent", ed(None, &without(base.clone(), "txn")), "txn.malformed"),
         ("sub-empty", "sub is empty", ed(None, &with(base.clone(), "sub", json!(""))), "txn.invalid_claim"),
         ("scope-empty", "scope is empty", ed(None, &with(base.clone(), "scope", json!(" "))), "txn.invalid_claim"),
-        ("rs256-weak-key", "RS256 under a 1024-bit key, which rejected_keys refuses to load", rs256(1024, "rsa-1024", &base), "txn.unknown_key"),
-        ("rs256-ed25519-key", "header says RS256, kid names the Ed25519 key", rs256(2048, "ed", &base), "txn.alg_mismatch"),
+        ("rs256-ed25519-key", "header says RS256, kid names the Ed25519 key", rs256("ed", &base), "txn.alg_mismatch"),
         ("aud-array-other", "aud is a one-element array with another trust domain", ed(None, &with(base.clone(), "aud", json!(["other.example"]))), "txn.audience_mismatch"),
         ("aud-array-empty", "aud is an empty array", ed(None, &with(base.clone(), "aud", json!([]))), "txn.invalid_claim"),
         ("aud-array-non-string", "aud array element is not a string", ed(None, &with(base.clone(), "aud", json!([7]))), "txn.invalid_claim"),

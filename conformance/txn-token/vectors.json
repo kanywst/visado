@@ -164,12 +164,6 @@
       "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoiZWQiLCJ0eXAiOiJ0eG50b2tlbitqd3QifQ.eyJhdWQiOiJ0cnVzdC1kb21haW4uZXhhbXBsZSIsImV4cCI6MTgwMDAwMDA1MCwiaWF0IjoxNzk5OTk5OTkwLCJyY3R4Ijp7ImF1dGhuIjoidXJuOmlldGY6cmZjOjY3NDkiLCJyZXFfaXAiOiI2OS4xNTEuNzIuMTIzIn0sInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2FwaWdhdGV3YXkiLCJzY29wZSI6IiAiLCJzdWIiOiJkMDg0c2RydDIzNGZzYXczNHRyMjN0IiwidGN0eCI6eyJhY3Rpb24iOiJCVVkiLCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwidHhuIjoiOTcwNTM5NjMtNzcxZC00OWNjLWE0ZTMtMjBhYWQzOTljMzEyIn0.ZE14AKOCgBamF8o3eJRqc73gX8QCNxv_kKAFZ1U4so8RrTNQo7qcdMXx950LmWggZrf25rqo8pH3qnJBOFPEAg"
     },
     {
-      "description": "RS256 under a 1024-bit key, which rejected_keys refuses to load",
-      "expect": "txn.unknown_key",
-      "id": "rs256-weak-key",
-      "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xMDI0IiwidHlwIjoidHhudG9rZW4rand0In0.eyJhdWQiOiJ0cnVzdC1kb21haW4uZXhhbXBsZSIsImV4cCI6MTgwMDAwMDA1MCwiaWF0IjoxNzk5OTk5OTkwLCJyY3R4Ijp7ImF1dGhuIjoidXJuOmlldGY6cmZjOjY3NDkiLCJyZXFfaXAiOiI2OS4xNTEuNzIuMTIzIn0sInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2FwaWdhdGV3YXkiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInN1YiI6ImQwODRzZHJ0MjM0ZnNhdzM0dHIyM3QiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsInF1YW50aXR5IjoiMTAwIiwidGlja2VyIjoiTVNGVCJ9LCJ0eG4iOiI5NzA1Mzk2My03NzFkLTQ5Y2MtYTRlMy0yMGFhZDM5OWMzMTIifQ.RXV3dl38vmU1PprYGhE2fgOjGD0uocUkoP_mjxEIgbt7xKEnkXyJ5vJPWRfcb1eS4TBqsVdQd7r1I1ivnegL9JuY9XMBt4Xs8Fl3X7Jw8-PPm1HOY-ZF3nD63DJcQXG4Zs_OghkVjzT258mxGgxjDXiBUNfKqPlD-iLCg-cF5Tk"
-    },
-    {
       "description": "header says RS256, kid names the Ed25519 key",
       "expect": "txn.alg_mismatch",
       "id": "rs256-ed25519-key",

@@ -14,7 +14,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 
 - Mint, verify and replace Txn-Tokens per draft-ietf-oauth-transaction-tokens-11. Conformance vectors with negative cases.
 - **Gate:** vectors pass, and replacement rules (`txn`/`sub`/`aud` fixed, scope never widens, expired tokens refused) fail closed.
-- **Status:** met. `visado-txn-token` with 7 valid and 28 negative vectors in `conformance/txn-token/`.
+- **Status:** met. `visado-txn-token` with 7 valid and 27 negative vectors in `conformance/txn-token/`.
 
 ## Phase 2: ext_authz and caller authentication
 
