@@ -46,6 +46,22 @@ pub const STRIPPED_HEADERS: [&str; 4] = [
     "signature",
 ];
 
+/// Forwarding headers a client can set to tell the upstream a different
+/// host, port, prefix or path from the one visado authorized. visado never
+/// reads them; it removes them so the upstream cannot either.
+/// `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Client-Cert` are
+/// left to the proxy, which sets or sanitizes them itself (Envoy:
+/// `use_remote_address`, `forward_client_cert_details`).
+pub const FORWARDED_HEADERS: [&str; 7] = [
+    "forwarded",
+    "x-forwarded-host",
+    "x-forwarded-port",
+    "x-forwarded-prefix",
+    "x-forwarded-uri",
+    "x-original-url",
+    "x-rewrite-url",
+];
+
 /// Settings for one trust domain.
 #[derive(Debug)]
 pub struct GateConfig {
@@ -181,6 +197,7 @@ impl<P: Pdp> Gate<P> {
             ]
             .map(str::to_owned),
         );
+        stripped.extend(FORWARDED_HEADERS.map(str::to_owned));
         stripped.push(authenticator.user_token_header().to_owned());
         let engine = Engine::new(chain_algebras(&config));
         Self {

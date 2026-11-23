@@ -23,8 +23,8 @@ pub mod recent;
 mod service;
 
 pub use gate::{
-    AAT_CHAIN_HEADER, AAT_POP_HEADER, CheckInput, DPOP_NONCE_HEADER, Gate, GateConfig, Outcome,
-    STRIPPED_HEADERS,
+    AAT_CHAIN_HEADER, AAT_POP_HEADER, CheckInput, DPOP_NONCE_HEADER, FORWARDED_HEADERS, Gate,
+    GateConfig, Outcome, STRIPPED_HEADERS,
 };
 pub use recent::RequestLog;
 pub use service::ExtAuthz;

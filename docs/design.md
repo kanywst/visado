@@ -8,7 +8,7 @@ One ext_authz `Check` call runs these steps in order and stops at the first fail
 
 ```text
 inbound request (via Envoy / Istio / agentgateway ext_authz)
-  1. sanitize      strip Txn-Token, X-Forwarded-*, and WIMSE headers unless the previous hop is allow-listed over mTLS
+  1. sanitize      check the target; accept Txn-Token only from an allow-listed hop; ignore and strip forwarding headers
   2. authenticate  CredentialVerifier plugins -> CallerIdentity (workload id, key binding, assurance)
   3. chain         ChainDecoder plugins -> NormalizedChain -> invariant engine -> authority algebra
   4. authorize     AuthZEN 1.0 evaluation request -> decision (fail closed)
@@ -21,6 +21,7 @@ inbound request (via Envoy / Istio / agentgateway ext_authz)
 - Deny requests for authorities outside `allowed_authorities`, and request targets an upstream could read differently from the path the PDP sees (`request.unnormalized_path`, listed in `docs/bindings.md`).
 - An inbound `Txn-Token` is accepted only from a workload listed in `internal_callers` that proved possession of a key for the request (WIT with WPT or HTTP signature, or mTLS). It is verified and forwarded unchanged. From anyone else it is denied (`txn.untrusted_hop`).
 - Never forward the inbound access token downstream (MCP security best practices, Txn-Token draft §13).
+- Never read `Forwarded` or `X-Forwarded-*` for a decision. On an allow, remove the ones a client can set to name another host, port, prefix or path (`Forwarded`, `X-Forwarded-Host`, `-Port`, `-Prefix`, `-Uri`, and `X-Original-URL`, `X-Rewrite-URL`), whatever the previous hop. `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Client-Cert` stay with the proxy, which sets or sanitizes them (Envoy `use_remote_address`, `forward_client_cert_details`).
 
 ### 2. Authenticate
 

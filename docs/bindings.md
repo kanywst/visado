@@ -29,6 +29,10 @@ Before any credential is read, the request target must have one reading, since t
 
 The query string is not checked.
 
+## Forwarding headers
+
+visado never reads `Forwarded` or `X-Forwarded-*`: the authority, scheme and path come from the check request, and the client certificate from the TLS handshake. On an allow it removes the forwarding headers a client could use to name another host or path to the upstream: `Forwarded`, `X-Forwarded-Host`, `X-Forwarded-Port`, `X-Forwarded-Prefix`, `X-Forwarded-Uri`, `X-Original-URL` and `X-Rewrite-URL`. `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Client-Cert` are the proxy's to set: at the edge, Envoy needs `use_remote_address: true` to overwrite the first two and `forward_client_cert_details` left at `SANITIZE` or set to `SANITIZE_SET` for the third.
+
 ## Header values
 
 A header value that is not valid UTF-8 is a 400 `request.invalid_header`, and so is a value with U+FFFD in it, which is what a proxy that decodes values lossily (agentgateway does) leaves in place of the bytes it could not decode. Decoding lossily would map different bytes to the same text, which a signature over that text could not tell apart. With Envoy, set `encode_raw_headers: true` so visado gets the bytes as received (see [Proxy settings](#proxy-settings)).

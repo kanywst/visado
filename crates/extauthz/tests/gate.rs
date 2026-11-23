@@ -187,6 +187,43 @@ async fn user_scope_flows_into_the_transaction_token() {
     }
 }
 
+/// Forwarding headers a client sets are not read for the decision and do
+/// not reach the upstream, which could otherwise take them for the host or
+/// path that was authorized.
+#[tokio::test]
+async fn forwarding_headers_are_ignored_and_removed() {
+    let gate = gate(ScopePdp);
+    let mut call = wimse_call("agent-a", 1, "/tickets", "f1", None, None);
+    call.headers.extend(
+        [
+            ("x-forwarded-host", "admin.td.example"),
+            ("x-forwarded-prefix", "/admin/roles"),
+            ("x-original-url", "/admin/roles"),
+            ("forwarded", "host=admin.td.example"),
+        ]
+        .map(|(n, v)| (n.to_owned(), v.to_owned())),
+    );
+    let outcome = gate.check(&call, NOW, "txn-f").await;
+    let (_, claims) = minted(&outcome);
+    assert_eq!(claims.rctx.unwrap()["resource"], TICKETS);
+    let Outcome::Allow { remove, .. } = outcome else {
+        unreachable!()
+    };
+    for header in visado_extauthz::FORWARDED_HEADERS {
+        assert!(remove.contains(&header.to_owned()), "{header} is removed");
+    }
+    for header in [
+        "x-forwarded-host",
+        "x-forwarded-prefix",
+        "x-forwarded-port",
+        "x-forwarded-uri",
+        "x-original-url",
+        "forwarded",
+    ] {
+        assert!(remove.contains(&header.to_owned()), "{header} is removed");
+    }
+}
+
 #[tokio::test]
 async fn a_renamed_user_token_header_is_still_removed() {
     let gate = Gate::new(
