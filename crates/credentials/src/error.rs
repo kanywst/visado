@@ -143,3 +143,78 @@ impl AuthError {
         }
     }
 }
+
+/// A JSON error as fixed text. serde's messages quote the value that did
+/// not parse (`invalid type: string "alice@example.com", expected ...`),
+/// and a credential's claims can hold personal data, so only a missing
+/// claim is named, from the schema rather than the input.
+pub(crate) fn json_reason(e: &serde_json::Error) -> String {
+    let message = e.to_string();
+    match message
+        .strip_prefix("missing field `")
+        .and_then(|rest| rest.split_once('`'))
+    {
+        Some((name, _)) => format!("missing claim `{name}`"),
+        None if e.is_data() => "a claim is malformed".to_owned(),
+        None => "malformed JSON".to_owned(),
+    }
+}
+
+/// A `jsonwebtoken` error, without the input values a JSON, Base64 or
+/// UTF-8 error would quote.
+pub(crate) fn jwt_reason(e: &jsonwebtoken::errors::Error) -> String {
+    use jsonwebtoken::errors::ErrorKind;
+    match e.kind() {
+        ErrorKind::Json(json) => json_reason(json),
+        ErrorKind::Base64(_) => "malformed base64url".to_owned(),
+        ErrorKind::Utf8(_) => "malformed UTF-8".to_owned(),
+        _ => e.to_string(),
+    }
+}
+
+/// A WIT error, without the input values a JSON or Base64 error would quote.
+pub(crate) fn wit_reason(e: &wimsey_wit::WitError) -> String {
+    match e {
+        wimsey_wit::WitError::Json(json) => json_reason(json),
+        wimsey_wit::WitError::Base64(_) => "malformed base64url".to_owned(),
+        _ => e.to_string(),
+    }
+}
+
+/// A WPT error, without the input values a JSON or Base64 error would quote.
+pub(crate) fn wpt_reason(e: &wimsey_wpt::WptError) -> String {
+    match e {
+        wimsey_wpt::WptError::Json(json) => json_reason(json),
+        wimsey_wpt::WptError::Base64(_) => "malformed base64url".to_owned(),
+        _ => e.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::json_reason;
+
+    #[derive(Debug, serde::Deserialize)]
+    #[allow(dead_code)]
+    struct Claims {
+        sub: String,
+        exp: u64,
+    }
+
+    fn reason(json: &str) -> String {
+        json_reason(&serde_json::from_str::<Claims>(json).unwrap_err())
+    }
+
+    #[test]
+    fn json_errors_do_not_quote_the_input() {
+        assert_eq!(
+            reason(r#"{"sub":"a","exp":"alice@example.com"}"#),
+            "a claim is malformed"
+        );
+        assert_eq!(
+            reason(r#"{"sub":"alice@example.com"}"#),
+            "missing claim `exp`"
+        );
+        assert_eq!(reason(r#"{"sub":"alice@example.com""#), "malformed JSON");
+    }
+}

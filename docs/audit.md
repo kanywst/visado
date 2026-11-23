@@ -35,7 +35,7 @@ The order below is the schema order, which the hash uses. Every member is always
 | `decision` | string | `allow` or `deny` |
 | `status` | integer | The HTTP status: 200 for an allow |
 | `reason` | string | The stable reason code, `ok` for an allow |
-| `detail` | string | Why, in words, for some denials. Identifiers only |
+| `detail` | string | Why, in words, for some denials. Identifiers only: a claim that does not parse is described (`a claim is malformed`, ``missing claim `exp` ``), never quoted |
 | `pdp` | string | `allow`, `deny`, `error:<code>`, or `not_asked` when the gate stopped first |
 | `remediation` | string | `none` (allowed), `reauthenticate` (401: answer the `WWW-Authenticate` challenge), `retry_later` (503), or `refused` |
 | `hash` | string | SHA-256 of the record without `hash`, lowercase hex |
