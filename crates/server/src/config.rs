@@ -21,6 +21,16 @@ pub struct Config {
     pub trust_domain: String,
     #[serde(default = "default_grpc")]
     pub grpc_listen: SocketAddr,
+    /// Anyone who can call the gRPC port gets a decision and, on an allow, a
+    /// minted Transaction Token, and can put any certificate in an mTLS
+    /// check. Unless this is set, a non-loopback `grpc_listen` needs
+    /// `[grpc_tls]` with a `client_ca_file`; set it only when the network
+    /// lets nothing but the proxy reach the port.
+    #[serde(default)]
+    pub grpc_reachable_only_by_proxy: bool,
+    /// TLS on the gRPC listener.
+    #[serde(default)]
+    pub grpc_tls: Option<GrpcTlsConfig>,
     #[serde(default = "default_http")]
     pub http_listen: SocketAddr,
     #[serde(default = "default_lifetime")]
@@ -209,12 +219,38 @@ pub struct JwtBundleConfig {
 #[serde(deny_unknown_fields)]
 pub struct MtlsConfig {
     pub trust_bundles: Vec<X509BundleConfig>,
-    /// A certificate is public, so anyone who can call the gRPC port can claim
-    /// any workload's. Unless this is set, `[mtls]` needs a loopback
-    /// `grpc_listen`; set it only when the network lets nothing but the proxy
-    /// reach that port.
+    /// Moved to the top level, where it covers every configuration. Kept
+    /// here only to say so.
     #[serde(default)]
-    pub grpc_reachable_only_by_proxy: bool,
+    pub grpc_reachable_only_by_proxy: Option<bool>,
+}
+
+/// TLS on the gRPC listener, so the proxy can authenticate visado and, with a
+/// client CA, visado the proxy.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[expect(
+    clippy::struct_field_names,
+    reason = "every file setting in this file ends in _file"
+)]
+pub struct GrpcTlsConfig {
+    /// The server certificate chain, PEM.
+    pub cert_file: PathBuf,
+    /// The server private key, PEM.
+    pub key_file: PathBuf,
+    /// CA certificates, PEM, that issue the proxy's client certificate. When
+    /// set, a client without a certificate from one of them is refused during
+    /// the handshake.
+    #[serde(default)]
+    pub client_ca_file: Option<PathBuf>,
+}
+
+/// The gRPC listener's TLS material, read at startup.
+#[derive(Debug, Clone)]
+pub struct GrpcTls {
+    pub cert: Vec<u8>,
+    pub key: Vec<u8>,
+    pub client_ca: Option<Vec<u8>>,
 }
 
 /// The CA for one trust domain. Leaf certificates must be issued directly by
@@ -453,6 +489,10 @@ pub struct Loaded {
     pub pdp_insecure_http: bool,
     pub public_jwk: Jwk,
     pub grpc_listen: SocketAddr,
+    pub grpc_tls: Option<GrpcTls>,
+    /// `grpc_listen` is not loopback and no client certificate is required:
+    /// the operator vouched for the network (`grpc_reachable_only_by_proxy`).
+    pub grpc_open: bool,
     pub http_listen: SocketAddr,
     pub telemetry: Option<TelemetryConfig>,
     pub chain_view: Option<ChainView>,
@@ -538,9 +578,12 @@ impl Config {
                 ));
             }
         }
+        self.validate_grpc()?;
         if let Some(mtls) = &self.mtls {
-            if !self.grpc_listen.ip().is_loopback() && !mtls.grpc_reachable_only_by_proxy {
-                return Err("[mtls] needs a loopback grpc_listen, or grpc_reachable_only_by_proxy = true when only the proxy can reach the port".into());
+            if mtls.grpc_reachable_only_by_proxy.is_some() {
+                return Err(
+                    "[mtls] grpc_reachable_only_by_proxy moved to the top level of the file".into(),
+                );
             }
             check_trust_domains(
                 "mtls.trust_bundles",
@@ -563,6 +606,23 @@ impl Config {
             if !issuers.insert(&issuer.issuer) {
                 return Err(format!("duplicate oauth_issuers issuer {}", issuer.issuer));
             }
+        }
+        Ok(())
+    }
+
+    /// Only the proxy may call the gRPC port: it is loopback, the proxy
+    /// presents a client certificate, or the operator says the network
+    /// allows nothing else.
+    fn validate_grpc(&self) -> Result<(), String> {
+        let proxy_authenticated = self
+            .grpc_tls
+            .as_ref()
+            .is_some_and(|tls| tls.client_ca_file.is_some());
+        if !self.grpc_listen.ip().is_loopback()
+            && !proxy_authenticated
+            && !self.grpc_reachable_only_by_proxy
+        {
+            return Err("a non-loopback grpc_listen needs [grpc_tls] with a client_ca_file, or grpc_reachable_only_by_proxy = true when only the proxy can reach the port: anyone who can call it gets decisions and Transaction Tokens".into());
         }
         Ok(())
     }
@@ -649,6 +709,9 @@ impl Config {
         let public_jwk = private.to_public();
 
         let anchors = self.chain_anchor_thumbprints(base)?;
+        let grpc_tls = self.grpc_tls.as_ref().map(|t| t.read(base)).transpose()?;
+        let grpc_open = !self.grpc_listen.ip().is_loopback()
+            && grpc_tls.as_ref().is_none_or(|t| t.client_ca.is_none());
         let mut authenticator = Authenticator::new()
             .with_replay_limits(self.replay_capacity, self.max_wpt_lifetime)
             .with_signature_lifetime(self.max_signature_lifetime)
@@ -731,6 +794,8 @@ impl Config {
             pdp_context_in_subject: self.pdp.context_in_subject,
             public_jwk,
             grpc_listen: self.grpc_listen,
+            grpc_tls,
+            grpc_open,
             http_listen: self.http_listen,
             telemetry: self.telemetry,
             chain_view: self.chain_view.enabled.then_some(ChainView {
@@ -762,6 +827,20 @@ impl Config {
             }
         }
         Ok(thumbprints)
+    }
+}
+
+impl GrpcTlsConfig {
+    fn read(&self, base: &Path) -> Result<GrpcTls, String> {
+        let read = |file: &PathBuf| {
+            let path = base.join(file);
+            std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))
+        };
+        Ok(GrpcTls {
+            cert: read(&self.cert_file)?,
+            key: read(&self.key_file)?,
+            client_ca: self.client_ca_file.as_ref().map(read).transpose()?,
+        })
     }
 }
 
@@ -1265,8 +1344,41 @@ jwks_file = "j"
             config.validate()
         };
         assert!(open("").is_err());
-        assert!(open("grpc_reachable_only_by_proxy = true\n").is_ok());
+        // The setting moved to the top level.
+        assert!(open("grpc_reachable_only_by_proxy = true\n").is_err());
+        let config: Config = toml::from_str(&format!(
+            "grpc_listen = \"0.0.0.0:9191\"\ngrpc_reachable_only_by_proxy = true\n{BASE}[mtls]\n[[mtls.trust_bundles]]\ntrust_domain = \"td.example\"\nca_file = \"ca.pem\"\n"
+        ))
+        .unwrap();
+        config.validate().unwrap();
         assert!(parse_tables("[[mtls.trust_bundles]]\ntrust_domain = \"td.example\"\nca_file = \"ca.pem\"\nchain = true\n").is_err());
+    }
+
+    #[test]
+    fn a_reachable_grpc_listener_needs_client_certificates_or_a_closed_network() {
+        let with = |top: &str, tables: &str| {
+            let config: Config =
+                toml::from_str(&format!("{top}{BASE}{tables}")).map_err(|e| e.to_string())?;
+            config.validate()
+        };
+        let tls = "[grpc_tls]\ncert_file = \"c.pem\"\nkey_file = \"k.pem\"\n";
+        let mtls = format!("{tls}client_ca_file = \"ca.pem\"\n");
+        for listen in ["127.0.0.1:9191", "[::1]:9191"] {
+            let top = format!("grpc_listen = \"{listen}\"\n");
+            with(&top, "").unwrap();
+            with(&top, tls).unwrap();
+        }
+        let remote = "grpc_listen = \"0.0.0.0:9191\"\n";
+        assert!(with(remote, "").is_err());
+        // TLS without client certificates still lets anyone call.
+        assert!(with(remote, tls).is_err());
+        with(remote, &mtls).unwrap();
+        with(
+            &format!("{remote}grpc_reachable_only_by_proxy = true\n"),
+            "",
+        )
+        .unwrap();
+        assert!(with(remote, "[grpc_tls]\ncert_file = \"c.pem\"\n").is_err());
     }
 
     #[test]

@@ -25,7 +25,7 @@ visado-chain-asor = { workspace = true }
 visado-chain-act = { workspace = true }
 wimsey-jose = { workspace = true }
 envoy-types = { workspace = true }
-tonic = { workspace = true }
+tonic = { workspace = true, features = ["tls-ring"] }
 axum = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 reqwest = { workspace = true }
@@ -45,6 +45,7 @@ tracing-opentelemetry = { workspace = true }
 
 [dev-dependencies]
 visado-testkit = { workspace = true }
+rcgen = { workspace = true }
 
 [lints]
 workspace = true
