@@ -93,6 +93,15 @@ jobs:
           mkdir -p "staging/$name"
           cp "target/$TARGET/release/visado" "staging/$name/"
           cp LICENSE README.md CHANGELOG.md "staging/$name/"
+          # What a rebuild needs to match: the toolchain follows `stable`, so
+          # record the one this build used.
+          {
+            echo "tag: $TAG"
+            echo "commit: $(git rev-parse HEAD)"
+            echo "target: $TARGET"
+            rustc -Vv
+            cargo -V
+          } > "staging/$name/BUILDINFO"
           tar -czf "$name.tar.gz" -C staging "$name"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

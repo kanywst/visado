@@ -41,4 +41,21 @@ Cut a release at least every six weeks, even if it only carries dependency updat
 | `publish` | SPDX SBOM, `SHA256SUMS`, a cosign keyless bundle per asset, SLSA build provenance (also attached as `visado-vX.Y.Z-provenance.intoto.jsonl`), then the GitHub release |
 | `crates-io` | Publishes the crates, only when the repository variable `PUBLISH_CRATES` is `true` and `CARGO_REGISTRY_TOKEN` is set |
 
+## Rebuilding a release
+
+Each tarball carries a `BUILDINFO` file with the tag, the commit, the target and the `rustc -Vv` output of the toolchain that built it. To rebuild one, check out the commit, install that toolchain and run the `build` step:
+
+```bash
+rustup toolchain install <release from BUILDINFO>
+cargo +<release> build --release --locked -p visado --target <target>
+```
+
+`Cargo.lock` pins every dependency and `--locked` refuses to change it. The binary is stripped. Bit-for-bit identical output has not been checked yet: the build host's paths and linker also reach the binary.
+
+## Supported versions and upgrades
+
+Only the latest release is supported, as [SECURITY.md](SECURITY.md) says. To upgrade, read the [CHANGELOG.md](CHANGELOG.md) sections since your version: the summary at the top of each names its breaking changes.
+
+## Retrying a release
+
 To retry a release whose `publish` job failed: `gh workflow run release.yml -f tag=vX.Y.Z`. Every step is idempotent. A dispatched run signs under the branch it ran from, and the release notes name that identity.
