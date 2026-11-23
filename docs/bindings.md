@@ -29,6 +29,10 @@ Before any credential is read, the request target must have one reading, since t
 
 The query string is not checked.
 
+## Header values
+
+A header value that is not valid UTF-8 is a 400 `request.invalid_header`, and so is a value with U+FFFD in it, which is what a proxy that decodes values lossily (agentgateway does) leaves in place of the bytes it could not decode. Decoding lossily would map different bytes to the same text, which a signature over that text could not tell apart. With Envoy, set `encode_raw_headers: true` so visado gets the bytes as received.
+
 ## WIMSE
 
 ### WPT

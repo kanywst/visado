@@ -537,3 +537,62 @@ async fn grpc_service_maps_outcomes() {
         "malformed requests are denied, not returned as gRPC errors"
     );
 }
+
+/// The status and body of the gRPC service's answer: 200 for an allow.
+async fn grpc_status(service: &ExtAuthz<ScopePdp>, request: CheckRequest) -> (i32, String) {
+    let response = service
+        .check(tonic::Request::new(request))
+        .await
+        .unwrap()
+        .into_inner();
+    match response.http_response {
+        Some(HttpResponse::DeniedResponse(denied)) => (denied.status.unwrap().code, denied.body),
+        Some(HttpResponse::OkResponse(_)) => (200, String::new()),
+        _ => panic!("no decision"),
+    }
+}
+
+/// A header value that is not UTF-8 is refused, not decoded lossily into
+/// U+FFFD text that other bytes would decode to as well.
+#[tokio::test]
+async fn header_values_that_are_not_utf8_are_refused() {
+    use envoy_types::pb::envoy::config::core::v3::{HeaderMap, HeaderValue};
+    let service = ExtAuthz::new(Gate::new(config(), authenticator(TICKETS), ScopePdp));
+    let at = access_token("alice", "client-1", "tickets.read", TICKETS, 4_000_000_000);
+    let raw = |key: &str, value: &[u8]| HeaderValue {
+        key: key.into(),
+        raw_value: value.to_vec(),
+        ..HeaderValue::default()
+    };
+    let with_raw = |value: &[u8]| {
+        let mut request = check_request(HashMap::new());
+        let http = request
+            .attributes
+            .as_mut()
+            .and_then(|a| a.request.as_mut())
+            .and_then(|r| r.http.as_mut())
+            .unwrap();
+        http.header_map = Some(HeaderMap {
+            headers: vec![
+                raw("authorization", format!("Bearer {at}").as_bytes()),
+                raw("x-note", value),
+            ],
+        });
+        request
+    };
+    assert_eq!(grpc_status(&service, with_raw(b"plain")).await.0, 200);
+    for value in [&b"caf\xe9"[..], b"\xff\xfe", b"\xc0\xae"] {
+        let (status, body) = grpc_status(&service, with_raw(value)).await;
+        assert_eq!(status, 400, "{value:?}");
+        assert!(body.contains("request.invalid_header"), "{body}");
+    }
+
+    // agentgateway sends `headers` already decoded lossily.
+    let lossy = check_request(HashMap::from([
+        ("authorization".to_owned(), format!("Bearer {at}")),
+        ("x-note".to_owned(), "caf\u{FFFD}".to_owned()),
+    ]));
+    let (status, body) = grpc_status(&service, lossy).await;
+    assert_eq!(status, 400);
+    assert!(body.contains("request.invalid_header"), "{body}");
+}
