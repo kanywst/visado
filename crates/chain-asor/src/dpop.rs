@@ -1,7 +1,7 @@
 //! Step 6: the DPoP proof (RFC 9449) that the presenter holds the leaf key.
 
 use visado_chain::dpop::{self, Expected, Nonces, Rejection};
-use visado_chain::replay::ReplayCache;
+use visado_chain::replay::{Recorded, ReplayCache};
 
 pub use visado_chain::dpop::{HttpRequest, TYP as DPOP_TYP};
 
@@ -12,6 +12,8 @@ pub const DPOP_ALGS: &[&str] = &["Ed25519", "ES256"];
 /// What a valid proof established.
 pub(crate) struct Proof {
     pub(crate) jti: String,
+    /// The last second the proof is accepted in.
+    pub(crate) until: i64,
 }
 
 /// Settings for proof checks.
@@ -19,6 +21,8 @@ pub(crate) struct ProofChecks<'a> {
     pub(crate) max_size: usize,
     /// Seconds either side of now within which `iat` must fall.
     pub(crate) iat_window: i64,
+    /// Seconds `iat` may be ahead of now.
+    pub(crate) max_future: i64,
     /// The server nonces a proof must carry, when required.
     pub(crate) nonces: Option<&'a Nonces>,
 }
@@ -42,14 +46,27 @@ pub(crate) fn verify(
         algs: DPOP_ALGS,
         max_size: window.max_size,
         iat_window: window.iat_window,
+        max_future: window.max_future,
         nonces: window.nonces,
     };
     let proof = dpop::verify(proof, &expected, request, now)?;
+    let until = proof.iat.saturating_add(window.iat_window);
     if let Some(cache) = replay {
-        let until = proof.iat.saturating_add(window.iat_window);
-        if !cache.check_and_record(&format!("{jkt}:{}", proof.jti), until, now) {
-            return Err(Rejection::Proof("DPoP jti already accepted"));
+        match cache.check_and_record(jkt, &proof.jti, until, now) {
+            Recorded::Fresh => {}
+            Recorded::Replayed | Recorded::Stale => {
+                return Err(Rejection::Proof("DPoP jti already accepted"));
+            }
+            Recorded::OverQuota => {
+                return Err(Rejection::Proof("DPoP jti not recorded: key over quota"));
+            }
+            Recorded::Full => {
+                return Err(Rejection::Proof("DPoP jti not recorded: replay cache full"));
+            }
         }
     }
-    Ok(Proof { jti: proof.jti })
+    Ok(Proof {
+        jti: proof.jti,
+        until,
+    })
 }

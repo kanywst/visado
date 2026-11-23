@@ -45,7 +45,19 @@ fn txn_key() -> SigningKey {
     SigningKey::from_ed25519_seed(&[0x51; 32])
 }
 
+fn authenticator() -> Authenticator {
+    Authenticator::new().with_oauth_issuer(OAuthIssuer::new(
+        OAUTH_ISSUER,
+        AUDIENCE,
+        serde_json::from_value(oauth_jwks()).unwrap(),
+    ))
+}
+
 fn gate() -> (Gate<RecordingPdp>, Seen) {
+    gate_with(authenticator())
+}
+
+fn gate_with(authenticator: Authenticator) -> (Gate<RecordingPdp>, Seen) {
     let config = GateConfig {
         trust_domain: TRUST_DOMAIN.into(),
         signing_key: txn_key().into(),
@@ -65,11 +77,6 @@ fn gate() -> (Gate<RecordingPdp>, Seen) {
         act: Some(visado_chain_act::Verifier::new()),
         require_chain: false,
     };
-    let authenticator = Authenticator::new().with_oauth_issuer(OAuthIssuer::new(
-        OAUTH_ISSUER,
-        AUDIENCE,
-        serde_json::from_value(oauth_jwks()).unwrap(),
-    ));
     let seen = Seen::default();
     (
         Gate::new(config, authenticator, RecordingPdp(seen.clone())),
@@ -406,4 +413,38 @@ async fn a_dpop_client_presents_an_act_chain_naming_itself() {
         )
         .await;
     assert_eq!(denied(&outcome).1, "act.actor_mismatch");
+}
+
+/// Under pressure (half the cache live), a DPoP key past its replay quota is
+/// told to slow down (429); the cache still has room for other keys.
+#[tokio::test]
+async fn a_key_over_its_replay_quota_gets_429() {
+    let (gate, _) = gate_with(
+        authenticator()
+            .with_replay_limits(4, 60)
+            .with_replay_key_quota(1)
+            .with_replay_client_quota(4),
+    );
+    let at = token();
+    for jti in ["p-1", "p-2"] {
+        let proof = dpop_proof(&holder(), "POST", URI, &at, jti, NOW);
+        let outcome = gate.check(&dpop_call(&at, proof), NOW, "t").await;
+        assert!(matches!(outcome, Outcome::Allow { .. }), "{outcome:?}");
+    }
+    let proof = dpop_proof(&holder(), "POST", URI, &at, "p-3", NOW);
+    let outcome = gate.check(&dpop_call(&at, proof), NOW, "t").await;
+    assert_eq!(denied(&outcome), (429, "credential.replay_quota", None));
+
+    let other = pop_key(8);
+    let at = dpop_access_token(
+        "alice",
+        "mcp-client",
+        "files.read",
+        AUDIENCE,
+        NOW + 300,
+        &other,
+    );
+    let proof = dpop_proof(&other, "POST", URI, &at, "p-3", NOW);
+    let outcome = gate.check(&dpop_call(&at, proof), NOW, "t").await;
+    assert!(matches!(outcome, Outcome::Allow { .. }), "{outcome:?}");
 }

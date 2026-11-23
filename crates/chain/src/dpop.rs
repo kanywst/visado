@@ -45,6 +45,12 @@ pub struct Expected<'a> {
     pub max_size: usize,
     /// Seconds either side of now within which `iat` must fall.
     pub iat_window: i64,
+    /// Seconds `iat` may be ahead of now, for clock skew; the smaller of
+    /// this and `iat_window` applies. A proof is remembered until its `iat`
+    /// plus `iat_window`, so this bounds how far past now that can be.
+    /// [`crate::replay::DEFAULT_PROOF_SKEW`] unless the caller has reason
+    /// for more.
+    pub max_future: i64,
     /// When set, the proof must carry a `nonce` these nonces accept
     /// (RFC 9449 §4.3 item 10, §11.3).
     pub nonces: Option<&'a Nonces>,
@@ -135,10 +141,13 @@ pub fn verify(
         .get("iat")
         .and_then(Value::as_integer)
         .ok_or(bad("bad DPoP iat"))?;
-    if iat < now.saturating_sub(expected.iat_window)
-        || iat > now.saturating_add(expected.iat_window)
-    {
+    if iat < now.saturating_sub(expected.iat_window) {
         return Err(bad("DPoP iat outside the accepted window"));
+    }
+    // Never `clamp`, which panics when a negative window puts its bounds
+    // the wrong way round. A negative window or skew admits no proof.
+    if iat > now.saturating_add(expected.max_future.min(expected.iat_window).max(0)) {
+        return Err(bad("DPoP iat in the future"));
     }
     // Every proof checked here comes with an access token, so `ath` is
     // required (RFC 9449 §4.2) and binds the proof to the token presented.

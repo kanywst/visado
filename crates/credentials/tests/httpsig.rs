@@ -458,3 +458,21 @@ fn a_nonce_stays_recorded_through_the_last_accepted_second() {
         "httpsig.invalid"
     );
 }
+
+/// `created` may be ahead of the clock by the proof skew (5 s by default),
+/// not by the whole clock leeway: the nonce is remembered until `expires`.
+#[test]
+fn a_signature_from_the_future_is_refused() {
+    let auth = authenticator();
+    run(&auth, &signed(1, &[], &spec("f1")), None, NOW - 5).unwrap();
+    let err = failure(&auth, &signed(1, &[], &spec("f2")), PATH, NOW - 6);
+    assert_eq!(
+        err,
+        "httpsig.invalid invalid signed request: created in the future"
+    );
+
+    let strict = authenticator().with_proof_skew(0);
+    let err = failure(&strict, &signed(1, &[], &spec("f3")), PATH, NOW - 1);
+    assert!(err.ends_with("created in the future"), "{err}");
+    run(&strict, &signed(1, &[], &spec("f4")), None, NOW).unwrap();
+}

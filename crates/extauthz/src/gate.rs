@@ -8,6 +8,7 @@ use tracing::Instrument;
 use visado_authzen::{Action, Entity, EvaluationRequest, Pdp};
 use visado_chain::algebra::{Action as ChainAction, Algebras};
 use visado_chain::invariants::{Checked, Engine};
+use visado_chain::replay::{Recorded, ReplayCache};
 use visado_chain::{ActorId, Hop, NormalizedChain, Principal, Profile};
 use visado_chain_aat::{Invocation, MemoryReplayCache, Presentation, Verifier, jwk_thumbprint};
 use visado_chain_act::{ActError, ActToken, Caller as ActCaller};
@@ -158,8 +159,10 @@ pub struct Gate<P> {
     pdp: P,
     txn_keys: KeySet,
     stripped: Vec<String>,
+    /// AAT PoP `jti` values, per leaf holder key.
     aat_replay: MemoryReplayCache,
-    dpop_replay: MemoryReplayCache,
+    /// asor leaf DPoP proof `jti` values, per leaf key.
+    asor_replay: MemoryReplayCache,
     /// The nonces handed out: the authenticator's, or else the asor
     /// verifier's.
     nonces: Option<Nonces>,
@@ -200,18 +203,30 @@ impl<P: Pdp> Gate<P> {
         stripped.extend(FORWARDED_HEADERS.map(str::to_owned));
         stripped.push(authenticator.user_token_header().to_owned());
         let engine = Engine::new(chain_algebras(&config));
+        let replay_limits = authenticator.replay_limits();
         Self {
             config,
             authenticator,
             pdp,
             txn_keys,
             stripped,
-            aat_replay: MemoryReplayCache::new(100_000),
-            dpop_replay: MemoryReplayCache::new(100_000),
+            aat_replay: replay_cache(replay_limits),
+            asor_replay: replay_cache(replay_limits),
             nonces,
             log: None,
             engine,
         }
+    }
+
+    /// Bounds the replay caches of chain proofs (AAT PoP and asor leaf proof
+    /// `jti` values, one cache each): at most `capacity` live entries, at
+    /// most `key_quota` of them for one holder key. By default the
+    /// authenticator's limits ([`Authenticator::replay_limits`]).
+    #[must_use]
+    pub fn with_replay_limits(mut self, capacity: usize, key_quota: usize) -> Self {
+        self.aat_replay = replay_cache((capacity, key_quota));
+        self.asor_replay = replay_cache((capacity, key_quota));
+        self
     }
 
     /// Records a summary of every decision in `log`, for the chain view.
@@ -428,25 +443,30 @@ impl<P: Pdp> Gate<P> {
         let aat = header(input, AAT_CHAIN_HEADER);
         let asor = header(input, ASOR_CHAIN_HEADER);
         let act = caller.user.as_ref().filter(|user| user.act.is_some());
-        let (chain, invoked) = match (aat, asor, act) {
+        // The verifiers record no proof `jti`: the gate records it only once
+        // the chain is known to be the caller's, so a stolen chain and proof
+        // presented by someone else cannot use up the holder's `jti`.
+        let (chain, invoked, proof) = match (aat, asor, act) {
             (None, None, None) => {
                 if self.config.require_chain {
                     return Err(Denied::new(403, "chain.required", trail));
                 }
                 return Ok(None);
             }
-            (None, None, Some(user)) => (self.verify_act(caller, user, trail)?, None),
+            (None, None, Some(user)) => (self.verify_act(caller, user, trail)?, None, None),
             (Some(chain), None, None) => {
-                let (chain, invoked) = self.verify_aat(input, caller, chain, now, trail)?;
-                bound_to_caller(&chain, caller, trail)?;
-                (chain, Some(invoked))
+                let (chain, invoked, proof) = self.verify_aat(input, caller, chain, now, trail)?;
+                (chain, Some(invoked), Some(proof))
             }
             (None, Some(chain), None) => {
-                let (chain, invoked) = self.verify_asor(input, caller, chain, now, trail)?;
-                bound_to_caller(&chain, caller, trail)?;
-                (chain, Some(invoked))
+                let (chain, invoked, proof) = self.verify_asor(input, caller, chain, now, trail)?;
+                (chain, Some(invoked), Some(proof))
             }
             _ => return Err(Denied::new(400, "chain.ambiguous", trail)),
+        };
+        let holder = match &proof {
+            Some(_) => Some(bound_to_caller(&chain, caller, trail)?),
+            None => None,
         };
         let action = invoked.as_ref().map(|(tool, args)| ChainAction {
             name: tool,
@@ -457,6 +477,10 @@ impl<P: Pdp> Gate<P> {
             denied.detail = Some(format!("invariant engine: {e}").into_boxed_str());
             denied
         })?;
+        if let (Some(proof), Some(holder)) = (proof, holder) {
+            let now = i64::try_from(now).map_err(|_| Denied::new(500, "internal.clock", trail))?;
+            proof.record(&holder, now, trail)?;
+        }
         Ok(Some((chain, checked)))
     }
 
@@ -467,7 +491,7 @@ impl<P: Pdp> Gate<P> {
         chain_header: &str,
         now: u64,
         trail: &Trail,
-    ) -> Result<(NormalizedChain, Invoked), Denied> {
+    ) -> Result<(NormalizedChain, Invoked, ChainProof<'_>), Denied> {
         let Some(verifier) = &self.config.aat else {
             return Err(Denied::new(403, "chain.unsupported", trail));
         };
@@ -490,9 +514,17 @@ impl<P: Pdp> Gate<P> {
                     args_json: &args,
                 },
                 now,
-                Some(&self.aat_replay),
+                None,
             )
-            .map(|authorized| (authorized.chain, (tool, args)))
+            .map(|authorized| {
+                let proof = ChainProof {
+                    cache: &self.aat_replay,
+                    jti: authorized.pop_jti,
+                    until: authorized.pop_until,
+                    replayed: "aat.pop_replayed",
+                };
+                (authorized.chain, (tool, args), proof)
+            })
             .map_err(|e| Denied::new(403, e.code(), trail))
     }
 
@@ -506,7 +538,7 @@ impl<P: Pdp> Gate<P> {
         chain_header: &str,
         now: u64,
         trail: &Trail,
-    ) -> Result<(NormalizedChain, Invoked), Denied> {
+    ) -> Result<(NormalizedChain, Invoked, ChainProof<'_>), Denied> {
         let Some(verifier) = &self.config.asor else {
             return Err(Denied::new(403, "chain.unsupported", trail));
         };
@@ -540,9 +572,17 @@ impl<P: Pdp> Gate<P> {
                     totals: None,
                 },
                 now,
-                Some(&self.dpop_replay),
+                None,
             )
-            .map(|authorized| (authorized.chain, (tool, args)))
+            .map(|authorized| {
+                let proof = ChainProof {
+                    cache: &self.asor_replay,
+                    jti: authorized.proof_jti,
+                    until: authorized.proof_until,
+                    replayed: "asor.holder_binding_failed",
+                };
+                (authorized.chain, (tool, args), proof)
+            })
             .map_err(|e| match e.dpop_nonce() {
                 // The leaf proof is fine but for its nonce: ask for a retry
                 // with the fresh one the 401 carries (RFC 9449 §9).
@@ -682,6 +722,9 @@ impl<P: Pdp> Gate<P> {
                 });
             let (status, challenge) = match e {
                 AuthError::ReplayCacheFull => (503, None),
+                // This caller alone has too many live proofs; others are
+                // still served.
+                AuthError::ReplayQuota => (429, None),
                 // draft-ietf-wimse-http-signature: a failed signed request is
                 // a 400 that does not say which check failed.
                 AuthError::HttpSig(_) => (400, None),
@@ -770,13 +813,59 @@ fn chain_algebras(config: &GateConfig) -> Algebras {
     algebras
 }
 
-/// An AAT or asor chain must belong to the caller: its leaf holder key is
-/// the key the caller proved possession of with its WIT (or certificate).
+/// A chain-proof replay cache with the given capacity and per-key quota.
+fn replay_cache((capacity, key_quota): (usize, usize)) -> MemoryReplayCache {
+    MemoryReplayCache::new(capacity).with_owner_quota(key_quota)
+}
+
+/// A chain proof whose `jti` is still to be recorded.
+struct ChainProof<'a> {
+    cache: &'a MemoryReplayCache,
+    jti: String,
+    /// The last second the proof is accepted in.
+    until: i64,
+    /// The code for a replayed proof, as the format's verifier names it.
+    replayed: &'static str,
+}
+
+impl ChainProof<'_> {
+    /// Records the `jti` for `holder`, the thumbprint of the key the caller
+    /// proved and the chain's leaf holds.
+    fn record(self, holder: &str, now: i64, trail: &Trail) -> Result<(), Denied> {
+        let refused = |status, code: &'static str, detail: &str| {
+            let mut denied = Denied::new(status, code, trail);
+            denied.detail = Some(detail.into());
+            Err(denied)
+        };
+        match self
+            .cache
+            .check_and_record(holder, &self.jti, self.until, now)
+        {
+            Recorded::Fresh => Ok(()),
+            Recorded::Replayed | Recorded::Stale => {
+                refused(403, self.replayed, "chain proof jti already accepted")
+            }
+            Recorded::OverQuota => refused(
+                429,
+                "chain.replay_quota",
+                "too many live chain proofs from this holder key",
+            ),
+            Recorded::Full => refused(
+                503,
+                "chain.replay_cache_full",
+                "chain proof replay cache full",
+            ),
+        }
+    }
+}
+
+/// Checks that the chain's leaf holder is the key the caller proved, and
+/// returns that key's thumbprint.
 fn bound_to_caller(
     chain: &NormalizedChain,
     caller: &Authenticated,
     trail: &Trail,
-) -> Result<(), Denied> {
+) -> Result<String, Denied> {
     let key = caller
         .proof_key
         .as_ref()
@@ -785,8 +874,9 @@ fn bound_to_caller(
         .leaf()
         .and_then(|leaf| leaf.cnf.as_ref())
         .map(|c| c.thumbprint.0.as_str());
-    if holder == Some(jwk_thumbprint(key).as_str()) {
-        Ok(())
+    let thumbprint = jwk_thumbprint(key);
+    if holder == Some(thumbprint.as_str()) {
+        Ok(thumbprint)
     } else {
         Err(Denied::new(403, "chain.holder_mismatch", trail))
     }

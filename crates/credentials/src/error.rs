@@ -26,6 +26,10 @@ pub enum AuthError {
     /// The replay cache is full, so the proof cannot be recorded.
     #[error("replay cache full")]
     ReplayCacheFull,
+    /// The caller (a workload, or a DPoP key) already holds its quota of
+    /// live proofs in the replay cache, so this one cannot be recorded.
+    #[error("too many live proofs from this caller")]
+    ReplayQuota,
     /// A user token was sent but the WPT does not bind it.
     #[error("user token not bound by the proof")]
     UnboundUserToken,
@@ -115,6 +119,7 @@ impl AuthError {
             Self::Wpt(_) => "wpt.invalid",
             Self::Replay => "wpt.replay",
             Self::ReplayCacheFull => "wpt.replay_cache_full",
+            Self::ReplayQuota => "credential.replay_quota",
             Self::UnboundUserToken => "credential.unbound_user_token",
             Self::UntrustedIssuer => "token.untrusted_issuer",
             Self::AccessToken(_) => "token.invalid",

@@ -10,7 +10,7 @@ use wimsey_jose::VerifyingKey;
 
 use visado_chain::jose::{self as jose, Compact, HolderKey, THUMBPRINT_URI_PREFIX};
 use visado_chain::json::{self, Value};
-use visado_chain::replay::ReplayCache;
+use visado_chain::replay::{DEFAULT_PROOF_SKEW, Recorded, ReplayCache};
 
 use crate::constraint::ToolMap;
 use crate::error::{AatError, Step};
@@ -77,6 +77,10 @@ pub struct Limits {
     pub max_chain_size: usize,
     /// The PoP `iat` window, in seconds either side of now.
     pub pop_window: i64,
+    /// How far ahead of now a PoP `iat` may be, in seconds; the smaller of
+    /// this and `pop_window` applies. A PoP `jti` is remembered until `iat`
+    /// plus `pop_window`.
+    pub pop_max_future: i64,
 }
 
 impl Default for Limits {
@@ -90,6 +94,7 @@ impl Default for Limits {
             max_token_size: 64 * 1024,
             max_chain_size: 256 * 1024,
             pop_window: 30,
+            pop_max_future: DEFAULT_PROOF_SKEW,
         }
     }
 }
@@ -140,6 +145,10 @@ pub struct Authorized {
     pub chain: NormalizedChain,
     /// The PoP JWT `jti`.
     pub pop_jti: String,
+    /// The last second the PoP is accepted in: its `iat` plus the PoP
+    /// window. A caller that records `pop_jti` itself, after checks of its
+    /// own, keeps it until then.
+    pub pop_until: i64,
 }
 
 /// Verifies AAT chains and invocations for one enforcement point.
@@ -187,11 +196,22 @@ impl Verifier {
         }
     }
 
-    /// Replaces the limits.
+    /// Replaces the limits. A negative `pop_window` or `pop_max_future`
+    /// is taken as zero: no time either side of now.
     #[must_use]
     pub fn with_limits(mut self, limits: Limits) -> Self {
-        self.limits = limits;
+        self.limits = Limits {
+            pop_window: limits.pop_window.max(0),
+            pop_max_future: limits.pop_max_future.max(0),
+            ..limits
+        };
         self
+    }
+
+    /// The limits in force.
+    #[must_use]
+    pub const fn limits(&self) -> Limits {
+        self.limits
     }
 
     /// Replaces the policy.
@@ -235,10 +255,12 @@ impl Verifier {
         let pop = self.pop_signature(leaf, presentation.pop)?;
         let args = self.invocation(leaf, invocation)?;
         self.chain_audience(&chain.tokens)?;
-        let pop_jti = self.pop_claims(leaf, &pop, invocation.tool, &args, now, replay)?;
+        let (pop_jti, pop_until) =
+            self.pop_claims(leaf, &pop, invocation.tool, &args, now, replay)?;
         Ok(Authorized {
             chain: normalize(&chain, true),
             pop_jti,
+            pop_until,
         })
     }
 
@@ -566,7 +588,7 @@ impl Verifier {
     }
 
     /// §8 steps 7c to 7i, on claims whose signature verified. Returns the
-    /// PoP `jti`.
+    /// PoP `jti` and the last second the PoP is accepted in.
     fn pop_claims(
         &self,
         leaf: &Token<'_>,
@@ -575,7 +597,7 @@ impl Verifier {
         args: &Value,
         now: i64,
         replay: Option<&dyn ReplayCache>,
-    ) -> Result<String, AatError> {
+    ) -> Result<(String, i64), AatError> {
         let deny = AatError::new;
         let jti = non_empty(claims, "jti");
         let aat_id = non_empty(claims, "aat_id");
@@ -614,8 +636,15 @@ impl Verifier {
         if !hta.numbers_admissible() || hta.jcs() != args.jcs() {
             return Err(deny(Step::S7f, "hta does not match the arguments"));
         }
-        if iat.abs_diff(now) > self.limits.pop_window.unsigned_abs() {
+        // `with_limits` keeps both at zero or more; a negative value set any
+        // other way still admits no wider window than zero.
+        let window = self.limits.pop_window.max(0);
+        if iat.abs_diff(now) > window.unsigned_abs() {
             return Err(deny(Step::S7g, "PoP iat outside the window"));
+        }
+        let future = self.limits.pop_max_future.min(window).max(0);
+        if iat > now.saturating_add(future) {
+            return Err(deny(Step::S7g, "PoP iat in the future"));
         }
         if let Some(nonces) = &self.policy.nonces {
             let nonce = claims.get("nonce").and_then(Value::as_str);
@@ -623,13 +652,22 @@ impl Verifier {
                 return Err(deny(Step::S7h, "nonce missing or not accepted"));
             }
         }
+        let until = iat.saturating_add(window);
         if let Some(cache) = replay {
-            let until = iat.saturating_add(self.limits.pop_window);
-            if !cache.check_and_record(&jti, until, now) {
-                return Err(deny(Step::S7i, "PoP jti already accepted"));
+            match cache.check_and_record(&leaf.holder.thumbprint, &jti, until, now) {
+                Recorded::Fresh => {}
+                Recorded::Replayed | Recorded::Stale => {
+                    return Err(deny(Step::S7i, "PoP jti already accepted"));
+                }
+                Recorded::OverQuota => {
+                    return Err(deny(Step::S7i, "PoP jti not recorded: holder over quota"));
+                }
+                Recorded::Full => {
+                    return Err(deny(Step::S7i, "PoP jti not recorded: replay cache full"));
+                }
             }
         }
-        Ok(jti)
+        Ok((jti, until))
     }
 }
 

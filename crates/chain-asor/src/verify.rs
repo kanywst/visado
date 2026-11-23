@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use visado_chain::dpop::{Nonces, Rejection};
 use visado_chain::jose::{self, Compact};
 use visado_chain::json::{self, ParseError, Value};
-use visado_chain::replay::ReplayCache;
+use visado_chain::replay::{DEFAULT_PROOF_SKEW, ReplayCache};
 use visado_chain::{
     ActorId, Assurance, Authority as NormalizedAuthority, ChainDecoder, Cnf, Hop, KeyThumbprint,
     Link, NormalizedChain, Principal, Profile, SignerBinding, StatusCheck, TrustRef, Validity,
@@ -201,6 +201,10 @@ pub struct Limits {
     pub max_params_size: usize,
     /// The DPoP `iat` window, in seconds either side of now.
     pub proof_window: i64,
+    /// How far ahead of now a DPoP `iat` may be, in seconds; the smaller of
+    /// this and `proof_window` applies. A proof `jti` is remembered until
+    /// `iat` plus `proof_window`.
+    pub proof_max_future: i64,
 }
 
 impl Default for Limits {
@@ -212,6 +216,7 @@ impl Default for Limits {
             max_proof_size: 8 * 1024,
             max_params_size: 64 * 1024,
             proof_window: 60,
+            proof_max_future: DEFAULT_PROOF_SKEW,
         }
     }
 }
@@ -264,6 +269,10 @@ pub struct Authorized {
     pub chain: NormalizedChain,
     /// The DPoP proof `jti`.
     pub proof_jti: String,
+    /// The last second the proof is accepted in: its `iat` plus the proof
+    /// window. A caller that records `proof_jti` itself, after checks of its
+    /// own, keeps it until then.
+    pub proof_until: i64,
 }
 
 /// Verifies asor Delegation Chains for one enforcement point.
@@ -379,11 +388,22 @@ impl Verifier {
         self
     }
 
-    /// Replaces the limits.
+    /// Replaces the limits. A negative `proof_window` or `proof_max_future`
+    /// is taken as zero: no time either side of now.
     #[must_use]
     pub fn with_limits(mut self, limits: Limits) -> Self {
-        self.limits = limits;
+        self.limits = Limits {
+            proof_window: limits.proof_window.max(0),
+            proof_max_future: limits.proof_max_future.max(0),
+            ..limits
+        };
         self
+    }
+
+    /// The limits in force.
+    #[must_use]
+    pub const fn limits(&self) -> Limits {
+        self.limits
     }
 
     /// Runs the whole algorithm for one request at `now`: the parse rules,
@@ -413,6 +433,7 @@ impl Verifier {
         let window = ProofChecks {
             max_size: self.limits.max_proof_size,
             iat_window: self.limits.proof_window,
+            max_future: self.limits.proof_max_future,
             nonces: self.dpop_nonces.as_ref(),
         };
         let proof = dpop::verify(
@@ -452,6 +473,7 @@ impl Verifier {
         Ok(Authorized {
             chain: normalize(&chain, true, true),
             proof_jti: proof.jti,
+            proof_until: proof.until,
         })
     }
 

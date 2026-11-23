@@ -29,7 +29,7 @@ pub use verify::{
     Authorized, DETAIL_TYPE, Invocation, Limits, POP_TYP, Policy, Presentation, TYP, TrustAnchor,
     Verifier,
 };
-pub use visado_chain::replay::{MemoryReplayCache, ReplayCache};
+pub use visado_chain::replay::{MemoryReplayCache, Recorded, ReplayCache};
 
 /// The RFC 7638 SHA-256 thumbprint of `key`, as AAT uses it to name holders.
 #[must_use]

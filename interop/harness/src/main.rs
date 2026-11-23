@@ -17,6 +17,7 @@ use std::process::ExitCode;
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde_json::{Map, Value, json};
+use visado_chain::{jose, json};
 use visado_chain_aat as aat;
 use visado_chain_asor as asor;
 use visado_testkit as kit;
@@ -136,6 +137,9 @@ fn aat_suite(suite: &Value) -> Value {
             max_token_size: size("max_token_size"),
             max_chain_size: size("max_chain_size"),
             pop_window: param("pop_window"),
+            // visado's own default is stricter about the future; the vectors
+            // test the draft, as in crates/chain-aat/tests/vectors.rs.
+            pop_max_future: param("pop_window"),
         };
         let p = &vector["policy"];
         let policy = aat::Policy {
@@ -148,8 +152,13 @@ fn aat_suite(suite: &Value) -> Value {
             .with_policy(policy);
         let now = vector["now"].as_i64().unwrap_or_default();
         let cache = aat::MemoryReplayCache::new(1024);
-        for jti in strings(&vector["replay_state"]["before"]) {
-            aat::ReplayCache::check_and_record(&cache, &jti, now + 60, now);
+        let seen = strings(&vector["replay_state"]["before"]);
+        if let Some(holder) = leaf_holder(&strings(&vector["presentation"]["aat_chain"])) {
+            for jti in seen {
+                let recorded =
+                    aat::ReplayCache::check_and_record(&cache, &holder, &jti, now + 60, now);
+                assert!(recorded.is_fresh(), "pre-seeded jti {jti} was not fresh");
+            }
         }
         let tracked = p["track_pop_jti"].as_bool().unwrap_or(false);
         let replay: Option<&dyn aat::ReplayCache> = if tracked { Some(&cache) } else { None };
@@ -613,4 +622,13 @@ fn asor_mint() -> Value {
         "audience": AUDIENCE,
         "cases": cases,
     })
+}
+
+/// The leaf's holder key thumbprint, which the verifier records a PoP `jti`
+/// under.
+fn leaf_holder(chain: &[String]) -> Option<String> {
+    let claims = jose::split(chain.last()?)
+        .and_then(|jws| jose::b64(jws.payload))
+        .and_then(|payload| json::parse(&payload).ok())?;
+    jose::holder_key(claims.get("cnf")).map(|key| key.thumbprint)
 }

@@ -35,6 +35,7 @@ fn check(proof: &str, nonces: Option<&Nonces>) -> Result<(), Rejection> {
         algs: &["Ed25519"],
         max_size: 8192,
         iat_window: 60,
+        max_future: 5,
         nonces,
     };
     let request = HttpRequest {
@@ -124,4 +125,34 @@ fn the_nonce_is_checked_after_every_other_check() {
         check(&unsigned, Some(&n)),
         Err(Rejection::Proof(_))
     ));
+}
+
+/// A negative window or skew from a caller admits no proof, and does not
+/// panic.
+#[test]
+fn a_negative_window_admits_nothing() {
+    let jkt = key_thumbprint(&holder().verifying_key());
+    let request = HttpRequest {
+        method: "POST",
+        uri: URI,
+    };
+    for (iat_window, max_future) in [(-30, 5), (60, -5), (-30, -5)] {
+        let expected = Expected {
+            jkt: &jkt,
+            access_token: TOKEN,
+            algs: &["Ed25519"],
+            max_size: 8192,
+            iat_window,
+            max_future,
+            nonces: None,
+        };
+        // NOW + 30 and later pass the check against the past when the window
+        // is negative, and reach the future bound.
+        for iat in [NOW - 10, NOW, NOW + 1, NOW + 30, NOW + 40] {
+            let p = proof(|c| c["iat"] = json!(iat));
+            let result = verify(&p, &expected, &request, NOW);
+            let admitted = iat_window >= 0 && iat <= NOW;
+            assert_eq!(result.is_ok(), admitted, "{iat_window} {max_future} {iat}");
+        }
+    }
 }

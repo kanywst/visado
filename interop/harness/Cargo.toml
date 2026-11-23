@@ -10,6 +10,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+visado-chain = { workspace = true }
 visado-chain-aat = { workspace = true }
 visado-chain-asor = { workspace = true }
 visado-testkit = { workspace = true }
