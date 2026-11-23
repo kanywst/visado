@@ -167,7 +167,8 @@ pub(crate) fn verify_bound(
     now: u64,
     leeway: u64,
 ) -> Result<(AccessToken, Binding), AuthError> {
-    let invalid = |e: jsonwebtoken::errors::Error| AuthError::AccessToken(e.to_string());
+    let invalid =
+        |e: jsonwebtoken::errors::Error| AuthError::AccessToken(crate::error::jwt_reason(&e));
     let header = decode_header(token).map_err(invalid)?;
     if !ALGORITHMS.contains(&header.alg) {
         return Err(AuthError::AccessToken("algorithm not allowed".into()));

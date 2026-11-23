@@ -6,8 +6,9 @@
 //! ```
 //!
 //! Serves Envoy ext_authz v3 over gRPC, and over HTTP `/healthz` and the
-//! Transaction Token signing key at `/.well-known/jwks.json`. Audit events go
-//! to stdout as JSON under the `visado::audit` target. With `[chain_view]`
+//! Transaction Token signing key at `/.well-known/jwks.json`. One audit
+//! record per decision goes to stdout as JSON under the `visado::audit`
+//! target (docs/audit.md). With `[chain_view]`
 //! enabled, the HTTP listener also serves recent decisions at
 //! `/api/requests` and a page that draws them at `/chain`.
 

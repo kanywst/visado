@@ -21,7 +21,10 @@ use visado_txn_token::{
     mint_with, replace, verify,
 };
 
-use crate::recent::{ChainSummary, Decision, PdpResult, RequestLog, RequestSummary, bounded};
+use crate::audit::{AUDIT_VERSION, AuditChain, AuditRecord};
+use crate::recent::{
+    ChainSummary, Decision, PdpResult, RequestLog, RequestSummary, actor_parts, scrubbed,
+};
 
 /// The header carrying an AAT chain, root first, comma-separated.
 pub const AAT_CHAIN_HEADER: &str = "aat-chain";
@@ -169,6 +172,7 @@ pub struct Gate<P> {
     log: Option<Arc<RequestLog>>,
     /// Runs on every chain after its format's checks.
     engine: Engine,
+    audit: AuditChain,
 }
 
 /// The tool and its arguments a chain is asked to authorize.
@@ -215,6 +219,7 @@ impl<P: Pdp> Gate<P> {
             nonces,
             log: None,
             engine,
+            audit: AuditChain::default(),
         }
     }
 
@@ -237,10 +242,36 @@ impl<P: Pdp> Gate<P> {
         self
     }
 
+    /// Records a request the transport refused before the gate could decide
+    /// on it (no HTTP attributes, a header that is not text, no clock): one
+    /// audit record and one request log entry, like any other denial, with
+    /// what `input` holds of the request and the rest empty. `now` is 0
+    /// when the clock could not be read.
+    pub(crate) fn record_refusal(
+        &self,
+        input: &CheckInput,
+        now: u64,
+        id: &str,
+        status: u16,
+        code: &'static str,
+    ) {
+        let result = Err(Denied::new(status, code, &Trail::default()));
+        if let Some(log) = &self.log {
+            log.record(summary(input, now, id, &result));
+        }
+        self.audit.append(audit_record(input, now, id, &result));
+    }
+
+    /// The `seq` the next audit record gets.
+    #[cfg(test)]
+    pub(crate) fn next_audit_seq(&self) -> u64 {
+        self.audit.next_seq()
+    }
+
     /// Decides on `input` at `now`. `txn` is the identifier used if a new
     /// Transaction Token is minted.
     pub async fn check(&self, input: &CheckInput, now: u64, txn: &str) -> Outcome {
-        let resource = resource_id(input);
+        let resource = crate::audit::scrub_tokens(&resource_id(input));
         let span = tracing::info_span!(
             "visado.authorize",
             otel.name = %format!("visado.authorize {resource}"),
@@ -271,9 +302,9 @@ impl<P: Pdp> Gate<P> {
             let now = i64::try_from(now).unwrap_or(i64::MAX);
             nonces.map(|n| (DPOP_NONCE_HEADER.to_owned(), n.issue(now)))
         };
+        self.audit.append(audit_record(input, now, txn, &result));
         match result {
             Ok(allowed) => {
-                audit(input, &allowed.trail, "allow", "ok", "");
                 let response_headers = if allowed.dpop_proof {
                     fresh_nonce().into_iter().collect()
                 } else {
@@ -287,13 +318,6 @@ impl<P: Pdp> Gate<P> {
                 }
             }
             Err(denied) => {
-                audit(
-                    input,
-                    &denied.trail,
-                    "deny",
-                    denied.code,
-                    denied.detail.as_deref().unwrap_or(""),
-                );
                 // Every 401 hands out a nonce, so a client learns it at the
                 // first challenge whatever went wrong.
                 let headers = match fresh_nonce() {
@@ -325,10 +349,8 @@ impl<P: Pdp> Gate<P> {
             }
             None => None,
         };
-        if self.log.is_some() {
-            trail.chain = chain
-                .as_ref()
-                .map(|c| Box::new(ChainSummary::from_chain(c)));
+        if let Some(chain) = &chain {
+            trail.set_chain(chain);
         }
 
         let inbound = input
@@ -897,7 +919,7 @@ fn split_chain(value: &str) -> Vec<String> {
     value.split(',').map(|t| t.trim().to_owned()).collect()
 }
 
-/// What is known about the request so far, for the audit event.
+/// What is known about the request so far, for the audit record.
 #[derive(Debug, Default, Clone)]
 struct Trail {
     agent: String,
@@ -907,11 +929,33 @@ struct Trail {
     method: Option<Method>,
     /// What the PDP said, once asked.
     pdp: Option<PdpResult>,
-    /// The verified chain, kept only when there is a request log.
+    /// The verified chain, without its tokens, for the chain view.
     chain: Option<Box<ChainSummary>>,
+    /// Every hop's actor, first hop first, for the audit record. Taken from
+    /// the verified chain rather than from [`chain`](Self::chain), so the
+    /// record lists each hop it counts whatever the view keeps; the
+    /// invariant engine bounds the count to
+    /// [`visado_chain::invariants::MAX_HOPS`].
+    chain_actors: Vec<String>,
+    /// The verified chain's trust anchor, for the audit record.
+    chain_issuer: String,
     /// How the chain's depth bound was read (`del_max_depth`), once the
     /// invariant engine accepted it.
     depth_semantics: Option<&'static str>,
+}
+
+impl Trail {
+    /// Records the verified `chain`: its summary for the chain view and
+    /// every hop's actor for the audit record.
+    fn set_chain(&mut self, chain: &NormalizedChain) {
+        self.chain = Some(Box::new(ChainSummary::from_chain(chain)));
+        self.chain_issuer.clone_from(&chain.root.issuer);
+        self.chain_actors = chain
+            .hops
+            .iter()
+            .map(|hop| actor_parts(&hop.actor).1.to_owned())
+            .collect();
+    }
 }
 
 struct Allowed {
@@ -1080,6 +1124,16 @@ fn requesting_workload(caller: &Authenticated) -> String {
     match caller.method {
         Method::Bearer | Method::OAuthDpop => format!("oauth-client:{}", caller.caller),
         _ => caller.caller.clone(),
+    }
+}
+
+/// The resource as recorded: empty when the transport refused a request
+/// before its target was known.
+fn recorded_resource(input: &CheckInput) -> String {
+    if input.scheme.is_empty() && input.authority.is_empty() && input.path.is_empty() {
+        String::new()
+    } else {
+        resource_id(input)
     }
 }
 
@@ -1321,13 +1375,13 @@ fn summary(
         Ok(allowed) => (&allowed.trail, Decision::Allow, 200, "ok"),
         Err(denied) => (&*denied.trail, Decision::Deny, denied.status, denied.code),
     };
-    let known = |s: &str| (!s.is_empty()).then(|| bounded(s));
+    let known = |s: &str| (!s.is_empty()).then(|| scrubbed(s));
     RequestSummary {
-        id: bounded(id),
+        id: scrubbed(id),
         txn: known(&trail.txn),
         time: now,
-        method: bounded(&input.method),
-        resource: bounded(&resource_id(input)),
+        method: scrubbed(&input.method),
+        resource: scrubbed(&recorded_resource(input)),
         caller: known(&trail.agent),
         auth_method: trail.method.map(method_name),
         principal: known(&trail.principal),
@@ -1339,17 +1393,160 @@ fn summary(
     }
 }
 
-fn audit(input: &CheckInput, trail: &Trail, decision: &str, reason: &str, detail: &str) {
-    tracing::info!(
-        target: "visado::audit",
-        txn = %trail.txn,
-        agent = %trail.agent,
-        principal = %trail.principal,
-        resource = %resource_id(input),
-        action = %input.method,
-        decision,
-        reason,
-        detail,
-        depth_semantics = trail.depth_semantics.unwrap_or(""),
-    );
+/// The audit record of one decision, before it is linked into the chain.
+fn audit_record(
+    input: &CheckInput,
+    now: u64,
+    id: &str,
+    result: &Result<Allowed, Denied>,
+) -> AuditRecord {
+    let (trail, decision, status, reason, detail) = match result {
+        Ok(allowed) => (&allowed.trail, "allow", 200, "ok", ""),
+        Err(denied) => (
+            &*denied.trail,
+            "deny",
+            denied.status,
+            denied.code,
+            denied.detail.as_deref().unwrap_or(""),
+        ),
+    };
+    let chain = trail.chain.as_deref();
+    let actors: Vec<String> = trail.chain_actors.iter().map(|a| scrubbed(a)).collect();
+    let remediation = match (decision, status) {
+        ("allow", _) => "none",
+        (_, 401) => "reauthenticate",
+        (_, 503) => "retry_later",
+        _ => "refused",
+    };
+    AuditRecord {
+        audit_version: AUDIT_VERSION,
+        seq: 0,
+        prev: String::new(),
+        id: scrubbed(id),
+        txn: scrubbed(&trail.txn),
+        time: now,
+        agent: scrubbed(&trail.agent),
+        auth_method: trail.method.map(method_name).unwrap_or_default().to_owned(),
+        sender_constrained: trail.method.is_some_and(sender_constrained),
+        principal: scrubbed(&trail.principal),
+        chain_profile: chain.map(|c| c.profile).unwrap_or_default().to_owned(),
+        chain_issuer: scrubbed(&trail.chain_issuer),
+        chain_hops: u32::try_from(actors.len()).unwrap_or(u32::MAX),
+        chain_actors: serde_json::to_string(&actors).unwrap_or_else(|_| "[]".into()),
+        depth_semantics: trail.depth_semantics.unwrap_or_default().to_owned(),
+        resource: scrubbed(&recorded_resource(input)),
+        tool: mcp_tool(input).as_deref().map(scrubbed).unwrap_or_default(),
+        action: scrubbed(&input.method),
+        decision: decision.to_owned(),
+        status,
+        reason: reason.to_owned(),
+        detail: scrubbed(detail),
+        pdp: match &trail.pdp {
+            None => "not_asked".to_owned(),
+            Some(PdpResult::Allow) => "allow".to_owned(),
+            Some(PdpResult::Deny) => "deny".to_owned(),
+            Some(PdpResult::Error(code)) => format!("error:{code}"),
+        },
+        remediation: remediation.to_owned(),
+        hash: String::new(),
+    }
+}
+
+/// Whether the caller proved possession of a key for the request: a WIT
+/// with a WPT or a signature, a client certificate, or a DPoP proof.
+const fn sender_constrained(method: Method) -> bool {
+    match method {
+        Method::WitWpt | Method::WitHttpSig | Method::Mtls | Method::OAuthDpop => true,
+        Method::JwtSvid | Method::Bearer => false,
+    }
+}
+
+/// The tool of a JSON-RPC `tools/call` body.
+fn mcp_tool(input: &CheckInput) -> Option<String> {
+    if input
+        .body
+        .as_deref()
+        .is_none_or(|b| b.trim_ascii().is_empty())
+    {
+        return None;
+    }
+    invocation(input).map(|(tool, _)| tool)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Allowed, CheckInput, Trail, audit_record};
+    use crate::recent::MAX_HOPS;
+    use visado_chain::{
+        ActorId, Assurance, Authority, Hop, KeyThumbprint, Link, NormalizedChain, Principal,
+        Profile, SignerBinding, TrustRef, Validity,
+    };
+
+    fn chain(len: u32) -> NormalizedChain {
+        let hops = (0..len)
+            .map(|depth| Hop {
+                id: format!("jti-{depth}"),
+                depth,
+                max_depth: None,
+                actor: ActorId::Name(format!("agent-{depth}")),
+                principal: Principal::Unspecified,
+                delegator: None,
+                signer: KeyThumbprint("signer".into()),
+                signer_binding: SignerBinding::ParentCnf,
+                link: if depth == 0 { Link::Root } else { Link::Nested },
+                authority: Authority {
+                    detail_type: "tool".into(),
+                    json: "{}".into(),
+                },
+                validity: Validity {
+                    issued_at: 0,
+                    expires_at: 1,
+                },
+                audience: None,
+                cnf: None,
+                status: None,
+                assurance: Assurance::Declared,
+            })
+            .collect();
+        NormalizedChain {
+            profile: Profile::Rfc8693Act,
+            principal: Principal::Unspecified,
+            root: TrustRef {
+                issuer: "https://anchor".into(),
+                key: KeyThumbprint("anchor-key".into()),
+            },
+            hops,
+            holder_proof: false,
+        }
+    }
+
+    /// The record lists every hop it counts, even of a chain longer than the
+    /// chain view keeps. The invariant engine refuses such a chain, but the
+    /// record does not depend on that.
+    #[test]
+    fn the_record_lists_every_actor_it_counts() {
+        let len = u32::try_from(MAX_HOPS).unwrap() + 8;
+        let mut trail = Trail::default();
+        trail.set_chain(&chain(len));
+        assert_eq!(trail.chain.as_ref().unwrap().hops.len(), MAX_HOPS);
+        let input = CheckInput {
+            method: "GET".into(),
+            scheme: "https".into(),
+            authority: "tools.example".into(),
+            path: "/".into(),
+            headers: Vec::new(),
+            body: None,
+            peer_certificate: None,
+        };
+        let allowed = Allowed {
+            token: String::new(),
+            trail,
+            dpop_proof: false,
+        };
+        let record = audit_record(&input, 1, "c", &Ok(allowed));
+        let actors: Vec<String> = serde_json::from_str(&record.chain_actors).unwrap();
+        assert_eq!(record.chain_hops, len);
+        assert_eq!(actors.len(), usize::try_from(len).unwrap());
+        assert_eq!(actors.last().map(String::as_str), Some("agent-39"));
+    }
 }

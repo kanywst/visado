@@ -83,8 +83,8 @@ pub(crate) fn verify_wit(
     if let Some(iss) = &issuer.issuer {
         validation = validation.expect_issuer(iss.clone());
     }
-    let verified =
-        wimsey_wit::verify(wit, key, &validation).map_err(|e| AuthError::Wit(e.to_string()))?;
+    let verified = wimsey_wit::verify(wit, key, &validation)
+        .map_err(|e| AuthError::Wit(crate::error::wit_reason(&e)))?;
     if verified.claims.sub.trust_domain() != issuer.trust_domain {
         return Err(AuthError::UntrustedDomain);
     }

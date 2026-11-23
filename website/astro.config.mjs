@@ -48,6 +48,7 @@ export default defineConfig({
             { label: 'Scope', slug: 'concepts/scope' },
             { label: 'Design', slug: 'concepts/design' },
             ...(hasBindings ? [{ label: 'Bindings', slug: 'concepts/bindings' }] : []),
+            { label: 'Audit record', slug: 'concepts/audit' },
           ],
         },
         { label: 'Spec map', slug: 'spec-map' },

@@ -1,9 +1,10 @@
 //! A bounded, in-memory record of recent decisions, for the chain view.
 //!
 //! Each [`RequestSummary`] holds identifiers and outcomes only: never a
-//! token, a proof, a signature, a header value or a body. Strings are cut to
-//! [`MAX_TEXT`] characters and chains to [`MAX_HOPS`] hops, so one entry stays
-//! small whatever the request carried.
+//! token, a proof, a signature, a header value or a body. JWS-looking text
+//! in a string (a token in the path, say) is replaced by `[token]`, strings
+//! are cut to [`MAX_TEXT`] characters and chains to [`MAX_HOPS`] hops, so one
+//! entry stays small whatever the request carried.
 
 use std::collections::VecDeque;
 use std::sync::{Mutex, PoisonError};
@@ -16,8 +17,9 @@ use visado_chain::{ActorId, Assurance, Link, NormalizedChain, Principal};
 pub const MAX_TEXT: usize = 256;
 
 /// The most hops kept per chain. The rest are counted in
-/// [`ChainSummary::hops_omitted`].
-pub const MAX_HOPS: usize = 32;
+/// [`ChainSummary::hops_omitted`]. The invariant engine refuses a longer
+/// chain, so nothing is omitted from a chain the gate verified.
+pub const MAX_HOPS: usize = visado_chain::invariants::MAX_HOPS;
 
 /// The last decisions, oldest dropped first.
 #[derive(Debug)]
@@ -184,12 +186,12 @@ impl ChainSummary {
     #[must_use]
     pub fn from_chain(chain: &NormalizedChain) -> Self {
         let principal = match &chain.principal {
-            Principal::Subject { subject, .. } => Some(bounded(subject)),
+            Principal::Subject { subject, .. } => Some(scrubbed(subject)),
             _ => None,
         };
         Self {
             profile: chain.profile.as_str(),
-            issuer: bounded(&chain.root.issuer),
+            issuer: scrubbed(&chain.root.issuer),
             principal,
             holder_proof: chain.holder_proof,
             hops: chain
@@ -197,19 +199,12 @@ impl ChainSummary {
                 .iter()
                 .take(MAX_HOPS)
                 .map(|hop| {
-                    let (actor_kind, actor, actor_issuer) = match &hop.actor {
-                        ActorId::Key(key) => ("key", bounded(&key.0), None),
-                        ActorId::Name(name) => ("name", bounded(name), None),
-                        ActorId::Subject { issuer, subject } => {
-                            ("subject", bounded(subject), Some(bounded(issuer)))
-                        }
-                        _ => ("unknown", String::new(), None),
-                    };
+                    let (actor_kind, actor, actor_issuer) = actor_parts(&hop.actor);
                     HopSummary {
                         depth: hop.depth,
                         actor_kind,
-                        actor,
-                        actor_issuer,
+                        actor: scrubbed(actor),
+                        actor_issuer: actor_issuer.map(scrubbed),
                         assurance: match hop.assurance {
                             Assurance::Verified => "verified",
                             Assurance::Declared => "declared",
@@ -227,6 +222,24 @@ impl ChainSummary {
             hops_omitted: chain.hops.len().saturating_sub(MAX_HOPS),
         }
     }
+}
+
+/// An actor's kind (`key`, `name`, `subject` or `unknown`), its key
+/// thumbprint, name or subject, and the issuer that named a subject.
+pub(crate) fn actor_parts(actor: &ActorId) -> (&'static str, &str, Option<&str>) {
+    match actor {
+        ActorId::Key(key) => ("key", &key.0, None),
+        ActorId::Name(name) => ("name", name, None),
+        ActorId::Subject { issuer, subject } => ("subject", subject, Some(issuer)),
+        _ => ("unknown", "", None),
+    }
+}
+
+/// `text` with every JWS-looking run replaced by `[token]`, then cut to
+/// [`MAX_TEXT`] characters. Scrubbing first means a cut cannot leave the
+/// start of a token too short to be recognized.
+pub(crate) fn scrubbed(text: &str) -> String {
+    bounded(&crate::audit::scrub_tokens(text))
 }
 
 /// `text` cut to [`MAX_TEXT`] characters.

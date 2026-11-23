@@ -109,7 +109,7 @@ pub(crate) fn verify(
     now: u64,
     leeway: u64,
 ) -> Result<String, AuthError> {
-    let invalid = |e: jsonwebtoken::errors::Error| AuthError::JwtSvid(e.to_string());
+    let invalid = |e: jsonwebtoken::errors::Error| AuthError::JwtSvid(crate::error::jwt_reason(&e));
     let header = decode_header(token).map_err(invalid)?;
     if !ALGORITHMS.contains(&header.alg) {
         return Err(AuthError::JwtSvid("algorithm not allowed".into()));

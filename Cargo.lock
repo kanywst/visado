@@ -2608,6 +2608,7 @@ dependencies = [
  "envoy-types",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "tonic",
  "tracing",

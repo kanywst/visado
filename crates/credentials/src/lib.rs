@@ -570,7 +570,7 @@ impl Authenticator {
             validation = validation.with_other_token(&self.user_token_header, token);
         }
         let wpt = wimsey_wpt::verify(proof, &verified.pop_key, &validation)
-            .map_err(|e| AuthError::Wpt(e.to_string()))?;
+            .map_err(|e| AuthError::Wpt(error::wpt_reason(&e)))?;
         if wpt.claims.jti.len() > MAX_JTI_LEN {
             return Err(AuthError::Wpt("jti too long".into()));
         }

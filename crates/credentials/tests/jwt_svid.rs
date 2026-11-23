@@ -163,7 +163,7 @@ fn rejections_have_reason_codes() {
         (
             "tampered",
             format!("{}x", jwt_svid(AGENT, AUDIENCE, NOW + 300)),
-            "jwt_svid.invalid|Invalid",
+            "jwt_svid.invalid|malformed base64url",
         ),
     ];
     for (name, token, expected) in cases {

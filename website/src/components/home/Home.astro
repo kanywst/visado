@@ -19,7 +19,7 @@ const repo = 'https://github.com/kanywst/visado';
 const quickstart = `git clone https://github.com/kanywst/visado
 cd visado/deploy/lab
 docker compose up -d --build
-./demo.sh`;
+docker compose run --rm demo`;
 
 // One ext_authz Check call runs these in order and stops at the first failure.
 // Source: docs/design.md (pipeline) and CHANGELOG.md / ROADMAP.md (status).
@@ -56,9 +56,9 @@ const steps = [
   },
   {
     name: 'Record',
-    body: 'Write a JSON audit event and a visado.authorize OpenTelemetry span for every decision, with a stable reason code on denials.',
+    body: 'Write one hash-chained JSON audit record with the AIMS minimum and a visado.authorize OpenTelemetry span for every decision, with a stable reason code on denials.',
     state: 'done',
-    status: 'Audit events since v0.1.0, OpenTelemetry spans since v0.2.0, the chain view since v0.3.0.',
+    status: 'Audit events since v0.1.0, OpenTelemetry spans since v0.2.0, the chain view since v0.3.0; the AIMS audit record is unreleased.',
   },
 ];
 
@@ -108,8 +108,10 @@ const help = [
   <section aria-labelledby="quick">
     <h2 id="quick">Quick start</h2>
     <p class="lead">
-      The lab puts visado behind Envoy and agentgateway with OPA as the policy decision point and runs the
-      scenarios above. The same scenarios run with Cerbos as the PDP. You need Docker with Compose.
+      The lab puts visado behind Envoy and agentgateway with OPA as the policy decision point,
+      and runs the scenarios above, an MCP server behind agentgateway and four attack demos:
+      three that visado stops and one that it does not. The same scenarios run with Cerbos as
+      the PDP. You need Docker with Compose and nothing else.
     </p>
     <div class="code"><Code code={quickstart} lang="sh" frame="terminal" title="Terminal" /></div>
     <p class="aside">

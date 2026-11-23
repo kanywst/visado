@@ -2,12 +2,23 @@
 
 Envoy and [agentgateway](https://agentgateway.dev/) call visado through ext_authz. visado asks [OPA with the AuthZEN plugin](https://github.com/kanywst/opa-authzen-plugin) (or [Cerbos](#a-second-pdp-cerbos)), and allowed requests reach an echo server that returns the headers it received. [SPIRE](https://spiffe.io/) v1.16.0 issues the workloads' WITs, X.509-SVIDs and JWT-SVIDs. [Keycloak](https://www.keycloak.org/) 26.8.2, the resource authorization server, issues OAuth access tokens, bearer and DPoP-bound, and redeems ID-JAGs that [Casdoor](https://casdoor.org/) v4.26.0 issues for the user.
 
-Envoy listens on two ports: `10000` (plain HTTP) and `10443` (mTLS). agentgateway v1.7.0 listens on `10001` (plain HTTP) in front of the same upstream.
+Envoy listens on two ports: `10000` (plain HTTP) and `10443` (mTLS). agentgateway v1.7.0 listens on `10001` (plain HTTP) in front of the same upstream, and in front of a real MCP server on `/mcp`.
+
+## Running it
+
+From a clean checkout, with Docker and the Compose plugin and nothing else:
 
 ```bash
+cd deploy/lab
 docker compose up -d --build
-./demo.sh
+docker compose run --rm --no-deps demo
 ```
+
+`docker compose run --rm --no-deps demo` builds the `demo` image (the testkit examples that make the requests, `curl`, `jq`, `openssl` and the SPIRE agent CLI), runs every scenario below and the [attack demos](attacks/README.md), and exits non-zero if any outcome differs. `docker compose run --rm --no-deps demo attacks/3-recruited-admin.sh` runs one attack. `--no-deps` keeps the running lab as it is: recreating the SPIRE agent would fail, since its join token is single-use. The container shares the SPIRE agent's PID namespace and socket, so each workload fetches its own SVIDs as its own Unix user, and it reads the lab's logs through the Docker API. It does not get the Docker socket: whoever can call the Docker API is root on the host, and mounting the socket read-only does not restrict the calls. Only `docker-proxy` ([docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy) v0.5.0, pinned by digest) mounts it, on an internal network shared with the demo container alone, and lets through GET and HEAD under `/containers` (inspect, list, logs). Anything else, such as `POST /containers/create` or `GET /images/json`, gets 403; demo.sh checks both, and that the logs still read. The proxy cannot narrow `/containers` further, so the demo container can still read any container's logs, inspected configuration (environment included) and files (`GET /containers/<id>/archive`). CI runs the same two commands.
+
+`./demo.sh` also runs from the host if it has `cargo`, `curl`, `jq`, `openssl` and `docker`.
+
+`docker compose down -v` removes the lab, its SPIRE state included.
 
 ## A second PDP: Cerbos
 
@@ -15,7 +26,7 @@ docker compose up -d --build
 
 ```bash
 docker compose -f compose.yaml -f compose.cerbos.yaml up -d --build
-./demo.sh
+docker compose -f compose.yaml -f compose.cerbos.yaml run --rm --no-deps demo
 ```
 
 visado then reads `visado.cerbos.toml`, which is `visado.toml` with another `[pdp]` table. Cerbos maps the AuthZEN subject to the principal (`subject.type` becomes the role, `subject.properties` the attributes), the resource to a resource of kind `http_resource` and the action name to the action. It does not pass `context` to the policy, so `[pdp] context_in_subject = true` copies the context, the scope and principal included, into `subject.properties`. Both files reach the PDP over plain `http` on the compose network, so both set `[pdp] allow_insecure_http = true`; visado logs a warning for it at startup.
@@ -133,7 +144,7 @@ agentgateway's `extAuthz` policy (`agentgateway.yaml`) calls visado over gRPC wi
 | bob's access token, DPoP-bound, with a proof without a nonce | 401 `dpop.nonce_missing`, with `use_dpop_nonce` and a `DPoP-Nonce` header |
 | The same request with a new proof carrying that nonce | 200, with the next `DPoP-Nonce` |
 
-The `/mcp` scenarios use a plain HTTP route to the echo server, not agentgateway's MCP backend.
+On agentgateway, `/mcp` is an MCP route (below); the `/mcp` scenarios through Envoy reach the echo server.
 
 The AAT chains are bound to the keys SPIRE issued: agent-a's WIT key holds the root and signs the delegation to agent-b's WIT key.
 
@@ -148,3 +159,23 @@ The chain view at <http://127.0.0.1:8080/chain> draws each recent decision: prin
 The policy is in `policy/visado.rego` (and `cerbos/http_resource.yaml` for Cerbos): `/admin/` needs `roles.write`, everything else `tickets.read`.
 
 The demo keys are public. Do not reuse them.
+
+## MCP backend
+
+agentgateway routes `/mcp` to its MCP backend (`statefulMode: stateless`, `prefixMode: never`), which serves the tools of `mcp/server.py`: a small MCP server over Streamable HTTP, written against the Python standard library and run in the pinned `python:3.13.18-alpine` image, with `read_file` and `delete_file` on an in-memory file store. The route has the same `extAuthz` policy as the others, so visado sees each MCP message before agentgateway handles it. For a `tools/call`, the tool name and arguments are what the caller's AAT chain must permit ([bindings](../../docs/bindings.md#aat)); with an asor chain, the tool name is the action's scope.
+
+| Scenario | Expected |
+| --- | --- |
+| agent-b lists the tools (`tools/list`, no chain) | 200 with `read_file` and `delete_file` from the MCP server |
+| agent-b calls `read_file` on `/data/report.pdf`, which agent-a delegated to it | 200 with the file's text from the MCP server |
+| agent-b calls `delete_file`, which agent-a kept | 403 `aat.invocation_denied`; the call never reaches the MCP server |
+
+The MCP server logs each `tools/call` it receives; the attack demos use that log to show which calls got through.
+
+## Audit record
+
+visado writes one audit record per decision to its log (`docker compose logs visado`), in the schema of [docs/audit.md](../../docs/audit.md). `demo.sh` finds the record of the first allowed request by its `txn` and checks each member, checks a 401's record, checks that every record has every member, recomputes the hash chain over the run's records, and checks that there are as many records as decisions in the chain view.
+
+## Attack demos
+
+[attacks/README.md](attacks/README.md): a prompt-injected agent widening its delegation, a stolen chain replayed by another workload, a ticket that recruits the admin agent (all three stopped), and exfiltration within granted scope (not stopped).

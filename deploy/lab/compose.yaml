@@ -32,6 +32,7 @@ services:
     depends_on:
       visado: { condition: service_started }
       upstream: { condition: service_started }
+      mcp: { condition: service_started }
 
   visado:
     build:
@@ -212,11 +213,64 @@ services:
     environment:
       HTTP_PORT: "8080"
 
+  # A real MCP server behind agentgateway's MCP backend (agentgateway.yaml):
+  # the standard library alone, so it needs no build.
+  mcp:
+    image: python:3.13.18-alpine@sha256:9ef1a599f863231c3d91e941389bfdc4a2d6070557243d54df1a4e57015b960e
+    command: ["python", "-u", "/srv/server.py", "8000"]
+    volumes:
+      - ./mcp/server.py:/srv/server.py:ro
+
+  # The demo container's Docker API. The Docker socket gives whoever can
+  # write to it root on the host (`:ro` does not restrict API calls), so only
+  # this proxy mounts it, and it lets through GET and HEAD under /containers
+  # only: inspecting, listing and reading the logs of containers. Anything
+  # else, a POST to create, start or exec in a container included, gets 403.
+  # It is on its own internal network, shared with the demo container alone.
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
+    environment:
+      CONTAINERS: "1"
+      POST: "0"
+      EVENTS: "0"
+      PING: "0"
+      VERSION: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [docker-api]
+    read_only: true
+    tmpfs: [/tmp, /run]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+  # The demo runner: `docker compose run --rm --no-deps demo` runs demo.sh and the
+  # attack demos with nothing on the host but Docker. It shares the SPIRE
+  # agent's PID namespace and socket so each workload fetches its own SVID,
+  # and reads the visado and MCP server logs through docker-proxy.
+  demo:
+    profiles: [demo]
+    build:
+      context: ../..
+      dockerfile: deploy/lab/demo/Dockerfile
+    pid: "service:spire-agent"
+    volumes:
+      - spire-agent-socket:/run/spire/agent
+    networks: [default, docker-api]
+    depends_on:
+      docker-proxy: { condition: service_started }
+      envoy: { condition: service_started }
+      agentgateway: { condition: service_started }
+      mcp: { condition: service_started }
+      jaeger: { condition: service_started }
+      spire-agent: { condition: service_healthy }
+
 networks:
   authz:
     internal: true
     ipam:
       config: [{ subnet: 172.30.91.0/24 }]
+  docker-api:
+    internal: true
 
 volumes:
   spire-server-socket:

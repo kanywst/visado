@@ -1,10 +1,62 @@
 #!/usr/bin/env bash
 # Runs the lab scenarios against `docker compose up` in this directory.
 # Exits non-zero if any scenario does not get the expected status.
+#
+#   docker compose run --rm --no-deps demo [attacks/<n>-<name>.sh ...]
+#   ./demo.sh [attacks/<n>-<name>.sh ...]
+#
+# In the `demo` container (LAB_IN_COMPOSE set) it needs nothing but the
+# lab; run from a checkout it needs cargo, curl, jq, openssl and docker.
+# With arguments it runs only those attack demos.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
-cargo build -q -p visado-testkit --example lab_headers --example lab_aat --example lab_methods
+only=("$@")
+# Logs and audit records from before this run are not looked at.
+started=$(date +%s)
+
+# Where the lab is, and how to reach the SPIRE agent and the containers'
+# logs, from the demo container or from the host.
+if [ -n "${LAB_IN_COMPOSE:-}" ]; then
+  bin=$LAB_BIN
+  URL=http://envoy:10000
+  MTLS_TARGET=envoy:10443
+  AGW_URL=http://agentgateway:10001
+  VIEW_URL=http://visado:8080
+  JAEGER_URL=http://jaeger:16686
+  # spire_as <user> <spire-agent args...>
+  spire_as() { local u=$1; shift; runuser -u "$u" -- spire-agent "$@"; }
+  # in_lab <command...>: runs it from a container that is not a proxy.
+  in_lab() { sh -c "$*"; }
+  # The Docker API through docker-proxy (compose.yaml), which refuses
+  # anything but reading containers.
+  DOCKER_API=http://docker-proxy:2375
+  docker_api() { curl -s "$DOCKER_API$1"; }
+  project=$(docker_api "/containers/$(hostname)/json" | jq -r '.Config.Labels["com.docker.compose.project"]')
+  # service_id <service>: the id of the service's container.
+  service_id() {
+    docker_api "/containers/json?filters=$(jq -rn --arg p "$project" --arg s "$1" \
+      '{label: ["com.docker.compose.project=\($p)", "com.docker.compose.service=\($s)"]} | @json | @uri')" |
+      jq -r '.[0].Id'
+  }
+  # service_logs <service>: the service's log lines.
+  service_logs() {
+    # The Docker API frames each line with an 8-byte header; keep the JSON.
+    docker_api "/containers/$(service_id "$1")/logs?stdout=1&stderr=1&since=$started" | tr -d '\000' | grep -a -o '{".*'
+  }
+else
+  cargo build -q -p visado-testkit --examples
+  bin=./target/debug/examples
+  URL=http://127.0.0.1:10000
+  MTLS_TARGET=127.0.0.1:10443
+  AGW_URL=http://127.0.0.1:10001
+  VIEW_URL=http://127.0.0.1:8080
+  JAEGER_URL=http://127.0.0.1:16686
+  lab() { docker compose -f deploy/lab/compose.yaml "$@"; }
+  spire_as() { local u=$1; shift; lab exec -T -u "$u" spire-agent spire-agent "$@"; }
+  in_lab() { lab exec -T spire-agent sh -c "$*"; }
+  service_logs() { lab logs --no-log-prefix --since "$started" "$1"; }
+fi
 
 tmp=$(mktemp)
 hdrs=$(mktemp)
@@ -15,8 +67,7 @@ trap 'rm -rf "$tmp" "$hdrs" "$svids"' EXIT
 # Workload API, as the Unix user the agent attests it by.
 for workload in agent-a agent-b agent-z; do
   for i in $(seq 60); do
-    if docker compose -f deploy/lab/compose.yaml exec -T -u "$workload" spire-agent \
-      spire-agent api fetch wit -socketPath /run/spire/agent/api.sock -output json \
+    if spire_as "$workload" api fetch wit -socketPath /run/spire/agent/api.sock -output json \
       > "$svids/$workload.json" 2>/dev/null; then
       break
     fi
@@ -31,11 +82,16 @@ done
 
 # agent-a's X.509-SVID, its key and the td.example X.509 bundle, written by
 # `spire-agent api fetch x509 -write`.
-mkdir "$svids/x509-agent-a"
-docker compose -f deploy/lab/compose.yaml exec -T -u agent-a spire-agent sh -c '
-  d=$(mktemp -d) &&
-  spire-agent api fetch x509 -socketPath /run/spire/agent/api.sock -write "$d" >/dev/null &&
-  tar -C "$d" -cf - . && rm -rf "$d"' | tar -C "$svids/x509-agent-a" -xf -
+mkdir -m 777 "$svids/x509-agent-a"
+if [ -n "${LAB_IN_COMPOSE:-}" ]; then
+  chmod 755 "$svids"
+  spire_as agent-a api fetch x509 -socketPath /run/spire/agent/api.sock -write "$svids/x509-agent-a" >/dev/null
+else
+  lab exec -T -u agent-a spire-agent sh -c '
+    d=$(mktemp -d) &&
+    spire-agent api fetch x509 -socketPath /run/spire/agent/api.sock -write "$d" >/dev/null &&
+    tar -C "$d" -cf - . && rm -rf "$d"' | tar -C "$svids/x509-agent-a" -xf -
+fi
 echo "      SPIRE issued an X.509-SVID for spiffe://td.example/agent-a"
 
 # A certificate for agent-a's SPIFFE ID from a CA SPIRE does not know.
@@ -45,25 +101,23 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 
 
 # agent-a's JWT-SVIDs: one for visado's audience, one for another service.
 jwt_svid() {
-  docker compose -f deploy/lab/compose.yaml exec -T -u agent-a spire-agent \
-    spire-agent api fetch jwt -audience "$1" -socketPath /run/spire/agent/api.sock -output json |
+  spire_as agent-a api fetch jwt -audience "$1" -socketPath /run/spire/agent/api.sock -output json |
     jq -r '[.[] | .svids? // empty | .[0].svid][0]'
 }
 jwt_tools=$(jwt_svid http://tools.td.example)
 jwt_other=$(jwt_svid http://other.td.example)
 echo "      SPIRE issued JWT-SVIDs for spiffe://td.example/agent-a"
 
-headers() { ./target/debug/examples/lab_headers "$svids" "$@"; }
-aat() { ./target/debug/examples/lab_aat "$svids" "$@"; }
-signed() { ./target/debug/examples/lab_methods sig "$svids" "$@"; }
-dpop() { ./target/debug/examples/lab_methods dpop "$@"; }
-lab_bearer() { ./target/debug/examples/lab_methods bearer "$@"; }
-dpop_with() { ./target/debug/examples/lab_methods dpop-with "$@"; }
+headers() { "$bin/lab_headers" "$svids" "$@"; }
+aat() { "$bin/lab_aat" "$svids" "$@"; }
+signed() { "$bin/lab_methods" sig "$svids" "$@"; }
+dpop() { "$bin/lab_methods" dpop "$@"; }
+lab_bearer() { "$bin/lab_methods" bearer "$@"; }
+dpop_with() { "$bin/lab_methods" dpop-with "$@"; }
 bearer() { echo "Authorization: Bearer $1"; }
 replay() { cat "$1"; }
 user_token() { headers agent-a "$1" --user bob tickets.read | grep '^X-User-Token: '; }
 
-URL=http://127.0.0.1:10000
 MTLS_URL=https://tools.td.example:10443
 failures=0
 # Extra curl options and the URL for the next call; mtls() sets them.
@@ -89,10 +143,12 @@ call() {
   if status=$(curl ${conn[@]+"${conn[@]}"} "${args[@]}" "$base$path"); then rc=0; else rc=$?; fi
   got=$status
   # A refused TLS handshake: no HTTP status, and curl fails in the handshake
-  # (35) or while reading the alert (56), not with any other connection error.
+  # (35), or, as the TLS 1.3 alert arrives after the client's last flight,
+  # while reading it (56) or sending the request (55, the demo image's curl),
+  # not with any other connection error.
   if [ "$expect" = tls-refused ]; then
     case "$status:$rc" in
-      000:35 | 000:56) got=tls-refused ;;
+      000:35 | 000:55 | 000:56) got=tls-refused ;;
       *) got="$status (curl exit $rc)" ;;
     esac
   elif [ "${expect#*/}" != "$expect" ]; then
@@ -148,7 +204,7 @@ dpop_with_nonce() {
 # with that client certificate.
 mtls() {
   conn=(--cacert "$svids/x509-agent-a/bundle.0.pem" --cert "$1" --key "$2"
-    --resolve tools.td.example:10443:127.0.0.1)
+    --connect-to "tools.td.example:10443:$MTLS_TARGET")
   base=$MTLS_URL
   shift 2
   call "$@"
@@ -172,6 +228,88 @@ for _ in $(seq 60); do
 done
 
 none() { :; }
+
+# --- Helpers for the MCP backend, the audit record and the attack demos ---
+
+say() { printf '      %s\n' "$*"; }
+# via_agw call-arguments...: like call, through agentgateway.
+via_agw() {
+  base=$AGW_URL
+  call "$@"
+  base=$URL
+}
+# mcp <workload> <tool> <arguments> [lab_aat flags]: an MCP tools/call with
+# agent-b's AAT chain, as an MCP client sends it over Streamable HTTP.
+mcp() {
+  aat "$@"
+  echo "Accept: application/json, text/event-stream"
+}
+# mcp_headers <workload> <path>: a workload's own headers, for an MCP message
+# that needs no chain.
+mcp_headers() {
+  headers "$@"
+  echo "Accept: application/json, text/event-stream"
+}
+# with_body <json> <command...>: the command's headers, then a JSON body.
+with_body() {
+  local body=$1
+  shift
+  "$@"
+  echo "Content-Type: application/json"
+  echo "BODY: $body"
+}
+# mcp_text <file>: the text of an MCP tools/call result, JSON or SSE.
+mcp_text() {
+  sed -n -e 's/^data: //' -e '/^{/p' "$1" | jq -r '.result.content[0].text // empty' 2>/dev/null | head -n 1
+}
+# txn_of <Txn-Token>: its txn claim.
+txn_of() {
+  jq -rn --arg t "$1" '$t | split(".")[1] | gsub("-"; "+") | gsub("_"; "/")
+    | (. + ("=" * ((4 - length % 4) % 4))) | @base64d | fromjson | .txn'
+}
+# audit_records: visado's audit records so far, one JSON object per line.
+audit_records() {
+  service_logs visado | jq -R -c 'fromjson? | select(.target? == "visado::audit") | .fields'
+}
+# mark_audit: later expect_audit calls look only at records written after it.
+audit_mark=0
+mark_audit() { audit_mark=$(audit_records | grep -c . || true); }
+# expect_audit <name> <jq condition> [jq options...]: the latest audit record
+# since the mark meeting the condition, or FAIL if there is none.
+expect_audit() {
+  local name=$1 cond=$2 hit=""
+  shift 2
+  for _ in 1 2 3 4 5; do
+    hit=$(audit_records | tail -n +$((audit_mark + 1)) | jq -c "$@" "select($cond)" | tail -n 1)
+    [ -n "$hit" ] && break
+    sleep 1
+  done
+  if [ -n "$hit" ]; then
+    printf 'ok    %-58s %s\n' "$name" "$(jq -r '"seq \(.seq): \(.decision) \(.reason)"' <<<"$hit")"
+  else
+    printf 'FAIL  %-58s no such record\n' "$name"
+    failures=$((failures + 1))
+  fi
+}
+# mcp_calls <tool>: how many calls of the tool reached the MCP server.
+mcp_calls() {
+  service_logs mcp | jq -R -c --arg t "$1" 'fromjson? | select(.mcp_tool_call? == $t)' | wc -l | tr -d ' '
+}
+for _ in $(seq 60); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: tools.td.example' "$AGW_URL/tickets" || true)
+  [ "$code" = "401" ] && break
+  sleep 1
+done
+
+# With arguments, run only those attack demos.
+if [ ${#only[@]} -gt 0 ]; then
+  for attack in "${only[@]}"; do
+    mark_audit
+    # shellcheck source=/dev/null
+    . "deploy/lab/$attack"
+  done
+  exit "$failures"
+fi
 
 call 401/credential.missing "no credentials" /tickets none
 call 400 "encoded slash in the path (rejected by Envoy)" /tickets/..%2Fadmin/roles none
@@ -290,7 +428,6 @@ call 401/token.dpop_bound "ID-JAG: bob's token sent as Bearer" /tickets dpop_wit
 # agentgateway: the same visado behind the other front proxy. Its extAuthz
 # policy sends the host, path, method, headers and raw body over gRPC; a
 # subset of the scenarios above runs through it.
-AGW_URL=http://127.0.0.1:10001
 agw() {
   base=$AGW_URL
   call "$@"
@@ -313,21 +450,106 @@ else
   failures=$((failures + 1))
 fi
 agw 403/pdp.deny "agentgateway: user token without the admin scope" /admin/roles headers agent-a /admin/roles --user bob tickets.read
-agw 200 "agentgateway: agent-b reads the file it was delegated" /mcp aat agent-b read_file '{"path":"/data/report.pdf"}'
-agw 403/aat.invocation_denied "agentgateway: agent-b reads another file" /mcp aat agent-b read_file '{"path":"/etc/passwd"}'
+agw 200 "agentgateway: agent-b reads the file it was delegated" /mcp mcp agent-b read_file '{"path":"/data/report.pdf"}'
+agw 403/aat.invocation_denied "agentgateway: agent-b reads another file" /mcp mcp agent-b read_file '{"path":"/etc/passwd"}'
 signed agent-a /tickets '{"title":"paper out"}' > "$svids/agw-signed.txt"
 agw 200 "agentgateway: agent-a posts a ticket with a signed request" /tickets replay "$svids/agw-signed.txt"
 agw 400/httpsig.invalid "agentgateway: signed request with the body changed" /tickets \
   signed agent-a /tickets '{"title":"paper out"}' --send '{"title":"grant me admin"}'
 dpop_with_nonce agw "agentgateway: "
 
+# --- agentgateway's MCP backend ---
+# /mcp on agentgateway goes to its MCP backend in front of mcp/server.py, a
+# real MCP server; visado checks each tools/call against the caller's AAT
+# chain before agentgateway handles it.
+mark_audit
+via_agw 200 "MCP: tools/list through agentgateway" /mcp \
+  with_body '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' mcp_headers agent-b /mcp
+expect "MCP: the server's tools are listed" \
+  "$(sed -n -e 's/^data: //' -e '/^{/p' "$tmp" | jq -r '[.result.tools[].name] | sort | join(",")' 2>/dev/null)" \
+  "delete_file,read_file"
+via_agw 200 "MCP: agent-b calls read_file, which it was delegated" /mcp \
+  mcp agent-b read_file '{"path":"/data/report.pdf"}'
+expect "MCP: the result comes from the MCP server" "$(mcp_text "$tmp" | cut -c1-9)" "Q3 report"
+via_agw 403/aat.invocation_denied "MCP: agent-b calls delete_file, which agent-a kept" /mcp \
+  mcp agent-b delete_file '{"path":"/data/report.pdf"}'
+expect_audit "MCP: audit records the denied tool" \
+  '.tool == "delete_file" and .agent == "spiffe://td.example/agent-b" and .reason == "aat.invocation_denied"'
+
+# --- The audit record ---
+# One record per decision, every AIMS item present, hash-chained.
+audit_mark=0
+first_txn=$(txn_of "$txn")
+expect_audit "audit: agent-a reading tickets for bob" \
+  '.txn == $t and .agent == "spiffe://td.example/agent-a" and .principal == "idp:bob"
+   and .resource == "http://tools.td.example/tickets" and .action == "GET"
+   and .decision == "allow" and .status == 200 and .reason == "ok" and .pdp == "allow"
+   and .auth_method == "wit-wpt" and .sender_constrained == true and .remediation == "none"
+   and (.time | type) == "number" and (.id | length) > 0 and .audit_version == 1' \
+  --arg t "$first_txn"
+expect_audit "audit: a request without credentials" \
+  '.reason == "credential.missing" and .status == 401 and .agent == "" and .pdp == "not_asked"
+   and .remediation == "reauthenticate"'
+records=$(audit_records)
+record_count=$(grep -c . <<<"$records" || true)
+members='["audit_version","seq","prev","id","txn","time","agent","auth_method","sender_constrained","principal","chain_profile","chain_issuer","chain_hops","chain_actors","depth_semantics","resource","tool","action","decision","status","reason","detail","pdp","remediation","hash"]'
+complete=$(jq -c --argjson m "$members" 'select((keys | sort) == ($m | sort))' <<<"$records" | grep -c . || true)
+expect "audit: every record has every member" "$complete of $record_count" \
+  "$((record_count > 0 ? record_count : 1)) of $record_count"
+# The hash chain: each record hashes to its hash, and follows the one before
+# (its prev and seq), unless visado restarted and began a new chain at 0.
+linked=0
+prev=""
+prev_seq=""
+while IFS= read -r record; do
+  [ -n "$record" ] || continue
+  canon=$(jq -c --argjson m "$members" '. as $r | reduce ($m[] | select(. != "hash")) as $k ({}; .[$k] = $r[$k])' <<<"$record")
+  hash=$(printf '%s' "$canon" | openssl dgst -sha256 -r | cut -d' ' -f1)
+  seq=$(jq -r .seq <<<"$record")
+  if [ "$hash" = "$(jq -r .hash <<<"$record")" ] &&
+    { [ -z "$prev_seq" ] || [ "$seq" = 0 ] ||
+      { [ "$(jq -r .prev <<<"$record")" = "$prev" ] && [ "$seq" = $((prev_seq + 1)) ]; }; }; then
+    linked=$((linked + 1))
+  fi
+  prev=$(jq -r .hash <<<"$record")
+  prev_seq=$seq
+done <<<"$records"
+expect "audit: the records form one hash chain" "$linked of $record_count linked" \
+  "$((record_count > 0 ? record_count : 1)) of $record_count linked"
+# The chain view keeps a summary of every decision too: as many as records.
+view=$(curl -s -H 'Host: localhost' "$VIEW_URL/api/requests?limit=10000" || true)
+view_count=$(jq --argjson s "$started" '[.requests[] | select(.time >= $s)] | length' <<<"$view" 2>/dev/null || echo 0)
+if [ "$view_count" -lt "$(jq '.capacity' <<<"$view" 2>/dev/null || echo 0)" ]; then
+  expect "audit: one record per decision" "$record_count records" "$view_count records"
+fi
+
+# --- Attack demos (deploy/lab/attacks/README.md) ---
+for attack in deploy/lab/attacks/[0-9]-*.sh; do
+  mark_audit
+  # shellcheck source=/dev/null
+  . "$attack"
+done
+
+# The demo container has no Docker socket, and the proxy in its place reads
+# containers' logs but refuses to create a container or list images.
+if [ -n "${LAB_IN_COMPOSE:-}" ]; then
+  docker_status() { curl -s -o /dev/null -w '%{http_code}' "$@" || true; }
+  expect "Docker API: no Docker socket in the demo container" \
+    "$([ -e /var/run/docker.sock ] && echo present || echo absent)" absent
+  expect "Docker API: the proxy serves a container's logs" \
+    "$(docker_status "$DOCKER_API/containers/$(service_id visado)/logs?stdout=1&tail=1")" 200
+  expect "Docker API: the proxy refuses to create a container" \
+    "$(docker_status -X POST -H 'Content-Type: application/json' -d '{"Image":"busybox"}' \
+      "$DOCKER_API/containers/create")" 403
+  expect "Docker API: the proxy refuses to list images" \
+    "$(docker_status "$DOCKER_API/images/json")" 403
+fi
+
 # Only the gateways can reach visado's gRPC port: another container on the
 # lab network cannot connect to it, by name or by its authz address. The
 # probe must first reach visado's HTTP port, so a probe that cannot run at
 # all does not count as refused.
-probe() {
-  docker compose -f deploy/lab/compose.yaml exec -T spire-agent nc -z -w 2 "$1" "$2" 2>/dev/null
-}
+probe() { in_lab "nc -z -w 2 $1 $2" 2>/dev/null; }
 if ! probe visado 8080; then
   printf 'FAIL  %-58s %s\n' "gRPC port unreachable from other containers" "probe cannot reach visado:8080"
   failures=$((failures + 1))
@@ -339,7 +561,7 @@ else
 fi
 
 # The chain view lists the decisions above, and none of it is token material.
-log=$(curl -s 'http://127.0.0.1:8080/api/requests?limit=100' || true)
+log=$(curl -s -H 'Host: localhost' "$VIEW_URL/api/requests?limit=100" || true)
 count=$(jq '.requests | length' <<<"$log" 2>/dev/null || echo 0)
 if [ "${count:-0}" -gt 0 ] && ! grep -q 'eyJ' <<<"$log"; then
   printf 'ok    %-58s %s\n' "chain view lists decisions without tokens" "$count"
@@ -350,7 +572,7 @@ fi
 
 # visado exports one span per decision to Jaeger.
 sleep 6
-spans=$(curl -s 'http://127.0.0.1:16686/api/traces?service=visado&limit=50' | jq '[.data[].spans[] | select(.operationName | startswith("visado.authorize"))] | length')
+spans=$(curl -s "$JAEGER_URL/api/traces?service=visado&limit=50" | jq '[.data[].spans[] | select(.operationName | startswith("visado.authorize"))] | length')
 if [ "${spans:-0}" -gt 0 ]; then
   printf 'ok    %-58s %s\n' "authorization spans in Jaeger" "$spans"
 else
