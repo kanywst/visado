@@ -89,6 +89,10 @@ fn txn_key() -> SigningKey {
 }
 
 fn gate(v: &Vector) -> Gate<ChainPdp> {
+    gate_requiring(v, false)
+}
+
+fn gate_requiring(v: &Vector, require_chain: bool) -> Gate<ChainPdp> {
     let config = GateConfig {
         trust_domain: TRUST_DOMAIN.into(),
         signing_key: txn_key(),
@@ -100,7 +104,7 @@ fn gate(v: &Vector) -> Gate<ChainPdp> {
         aat: Some(Verifier::new(v.anchors.clone(), vec![v.audience.clone()])),
         asor: None,
         act: None,
-        require_chain: false,
+        require_chain,
     };
     let authenticator = Authenticator::new().with_wit_issuer(
         WitIssuer::new(TRUST_DOMAIN).with_key("wit-1", wit_issuer_verifying_key()),
@@ -252,4 +256,76 @@ async fn rejections() {
         code(&plain.check(&request, v.now, "t").await),
         "chain.unsupported"
     );
+}
+
+/// A WPT `jti`, extra headers, padding after the body, the expected code.
+type Case<'a> = (&'a str, Vec<(&'a str, &'a str)>, usize, &'a str);
+
+/// With `allow_partial_message`, Envoy sends only the first
+/// `max_request_bytes` of the body. Padding can push a second JSON-RPC
+/// message past the cut, so the chain must not be checked against what
+/// arrived.
+#[tokio::test]
+async fn a_cut_body_is_not_read_for_the_chain() {
+    let v = j1();
+    for require_chain in [false, true] {
+        let with = |jti: &str, extra: &[(&str, &str)], padding: usize| {
+            let mut request = call(&v, 2, jti, &v.tool, &v.args);
+            if let Some(body) = request.body.as_mut() {
+                body.extend(std::iter::repeat_n(b' ', padding));
+            }
+            request
+                .headers
+                .extend(extra.iter().map(|(n, val)| ((*n).into(), (*val).into())));
+            request
+        };
+        let cases: [Case<'_>; 6] = [
+            (
+                "p1",
+                vec![("x-envoy-auth-partial-body", "true")],
+                64,
+                "chain.partial_body",
+            ),
+            // A client's own `false` next to Envoy's `true`.
+            (
+                "p2",
+                vec![
+                    ("x-envoy-auth-partial-body", "false"),
+                    ("x-envoy-auth-partial-body", "true"),
+                ],
+                64,
+                "chain.partial_body",
+            ),
+            // No header, but the declared length is longer than the body.
+            (
+                "p3",
+                vec![("content-length", "100000")],
+                64,
+                "chain.partial_body",
+            ),
+            ("p4", vec![("content-length", "x")], 0, "chain.partial_body"),
+            (
+                "p5",
+                vec![("x-envoy-auth-partial-body", "false")],
+                0,
+                "allow",
+            ),
+            ("p6", vec![], 0, "allow"),
+        ];
+        for (jti, extra, padding, want) in cases {
+            let gate = gate_requiring(&v, require_chain);
+            let request = with(jti, &extra, padding);
+            assert_eq!(
+                code(&gate.check(&request, v.now, "t").await),
+                want,
+                "{jti} require_chain={require_chain}"
+            );
+        }
+        // A whole body whose length is declared.
+        let gate = gate_requiring(&v, require_chain);
+        let mut request = with("p7", &[], 0);
+        let length = request.body.as_ref().map_or(0, Vec::len).to_string();
+        request.headers.push(("content-length".into(), length));
+        assert_eq!(code(&gate.check(&request, v.now, "t").await), "allow");
+    }
 }

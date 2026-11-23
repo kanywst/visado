@@ -463,8 +463,7 @@ impl<P: Pdp> Gate<P> {
         let pop = header(input, AAT_POP_HEADER)
             .ok_or_else(|| Denied::new(401, "chain.missing_pop", trail))?;
         let chain = split_chain(chain_header);
-        let (tool, args) =
-            invocation(input).ok_or_else(|| Denied::new(400, "chain.bad_invocation", trail))?;
+        let (tool, args) = invoked(input, trail)?;
         let now = i64::try_from(now).map_err(|_| Denied::new(500, "internal.clock", trail))?;
         verifier
             .verify(
@@ -505,8 +504,7 @@ impl<P: Pdp> Gate<P> {
         let proof = header(input, DPOP_HEADER)
             .ok_or_else(|| Denied::new(401, "chain.missing_pop", trail))?;
         let chain = split_chain(chain_header);
-        let (tool, args) =
-            invocation(input).ok_or_else(|| Denied::new(400, "chain.bad_invocation", trail))?;
+        let (tool, args) = invoked(input, trail)?;
         let uri = format!("{}://{}{}", input.scheme, input.authority, input.path);
         let now = i64::try_from(now).map_err(|_| Denied::new(500, "internal.clock", trail))?;
         verifier
@@ -1105,6 +1103,39 @@ fn actor_json(hop: &Hop) -> Value {
         ActorId::Key(key) => json!({ "jkt": key.0 }),
         _ => Value::Null,
     }
+}
+
+/// The tool and its arguments the chain must authorize, read from a body
+/// that must be the whole body.
+fn invoked(input: &CheckInput, trail: &Trail) -> Result<Invoked, Denied> {
+    if body_incomplete(input) {
+        return Err(Denied::new(400, "chain.partial_body", trail));
+    }
+    invocation(input).ok_or_else(|| Denied::new(400, "chain.bad_invocation", trail))
+}
+
+/// The header Envoy sets on the check request when it sent only the first
+/// `max_request_bytes` of the body (`allow_partial_message`).
+const PARTIAL_BODY_HEADER: &str = "x-envoy-auth-partial-body";
+
+/// Whether the body the proxy sent may be cut short: a partial-body header
+/// that is not `false` (every one of them, in case a client sent its own),
+/// or a `Content-Length` that is not the body's length. A second JSON-RPC
+/// message could hide past the cut.
+fn body_incomplete(input: &CheckInput) -> bool {
+    if input
+        .headers
+        .iter()
+        .any(|(n, v)| n == PARTIAL_BODY_HEADER && !v.trim().eq_ignore_ascii_case("false"))
+    {
+        return true;
+    }
+    let received = input.body.as_ref().map_or(0, Vec::len);
+    input
+        .headers
+        .iter()
+        .filter(|(n, _)| n == "content-length")
+        .any(|(_, v)| v.trim().parse::<usize>().ok() != Some(received))
 }
 
 /// The tool and its arguments the chain must authorize.

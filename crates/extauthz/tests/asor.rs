@@ -500,3 +500,25 @@ async fn a_revoked_delegation_is_denied() {
         (403, "asor.status_unknown")
     );
 }
+
+/// A body Envoy cut at `max_request_bytes` is not read for the action,
+/// whether or not a chain is required.
+#[tokio::test]
+async fn a_cut_body_is_not_read_for_the_action() {
+    for require_chain in [false, true] {
+        let mut config = gate_config();
+        config.require_chain = require_chain;
+        let gate = gate_with(config);
+        let mut input = call(&narrow(), 2, Some(2), "crm.read", &json!({ "rows": 50 }), 1);
+        input
+            .headers
+            .push(("x-envoy-auth-partial-body".into(), "true".into()));
+        assert_eq!(
+            denial(&gate.check(&input, NOW, "t").await),
+            (400, "chain.partial_body"),
+            "require_chain={require_chain}"
+        );
+        let input = call(&narrow(), 2, Some(2), "crm.read", &json!({ "rows": 50 }), 2);
+        assert_eq!(denial(&gate.check(&input, NOW, "t").await), (200, "allow"));
+    }
+}

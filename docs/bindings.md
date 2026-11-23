@@ -143,7 +143,7 @@ Rules:
 - `[aat]` must set `required` explicitly. With `required = false` a request without `AAT-Chain` skips every chain check, and the server logs a warning at startup; with `required = true` such a request is denied.
 - What a verified chain does: the gate denies the call unless the chain permits this tool with these arguments. It does not narrow the minted Transaction Token's `scope`, which comes from the user token or `default_scope`, because AAT tool grants and OAuth scopes are different vocabularies. The chain goes to the PDP as `context.chain` and into the token: as `tctx.chain` when the gate mints a new token, or, when the caller forwards a Transaction Token, as a new member `tctx.chain:<caller>` in a replacement token (scope, `txn`, `sub` and `aud` unchanged, lifetime not extended). A downstream service that needs the delegated limits must read these members. Within one transaction a caller can record one chain: forwarding the same transaction again with a different chain is denied, since `tctx` members never change.
 - By default the chain must name this enforcement point in `aud` and the proof must carry `aat_aud`.
-- Reading MCP arguments needs the request body. In Envoy, set `with_request_body` on the ext_authz filter.
+- Reading MCP arguments needs the request body. In Envoy, set `with_request_body` on the ext_authz filter. The body must be whole: a partial-body header (`x-envoy-auth-partial-body`) with any value but `false`, or a `Content-Length` that is not the length of the body received, is denied (`chain.partial_body`), since padding could push a second JSON-RPC message past the cut. This holds whether or not a chain is required, and for asor too.
 
 ## asor
 

@@ -37,6 +37,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 ### Security
 
 - Request targets that an upstream could resolve differently from the path the PDP sees are now denied (`request.unnormalized_path`): `;` in the path (`/public/..;/admin`, `/admin;jsessionid=x` reach Tomcat and Jetty as `/admin`), double encoding (`%252e`), percent-encoded unreserved characters (`/%61dmin`), percent-encodings that are malformed or do not decode to UTF-8 (`%c0%ae`), encoded `;` and control characters, any character outside RFC 3986 `pchar` (backslash, space, NUL, control characters, non-ASCII), and a `#` anywhere in the target (`/public#/../admin` was authorized as `/public`). See `docs/bindings.md`.
+- AAT and asor chains are no longer checked against a body the proxy cut short: with `allow_partial_message: true`, padding could push a second JSON-RPC message past `max_request_bytes`. A request whose `x-envoy-auth-partial-body` is anything but `false`, or whose `Content-Length` is not the length of the body received, is denied (`chain.partial_body`) before the tool and arguments are read.
 
 ## [0.3.0] - 2026-11-21
 
