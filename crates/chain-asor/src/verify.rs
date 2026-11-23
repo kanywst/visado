@@ -269,6 +269,10 @@ pub struct Authorized {
     pub chain: NormalizedChain,
     /// The DPoP proof `jti`.
     pub proof_jti: String,
+    /// The last second the proof is accepted in: its `iat` plus the proof
+    /// window. A caller that records `proof_jti` itself, after checks of its
+    /// own, keeps it until then.
+    pub proof_until: i64,
 }
 
 /// Verifies asor Delegation Chains for one enforcement point.
@@ -464,6 +468,7 @@ impl Verifier {
         Ok(Authorized {
             chain: normalize(&chain, true, true),
             proof_jti: proof.jti,
+            proof_until: proof.until,
         })
     }
 

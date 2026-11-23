@@ -522,3 +522,30 @@ async fn a_cut_body_is_not_read_for_the_action() {
         assert_eq!(denial(&gate.check(&input, NOW, "t").await), (200, "allow"));
     }
 }
+
+/// Someone with a copy of agent B's chain and leaf proof, but another key,
+/// is refused for not being the holder, and the proof `jti` is not used up:
+/// agent B's own request with that proof still goes through, once.
+#[tokio::test]
+async fn a_stolen_leaf_proof_does_not_use_up_the_holders_jti() {
+    let gate = gate();
+    let args = json!({ "rows": 1 });
+    // Same `n`, so the same proof `jti` (`d1`) from key 2.
+    let stolen = call(&narrow(), 3, Some(2), "crm.read", &args, 1);
+    assert_eq!(
+        denial(&gate.check(&stolen, NOW, "t").await),
+        (403, "chain.holder_mismatch")
+    );
+    let mut own = call(&narrow(), 2, Some(2), "crm.read", &args, 2);
+    let proof = stolen.headers.iter().find(|(n, _)| n == "dpop").unwrap();
+    own.headers.retain(|(n, _)| n != "dpop");
+    own.headers.push(proof.clone());
+    assert_eq!(denial(&gate.check(&own, NOW, "t").await).1, "allow");
+    let mut again = call(&narrow(), 2, Some(2), "crm.read", &args, 3);
+    again.headers.retain(|(n, _)| n != "dpop");
+    again.headers.push(proof.clone());
+    assert_eq!(
+        denial(&gate.check(&again, NOW, "t").await),
+        (403, "asor.holder_binding_failed")
+    );
+}

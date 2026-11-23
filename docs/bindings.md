@@ -204,7 +204,8 @@ Rules:
 Every accepted proof is remembered for as long as it could be accepted, so a copy of it is refused.
 
 - There is one bounded in-memory cache per proof type: WPT `jti`, HTTP signature `nonce`, DPoP `jti` for an access token, AAT PoP `jti` and asor leaf proof `jti`. A flood of one type cannot refuse proofs of another.
-- Each cache holds at most `replay_capacity` live entries (default 100000, about 150 bytes each). When one is full, new proofs of its type are refused with a 503 (`wpt.replay_cache_full`).
+- Each cache holds at most `replay_capacity` live entries (default 100000, about 150 bytes each). When one is full, new proofs of its type are refused with a 503 (`wpt.replay_cache_full` for a credential's proof, `chain.replay_cache_full` for a chain's).
+- A chain's proof `jti` is recorded only after the chain is found to be the caller's (its leaf holds the key the caller proved) and the invariant engine agrees, so someone with a copy of a chain and its proof, but not the key, cannot use up the holder's `jti`. A replayed chain proof keeps its format's code (`aat.pop_replayed`, `asor.holder_binding_failed`); a full chain proof cache is a 503 (`chain.replay_cache_full`) and a holder key past its quota a 429 (`chain.replay_quota`).
 - One caller holds at most `replay_key_quota` live entries in each cache (default a quarter of `replay_capacity`, at most `replay_capacity`): a workload by WIT `sub` for WPTs and signatures, a key by thumbprint for DPoP proofs, and the leaf holder key for AAT and asor proofs. Past it, that caller's new proofs are refused with a 429 (`credential.replay_quota`) while other callers still have room.
 - An entry lives as long as its proof could be accepted, counted from the proof's own time, which is at most `max_proof_skew` (default 5 s, at most 60) ahead of the clock:
   - a WPT `jti` until `exp` plus the clock leeway; `exp` is at most `max_wpt_lifetime` after now, so at most 90 s with the defaults;

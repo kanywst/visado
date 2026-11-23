@@ -12,6 +12,8 @@ pub const DPOP_ALGS: &[&str] = &["Ed25519", "ES256"];
 /// What a valid proof established.
 pub(crate) struct Proof {
     pub(crate) jti: String,
+    /// The last second the proof is accepted in.
+    pub(crate) until: i64,
 }
 
 /// Settings for proof checks.
@@ -48,8 +50,8 @@ pub(crate) fn verify(
         nonces: window.nonces,
     };
     let proof = dpop::verify(proof, &expected, request, now)?;
+    let until = proof.iat.saturating_add(window.iat_window);
     if let Some(cache) = replay {
-        let until = proof.iat.saturating_add(window.iat_window);
         match cache.check_and_record(jkt, &proof.jti, until, now) {
             Recorded::Fresh => {}
             Recorded::Replayed => return Err(Rejection::Proof("DPoP jti already accepted")),
@@ -61,5 +63,8 @@ pub(crate) fn verify(
             }
         }
     }
-    Ok(Proof { jti: proof.jti })
+    Ok(Proof {
+        jti: proof.jti,
+        until,
+    })
 }

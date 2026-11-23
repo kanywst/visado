@@ -145,6 +145,10 @@ pub struct Authorized {
     pub chain: NormalizedChain,
     /// The PoP JWT `jti`.
     pub pop_jti: String,
+    /// The last second the PoP is accepted in: its `iat` plus the PoP
+    /// window. A caller that records `pop_jti` itself, after checks of its
+    /// own, keeps it until then.
+    pub pop_until: i64,
 }
 
 /// Verifies AAT chains and invocations for one enforcement point.
@@ -246,10 +250,12 @@ impl Verifier {
         let pop = self.pop_signature(leaf, presentation.pop)?;
         let args = self.invocation(leaf, invocation)?;
         self.chain_audience(&chain.tokens)?;
-        let pop_jti = self.pop_claims(leaf, &pop, invocation.tool, &args, now, replay)?;
+        let (pop_jti, pop_until) =
+            self.pop_claims(leaf, &pop, invocation.tool, &args, now, replay)?;
         Ok(Authorized {
             chain: normalize(&chain, true),
             pop_jti,
+            pop_until,
         })
     }
 
@@ -577,7 +583,7 @@ impl Verifier {
     }
 
     /// §8 steps 7c to 7i, on claims whose signature verified. Returns the
-    /// PoP `jti`.
+    /// PoP `jti` and the last second the PoP is accepted in.
     fn pop_claims(
         &self,
         leaf: &Token<'_>,
@@ -586,7 +592,7 @@ impl Verifier {
         args: &Value,
         now: i64,
         replay: Option<&dyn ReplayCache>,
-    ) -> Result<String, AatError> {
+    ) -> Result<(String, i64), AatError> {
         let deny = AatError::new;
         let jti = non_empty(claims, "jti");
         let aat_id = non_empty(claims, "aat_id");
@@ -638,8 +644,8 @@ impl Verifier {
                 return Err(deny(Step::S7h, "nonce missing or not accepted"));
             }
         }
+        let until = iat.saturating_add(self.limits.pop_window);
         if let Some(cache) = replay {
-            let until = iat.saturating_add(self.limits.pop_window);
             match cache.check_and_record(&leaf.holder.thumbprint, &jti, until, now) {
                 Recorded::Fresh => {}
                 Recorded::Replayed => return Err(deny(Step::S7i, "PoP jti already accepted")),
@@ -651,7 +657,7 @@ impl Verifier {
                 }
             }
         }
-        Ok(jti)
+        Ok((jti, until))
     }
 }
 

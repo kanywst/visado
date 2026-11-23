@@ -492,7 +492,7 @@ async fn the_chain_replay_caches_follow_the_configured_limits() {
         assert!(minted(&outcome).tctx.unwrap().contains_key("chain"));
     }
     let outcome = gate.check(&aat_call(2, 2, "c3"), NOW, "t").await;
-    assert_eq!(denied(&outcome), (403, "aat.pop_replayed", None));
+    assert_eq!(denied(&outcome), (429, "chain.replay_quota", None));
     let outcome = gate.check(&aat_call(3, 3, "c3"), NOW, "t").await;
     assert!(minted(&outcome).tctx.unwrap().contains_key("chain"));
 }
@@ -504,5 +504,21 @@ async fn the_chain_replay_limits_can_be_set_on_the_gate() {
     let outcome = gate.check(&aat_call(2, 2, "c1"), NOW, "t").await;
     assert!(minted(&outcome).tctx.unwrap().contains_key("chain"));
     let outcome = gate.check(&aat_call(2, 2, "c2"), NOW, "t").await;
+    assert_eq!(denied(&outcome), (429, "chain.replay_quota", None));
+}
+
+/// Someone holding a copy of a chain and its PoP, but not the holder's key,
+/// is refused for not being the holder, and the PoP `jti` is not used up:
+/// the holder's own request with it still goes through, once.
+#[tokio::test]
+async fn a_stolen_aat_proof_does_not_use_up_the_holders_jti() {
+    let gate = gate();
+    let stolen = aat_call(3, 2, "c1");
+    let outcome = gate.check(&stolen, NOW, "t").await;
+    assert_eq!(denied(&outcome), (403, "chain.holder_mismatch", None));
+
+    let outcome = gate.check(&aat_call(2, 2, "c1"), NOW, "t").await;
+    assert!(minted(&outcome).tctx.unwrap().contains_key("chain"));
+    let outcome = gate.check(&aat_call(2, 2, "c1"), NOW, "t").await;
     assert_eq!(denied(&outcome), (403, "aat.pop_replayed", None));
 }
