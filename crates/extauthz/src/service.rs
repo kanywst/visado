@@ -161,6 +161,7 @@ fn status_code(status: u16) -> HttpStatusCode {
         400 => HttpStatusCode::BadRequest,
         401 => HttpStatusCode::Unauthorized,
         403 => HttpStatusCode::Forbidden,
+        429 => HttpStatusCode::TooManyRequests,
         503 => HttpStatusCode::ServiceUnavailable,
         _ => HttpStatusCode::InternalServerError,
     }
@@ -337,6 +338,17 @@ mod tests {
             .find(|h| h.key == "content-type")
             .map(|h| h.value.as_str());
         assert_eq!(content_type, Some("application/problem+json"));
+    }
+
+    #[test]
+    fn every_status_the_gate_denies_with_reaches_the_client() {
+        for status in [400, 401, 403, 429, 500, 503] {
+            let response = denied_response(status, "code", None, &[]);
+            let Some(Http::DeniedResponse(denied)) = response.http_response else {
+                panic!("denied")
+            };
+            assert_eq!(denied.status.map(|s| s.code), Some(i32::from(status)));
+        }
     }
 
     #[test]
