@@ -901,8 +901,18 @@ fn with_oauth_issuers(
     for issuer in issuers {
         let jwks: jsonwebtoken::jwk::JwkSet = read_json(&base.join(&issuer.jwks_file))?;
         for key in &jwks.keys {
-            let thumbprint = key.thumbprint(jsonwebtoken::jwk::ThumbprintHash::SHA256);
-            if let Some(anchor) = thumbprint.ok().and_then(|t| anchors.get(&t)) {
+            // A key that cannot be thumbprinted cannot be compared with the
+            // anchors, so it is not trusted at all.
+            let thumbprint = key
+                .thumbprint(jsonwebtoken::jwk::ThumbprintHash::SHA256)
+                .map_err(|e| {
+                    format!(
+                        "oauth_issuers {}: a key in {} has no RFC 7638 thumbprint: {e}",
+                        issuer.issuer,
+                        issuer.jwks_file.display(),
+                    )
+                })?;
+            if let Some(anchor) = anchors.get(&thumbprint) {
                 return Err(format!(
                     "oauth_issuers {}: a key in {} is also the {anchor} trust anchor key; a delegation token it signs would verify as an access token, so the two need different keys",
                     issuer.issuer,
@@ -1780,6 +1790,14 @@ jwks_file = "j"
         std::fs::write(dir.join("idp.json"), jwks(&oauth_key())).unwrap();
         std::fs::write(dir.join("asor-idp.json"), jwks(&asor_anchor_key())).unwrap();
         std::fs::write(dir.join("aat-idp.json"), jwks(&aat_anchor_key())).unwrap();
+        // An OKP key on P-256 parses but has no RFC 7638 thumbprint, so it
+        // could not be compared with the anchors.
+        let mut odd: serde_json::Value = serde_json::from_str(&jwks(&oauth_key())).unwrap();
+        odd["keys"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({ "kty": "OKP", "crv": "P-256", "x": "AAAA", "kid": "k2" }));
+        std::fs::write(dir.join("odd-idp.json"), odd.to_string()).unwrap();
         let path = dir.join("visado.toml");
         let load = |jwks_file: &str| {
             let tables = format!(
@@ -1795,7 +1813,13 @@ jwks_file = "j"
         let distinct = load("idp.json");
         let asor = load("asor-idp.json");
         let aat = load("aat-idp.json");
+        let odd = load("odd-idp.json");
         std::fs::remove_dir_all(&dir).unwrap();
+        assert!(
+            odd.as_ref()
+                .is_some_and(|e| e.contains("no RFC 7638 thumbprint")),
+            "a key without a thumbprint must stop startup"
+        );
         assert_eq!(distinct, None);
         assert!(
             asor.as_ref()
