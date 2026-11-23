@@ -115,7 +115,10 @@ Paths are in the other project at the pinned commit.
 6. `aud` as an array. visado modeled `aud` as a string and rejected an array
    as malformed; atlas-go accepts an array containing the trust domain
    (`txn_token.go:160-172`). RFC 7519 §4.1.3 allows either; §9.2 does not say.
-   Fixed in visado: an array is accepted if an element is the trust domain.
+   Changed in visado: a one-element array holding the trust domain is
+   accepted; a longer array is rejected even if it names the trust domain,
+   because a Txn-Token is scoped to one trust domain. atlas-go accepts such
+   longer arrays, which lets one token pass in several trust domains.
 7. `typ` spelling. visado accepts `application/txntoken+jwt` (RFC 7515
    §4.1.9 equivalence, `crates/txn-token/src/token.rs:136`); atlas-go
    (`txn_token.go:85`) and kontxt (`sdk/verify/verifier.go:57`, exact and

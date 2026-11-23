@@ -235,30 +235,25 @@ pub fn verify(
     })
 }
 
-/// An `aud` given as an array (RFC 7519 §4.1.3): `Some(trust domain)` if an
-/// element is the trust domain, so the claims read it as a string;
-/// [`TxnTokenError::AudienceMismatch`] if none is; [`TxnTokenError::InvalidClaim`]
-/// for an empty array or one with an element that is not a non-empty string.
-/// `None` when `aud` is not an array.
+/// An `aud` given as an array (RFC 7519 §4.1.3). A Transaction Token is
+/// scoped to one trust domain (§9.2), so only an array of exactly one element
+/// is read, as that element. `Some(trust domain)` if the element is the trust
+/// domain, so the claims read it as a string;
+/// [`TxnTokenError::AudienceMismatch`] if it is another non-empty string;
+/// [`TxnTokenError::InvalidClaim`] for an empty array, an array of more than
+/// one element, or an element that is not a non-empty string. `None` when
+/// `aud` is not an array.
 fn audience_array(claims: &Value, trust_domain: &str) -> Result<Option<String>, TxnTokenError> {
     let Some(values) = claims.get("aud").and_then(Value::as_array) else {
         return Ok(None);
     };
-    let invalid = TxnTokenError::InvalidClaim { claim: "aud" };
-    if values.is_empty() {
-        return Err(invalid);
-    }
-    let mut found = false;
-    for value in values {
-        match value.as_str() {
-            Some(aud) if !aud.is_empty() => found |= aud == trust_domain,
-            _ => return Err(invalid),
-        }
-    }
-    if found {
-        Ok(Some(trust_domain.to_owned()))
-    } else {
-        Err(TxnTokenError::AudienceMismatch)
+    let [value] = values.as_slice() else {
+        return Err(TxnTokenError::InvalidClaim { claim: "aud" });
+    };
+    match value.as_str() {
+        Some(aud) if aud == trust_domain => Ok(Some(trust_domain.to_owned())),
+        Some(aud) if !aud.is_empty() => Err(TxnTokenError::AudienceMismatch),
+        _ => Err(TxnTokenError::InvalidClaim { claim: "aud" }),
     }
 }
 

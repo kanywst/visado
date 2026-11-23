@@ -30,13 +30,27 @@ fn check(aud: &Value) -> Result<String, TxnTokenError> {
 }
 
 #[test]
-fn an_array_containing_the_trust_domain_is_accepted() {
+fn a_one_element_array_holding_the_trust_domain_is_accepted() {
     assert_eq!(check(&json!([DOMAIN])).unwrap(), DOMAIN);
-    assert_eq!(
-        check(&json!(["other.example", DOMAIN])).unwrap(),
-        DOMAIN,
-        "any element may match"
-    );
+}
+
+#[test]
+fn an_array_of_several_audiences_is_invalid_even_with_the_trust_domain() {
+    // A Txn-Token is scoped to one trust domain (§9.2): accepting
+    // ["other.example", DOMAIN] would let one token serve two domains.
+    for aud in [
+        json!(["other.example", DOMAIN]),
+        json!([DOMAIN, "other.example"]),
+        json!([DOMAIN, DOMAIN]),
+    ] {
+        assert!(
+            matches!(
+                check(&aud),
+                Err(TxnTokenError::InvalidClaim { claim: "aud" })
+            ),
+            "{aud}"
+        );
+    }
 }
 
 #[test]
@@ -49,12 +63,7 @@ fn an_array_without_the_trust_domain_is_another_audience() {
 
 #[test]
 fn an_empty_array_or_a_bad_element_is_invalid() {
-    for aud in [
-        json!([]),
-        json!([DOMAIN, 7]),
-        json!([DOMAIN, ""]),
-        json!([null]),
-    ] {
+    for aud in [json!([]), json!([7]), json!([""]), json!([null])] {
         assert!(
             matches!(
                 check(&aud),

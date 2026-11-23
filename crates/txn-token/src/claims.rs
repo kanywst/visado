@@ -21,8 +21,8 @@ pub struct TxnTokenClaims {
     /// Issued-at, seconds since the Unix epoch.
     pub iat: u64,
     /// The trust domain the token is valid in. [`verify`](crate::verify)
-    /// also accepts an array that contains it (RFC 7519 §4.1.3) and puts the
-    /// trust domain here.
+    /// also accepts a one-element array holding it (RFC 7519 §4.1.3) and puts
+    /// the trust domain here.
     pub aud: String,
     /// Expiry, seconds since the Unix epoch.
     pub exp: u64,
