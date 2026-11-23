@@ -42,8 +42,16 @@ pub struct Config {
     pub user_token_header: Option<String>,
     #[serde(default)]
     pub allowed_authorities: BTreeSet<String>,
+    /// The most live proofs each replay cache holds. There is one cache per
+    /// proof type: WPT `jti`, HTTP signature nonce, DPoP proof `jti`, AAT PoP
+    /// `jti` and asor leaf proof `jti`.
     #[serde(default = "default_replay_capacity")]
     pub replay_capacity: usize,
+    /// The most live proofs one caller may hold in each replay cache: a
+    /// workload by WIT `sub`, or a proof key by thumbprint. Default a quarter
+    /// of `replay_capacity`.
+    #[serde(default)]
+    pub replay_key_quota: Option<usize>,
     #[serde(default = "default_max_wpt_lifetime")]
     pub max_wpt_lifetime: u64,
     /// The longest HTTP message signature window (`expires` minus
@@ -537,6 +545,12 @@ impl Config {
         if self.replay_capacity == 0 || self.max_wpt_lifetime == 0 {
             return Err("replay_capacity and max_wpt_lifetime must be positive".into());
         }
+        if self
+            .replay_key_quota
+            .is_some_and(|quota| !(1..=self.replay_capacity).contains(&quota))
+        {
+            return Err("replay_key_quota must be 1..=replay_capacity".into());
+        }
         if !(1..=MAX_SIGNATURE_LIFETIME).contains(&self.max_signature_lifetime) {
             return Err(format!(
                 "max_signature_lifetime must be 1..={MAX_SIGNATURE_LIFETIME} seconds"
@@ -706,6 +720,18 @@ impl Config {
         Ok(())
     }
 
+    /// The replay cache and proof time limits, on `authenticator`.
+    fn proof_limits(&self, authenticator: Authenticator) -> Authenticator {
+        let authenticator = authenticator
+            .with_replay_limits(self.replay_capacity, self.max_wpt_lifetime)
+            .with_signature_lifetime(self.max_signature_lifetime)
+            .with_dpop_iat_window(self.dpop_iat_window);
+        match self.replay_key_quota {
+            Some(quota) => authenticator.with_replay_key_quota(quota),
+            None => authenticator,
+        }
+    }
+
     fn build(self, base: &Path) -> Result<Loaded, String> {
         let (signing_key, public_jwk) = txn_signing_key(&base.join(&self.signing_key.jwk_file))?;
 
@@ -713,10 +739,7 @@ impl Config {
         let grpc_tls = self.grpc_tls.as_ref().map(|t| t.read(base)).transpose()?;
         let grpc_open = !self.grpc_listen.ip().is_loopback()
             && grpc_tls.as_ref().is_none_or(|t| t.client_ca.is_none());
-        let mut authenticator = Authenticator::new()
-            .with_replay_limits(self.replay_capacity, self.max_wpt_lifetime)
-            .with_signature_lifetime(self.max_signature_lifetime)
-            .with_dpop_iat_window(self.dpop_iat_window);
+        let mut authenticator = self.proof_limits(Authenticator::new());
         if let Some(header) = &self.user_token_header {
             authenticator = authenticator.with_user_token_header(header);
         }
@@ -1342,6 +1365,9 @@ endpoint = "http://127.0.0.1:8181/access/v1/evaluation"
         assert!(parse("txn_lifetime = 0").is_err());
         assert!(parse("txn_lifetime = 3600").is_err());
         assert!(parse("replay_capacity = 0").is_err());
+        assert!(parse("replay_key_quota = 0").is_err());
+        assert!(parse("replay_capacity = 10\nreplay_key_quota = 11").is_err());
+        assert!(parse("replay_capacity = 10\nreplay_key_quota = 10").is_ok());
         assert!(parse("max_signature_lifetime = 0").is_err());
         assert!(parse("max_signature_lifetime = 3600").is_err());
         assert!(parse("max_signature_lifetime = 120").is_ok());

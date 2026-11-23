@@ -32,12 +32,9 @@ mod error;
 mod httpsig;
 mod mtls;
 mod oauth;
-mod replay;
 mod request;
 mod svid;
 mod wimse;
-
-use std::sync::Mutex;
 
 pub use error::AuthError;
 pub use mtls::X509Bundle;
@@ -48,8 +45,10 @@ pub use visado_chain::dpop::{MIN_NONCE_KEY_LEN as MIN_DPOP_NONCE_KEY_LEN, NonceE
 pub use wimse::WitIssuer;
 
 use visado_chain::dpop::{self as dpop_proof, Expected, HttpRequest, Rejection};
+use visado_chain::replay::{MemoryReplayCache, Recorded, ReplayCache};
 
-use replay::ReplayCache;
+/// The default number of live proofs each replay cache holds.
+pub const DEFAULT_REPLAY_CAPACITY: usize = 100_000;
 
 /// The longest WPT `jti` or signature `nonce` accepted, in bytes.
 pub const MAX_JTI_LEN: usize = 256;
@@ -122,7 +121,39 @@ pub struct Authenticator {
     max_signature_lifetime: u64,
     dpop_iat_window: u64,
     dpop_nonces: Option<Nonces>,
-    replay: Mutex<ReplayCache>,
+    replay_capacity: usize,
+    replay_key_quota: Option<usize>,
+    replay: Replay,
+}
+
+/// One replay cache per proof type, so a flood of one kind of proof cannot
+/// refuse callers that use another.
+#[derive(Debug)]
+struct Replay {
+    /// WPT `jti` values, per WIT `sub`.
+    wpt: MemoryReplayCache,
+    /// HTTP signature nonces, per WIT `sub`.
+    signature: MemoryReplayCache,
+    /// DPoP proof `jti` values, per proof key thumbprint.
+    dpop: MemoryReplayCache,
+}
+
+impl Replay {
+    fn new(capacity: usize, key_quota: usize) -> Self {
+        let cache = || MemoryReplayCache::new(capacity).with_owner_quota(key_quota);
+        Self {
+            wpt: cache(),
+            signature: cache(),
+            dpop: cache(),
+        }
+    }
+}
+
+/// The share of a replay cache one key or workload may hold unless
+/// configured: a quarter, so at least four of them are needed to fill it.
+#[must_use]
+pub const fn default_replay_key_quota(capacity: usize) -> usize {
+    if capacity < 4 { capacity } else { capacity / 4 }
 }
 
 impl Authenticator {
@@ -141,7 +172,12 @@ impl Authenticator {
             max_signature_lifetime: 60,
             dpop_iat_window: 60,
             dpop_nonces: None,
-            replay: Mutex::new(ReplayCache::new(100_000)),
+            replay_capacity: DEFAULT_REPLAY_CAPACITY,
+            replay_key_quota: None,
+            replay: Replay::new(
+                DEFAULT_REPLAY_CAPACITY,
+                default_replay_key_quota(DEFAULT_REPLAY_CAPACITY),
+            ),
         }
     }
 
@@ -197,15 +233,35 @@ impl Authenticator {
         &self.user_token_header
     }
 
-    /// Bounds the replay cache: at most `capacity` live proofs (WPTs and
-    /// signature nonces together), a WPT living at most `max_wpt_lifetime`
-    /// seconds. Defaults: 100 000 and 60. When the cache is full, new proofs
-    /// are rejected.
+    /// Bounds the replay caches: at most `capacity` live proofs in each of
+    /// the three (WPT `jti` values, HTTP signature nonces, DPoP proof `jti`
+    /// values), a WPT living at most `max_wpt_lifetime` seconds. Defaults:
+    /// [`DEFAULT_REPLAY_CAPACITY`] and 60. When a cache is full, new proofs of
+    /// that type are rejected ([`AuthError::ReplayCacheFull`]).
     #[must_use]
     pub fn with_replay_limits(mut self, capacity: usize, max_wpt_lifetime: u64) -> Self {
-        self.replay = Mutex::new(ReplayCache::new(capacity));
+        self.replay_capacity = capacity;
         self.max_wpt_lifetime = max_wpt_lifetime;
+        self.rebuild_replay();
         self
+    }
+
+    /// The most live proofs one workload (by WIT `sub`) or one DPoP key may
+    /// hold in each replay cache. Past it, that caller's new proofs are
+    /// rejected ([`AuthError::ReplayQuota`]) while others still have room.
+    /// Default: [`default_replay_key_quota`] of the capacity.
+    #[must_use]
+    pub fn with_replay_key_quota(mut self, quota: usize) -> Self {
+        self.replay_key_quota = Some(quota);
+        self.rebuild_replay();
+        self
+    }
+
+    fn rebuild_replay(&mut self) {
+        let quota = self
+            .replay_key_quota
+            .unwrap_or_else(|| default_replay_key_quota(self.replay_capacity));
+        self.replay = Replay::new(self.replay_capacity, quota);
     }
 
     /// The longest window between an HTTP signature's `created` and
@@ -353,6 +409,7 @@ impl Authenticator {
         // Every failure of the WIT or the signature is reported alike.
         let hide = |e: AuthError| match e {
             AuthError::ReplayCacheFull
+            | AuthError::ReplayQuota
             | AuthError::Internal
             | AuthError::TooLarge
             | AuthError::HttpSig(_) => e,
@@ -384,9 +441,11 @@ impl Authenticator {
         }
 
         let caller = verified.claims.sub.as_str();
-        self.record(
-            replay::key(replay::Kind::Signature, caller, nonce),
-            expires,
+        record(
+            &self.replay.signature,
+            caller,
+            nonce,
+            expires.saturating_add(self.leeway),
             now,
         )
         .map_err(|e| match e {
@@ -405,22 +464,6 @@ impl Authenticator {
             user,
             proof_key: Some(verified.pop_key.clone()),
         })
-    }
-
-    /// Records a proof in the replay cache for as long as it can be accepted:
-    /// through the second `expires` plus leeway. The cache drops an entry at
-    /// its expiry time, so it is stored until one second later.
-    fn record(&self, key: [u8; 32], expires: u64, now: u64) -> Result<(), AuthError> {
-        let recorded = self.replay.lock().map_err(|_| AuthError::Internal)?.insert(
-            key,
-            expires.saturating_add(self.leeway).saturating_add(1),
-            now,
-        );
-        match recorded {
-            replay::Insert::Fresh => Ok(()),
-            replay::Insert::Seen => Err(AuthError::Replay),
-            replay::Insert::Full => Err(AuthError::ReplayCacheFull),
-        }
     }
 
     fn authenticate_wimse(
@@ -453,9 +496,11 @@ impl Authenticator {
         }
 
         let caller = verified.claims.sub.as_str();
-        self.record(
-            replay::key(replay::Kind::Wpt, caller, &wpt.claims.jti),
-            wpt.claims.exp,
+        record(
+            &self.replay.wpt,
+            caller,
+            &wpt.claims.jti,
+            wpt.claims.exp.saturating_add(self.leeway),
             now,
         )?;
 
@@ -533,9 +578,11 @@ impl Authenticator {
         })?;
         let caller = token_claims.client_id.clone().ok_or(AuthError::NoClient)?;
         let expires = u64::try_from(proof.iat.saturating_add(window)).unwrap_or(0);
-        self.record(
-            replay::key(replay::Kind::Dpop, &jkt, &proof.jti),
-            expires,
+        record(
+            &self.replay.dpop,
+            &jkt,
+            &proof.jti,
+            expires.saturating_add(self.leeway),
             now,
         )
         .map_err(|e| match e {
@@ -600,6 +647,24 @@ impl Authenticator {
 impl Default for Authenticator {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Records proof `id` of `owner` in `cache` until `until`, the last second at
+/// which the proof could still be accepted.
+fn record(
+    cache: &MemoryReplayCache,
+    owner: &str,
+    id: &str,
+    until: u64,
+    now: u64,
+) -> Result<(), AuthError> {
+    let secs = |t: u64| i64::try_from(t).unwrap_or(i64::MAX);
+    match cache.check_and_record(owner, id, secs(until), secs(now)) {
+        Recorded::Fresh => Ok(()),
+        Recorded::Replayed => Err(AuthError::Replay),
+        Recorded::OverQuota => Err(AuthError::ReplayQuota),
+        Recorded::Full => Err(AuthError::ReplayCacheFull),
     }
 }
 

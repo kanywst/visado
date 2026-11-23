@@ -682,6 +682,9 @@ impl<P: Pdp> Gate<P> {
                 });
             let (status, challenge) = match e {
                 AuthError::ReplayCacheFull => (503, None),
+                // This caller alone has too many live proofs; others are
+                // still served.
+                AuthError::ReplayQuota => (429, None),
                 // draft-ietf-wimse-http-signature: a failed signed request is
                 // a 400 that does not say which check failed.
                 AuthError::HttpSig(_) => (400, None),
