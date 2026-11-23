@@ -51,6 +51,7 @@ export default defineConfig({
           ],
         },
         { label: 'Spec map', slug: 'spec-map' },
+        { label: 'Interop results', slug: 'interop' },
         {
           label: 'Security model',
           items: [
@@ -79,6 +80,7 @@ export default defineConfig({
             { label: 'Landscape', slug: 'research/landscape' },
             { label: 'IdPs and SPIRE', slug: 'research/idp-and-spire' },
             { label: 'Observability, UI, launch', slug: 'research/observability-ui-launch' },
+            { label: 'Findings', slug: 'research/findings' },
           ],
         },
       ],

@@ -1817,6 +1817,7 @@ name = "visado-txn-token"
 version = "0.3.0"
 dependencies = [
  "base64",
+ "jsonwebtoken",
  "serde",
  "serde_json",
  "sha2",

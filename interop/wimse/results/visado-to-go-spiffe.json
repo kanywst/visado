@@ -1,0 +1,189 @@
+{
+  "cases": [
+    {
+      "agrees": false,
+      "error": "witsvid: unable to parse WIT-SVID token",
+      "expect": "accept",
+      "id": "ed25519/wpt/valid",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "error": "witsvid: unable to parse WIT-SVID token",
+      "expect": "reject",
+      "id": "ed25519/wpt/expired_wit",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "error": "witsvid: unable to parse WIT-SVID token",
+      "expect": "reject",
+      "id": "ed25519/wpt/untrusted_issuer",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "error": "witsvid: unable to parse WIT-SVID token",
+      "expect": "reject",
+      "id": "ed25519/wpt/wit_signature_tampered",
+      "verdict": "reject"
+    },
+    {
+      "agrees": false,
+      "error": "witsvid: unable to parse WIT-SVID token",
+      "expect": "accept",
+      "id": "ed25519/wpt/wth_mismatch",
+      "verdict": "reject"
+    },
+    {
+      "agrees": false,
+      "error": "witsvid: unable to parse WIT-SVID token",
+      "expect": "accept",
+      "id": "ed25519/wpt/other_audience",
+      "verdict": "reject"
+    },
+    {
+      "agrees": false,
+      "error": "witsvid: unable to parse WIT-SVID token",
+      "expect": "accept",
+      "id": "ed25519/wpt/wpt_signature_tampered",
+      "verdict": "reject"
+    },
+    {
+      "agrees": false,
+      "error": "witsvid: unable to parse WIT-SVID token",
+      "expect": "accept",
+      "id": "ed25519/wpt/expired_wpt",
+      "verdict": "reject"
+    },
+    {
+      "agrees": false,
+      "error": "witsvid: unable to parse WIT-SVID token",
+      "expect": "accept",
+      "id": "ed25519/wpt/wit_no_kid",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "expect": "accept",
+      "id": "es256/wpt/valid",
+      "verdict": "accept"
+    },
+    {
+      "agrees": true,
+      "error": "witsvid: token has expired",
+      "expect": "reject",
+      "id": "es256/wpt/expired_wit",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "error": "witsvid: signature verification failed: go-jose/go-jose: error in cryptographic primitive",
+      "expect": "reject",
+      "id": "es256/wpt/untrusted_issuer",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "error": "witsvid: signature verification failed: go-jose/go-jose: error in cryptographic primitive",
+      "expect": "reject",
+      "id": "es256/wpt/wit_signature_tampered",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "expect": "accept",
+      "id": "es256/wpt/wth_mismatch",
+      "verdict": "accept"
+    },
+    {
+      "agrees": true,
+      "expect": "accept",
+      "id": "es256/wpt/other_audience",
+      "verdict": "accept"
+    },
+    {
+      "agrees": true,
+      "expect": "accept",
+      "id": "es256/wpt/wpt_signature_tampered",
+      "verdict": "accept"
+    },
+    {
+      "agrees": true,
+      "expect": "accept",
+      "id": "es256/wpt/expired_wpt",
+      "verdict": "accept"
+    },
+    {
+      "agrees": false,
+      "error": "witsvid: token header missing key id",
+      "expect": "accept",
+      "id": "es256/wpt/wit_no_kid",
+      "verdict": "reject"
+    },
+    {
+      "agrees": false,
+      "error": "witsvid: cnf.jwk alg \"EdDSA\" is not supported",
+      "expect": "accept",
+      "id": "es256-eddsa/wpt/valid",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "error": "witsvid: cnf.jwk alg \"EdDSA\" is not supported",
+      "expect": "reject",
+      "id": "es256-eddsa/wpt/expired_wit",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "error": "witsvid: cnf.jwk alg \"EdDSA\" is not supported",
+      "expect": "reject",
+      "id": "es256-eddsa/wpt/untrusted_issuer",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "error": "witsvid: cnf.jwk alg \"EdDSA\" is not supported",
+      "expect": "reject",
+      "id": "es256-eddsa/wpt/wit_signature_tampered",
+      "verdict": "reject"
+    },
+    {
+      "agrees": false,
+      "error": "witsvid: cnf.jwk alg \"EdDSA\" is not supported",
+      "expect": "accept",
+      "id": "es256-eddsa/wpt/wth_mismatch",
+      "verdict": "reject"
+    },
+    {
+      "agrees": false,
+      "error": "witsvid: cnf.jwk alg \"EdDSA\" is not supported",
+      "expect": "accept",
+      "id": "es256-eddsa/wpt/other_audience",
+      "verdict": "reject"
+    },
+    {
+      "agrees": false,
+      "error": "witsvid: cnf.jwk alg \"EdDSA\" is not supported",
+      "expect": "accept",
+      "id": "es256-eddsa/wpt/wpt_signature_tampered",
+      "verdict": "reject"
+    },
+    {
+      "agrees": false,
+      "error": "witsvid: cnf.jwk alg \"EdDSA\" is not supported",
+      "expect": "accept",
+      "id": "es256-eddsa/wpt/expired_wpt",
+      "verdict": "reject"
+    },
+    {
+      "agrees": false,
+      "error": "witsvid: token header missing key id",
+      "expect": "accept",
+      "id": "es256-eddsa/wpt/wit_no_kid",
+      "verdict": "reject"
+    }
+  ],
+  "verifier": "github.com/spiffe/go-spiffe/v2/exp/svid/witsvid ParseAndValidate"
+}

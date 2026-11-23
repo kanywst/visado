@@ -6,7 +6,7 @@ Pinned revisions and where the code departs from them. Checked 2026-11-20.
 
 | Spec | Revision | Crate | Status |
 | --- | --- | --- | --- |
-| [draft-ietf-oauth-transaction-tokens](https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/11/) | -11 | `visado-txn-token` | Mint, verify, replace, request parsing |
+| [draft-ietf-oauth-transaction-tokens](https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/11/) | -11 | `visado-txn-token` | Mint, verify, replace, request parsing; 7 valid and 27 negative own vectors and four rejected keys |
 | [draft-ietf-wimse-aims](https://datatracker.ietf.org/doc/draft-ietf-wimse-aims/01/) | -01 | (design) | Reference composition, not yet implemented |
 | [draft-ietf-oauth-identity-assertion-authz-grant](https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/06/) | -06 | (planned) | |
 | [draft-niyikiza-oauth-attenuating-agent-tokens](https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/) | -02 | `visado-chain-aat` | §8 chain and PoP verification; 229/229 published vectors. Enforced by the gate (`docs/bindings.md`) |
@@ -26,8 +26,9 @@ WIMSE credentials (WIT, WPT, HTTP signatures per draft-ietf-wimse-http-signature
 | Call chain across replacement | MUST be preserved, method out of scope (§13.15) | `tctx` members carry over and cannot change; callers add chain data as new members |
 | Lifetime extension on replacement | MAY, SHOULD limit (§13.15) | Caller passes `max_exp` to cap it |
 | Missing REQUIRED claim | Not specified as an error class | Reported as `txn.malformed` (the claim set does not parse) |
+| `aud` as an array | Not said; RFC 7519 §4.1.3 allows a string or an array | A Txn-Token is scoped to one trust domain, so an array is accepted only with exactly one element, the trust domain. A one-element array with another domain is `txn.audience_mismatch`; an empty array, more than one element (even if one is the trust domain) or an element that is not a non-empty string is `txn.invalid_claim` |
 | `req_wl` with several workloads | Ambiguous (§9.2) | Opaque string, replaced on each replacement |
-| Signature algorithms | Not restricted | `Ed25519`, `EdDSA`, `ES256` only |
+| Signature algorithms | Not restricted; no mandatory-to-implement algorithm. The only example is `RS256` (§9.1) | `Ed25519`, `EdDSA`, `ES256`, and `RS256` with RSA keys of at least 2048 bits and the exponent 65537 (any other `e` is refused at load as `txn.invalid_key`; `e = 1` would let anyone forge signatures), both to mint (`TxnSigningKey::from_rsa_jwk`, an RSA `[signing_key]` in the server) and to verify (`KeySet::with_rsa_key`). kontxt signs and verifies RS256 only |
 | Subject token type for a WIT | No URN defined | Not handled in this crate; the service decides |
 
 ## AAT: known divergences and choices

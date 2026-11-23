@@ -1,0 +1,109 @@
+{
+  "now": 1745509980,
+  "issuers": [
+    {
+      "trust_domain": "example.com",
+      "jwks": {
+        "keys": [
+          {
+            "kty": "EC",
+            "kid": "June 5",
+            "crv": "P-256",
+            "x": "kXqnA2Op7hgd4zRMbw0iFcc_hDxUxhojxOFVGjE2gks",
+            "y": "n__VndPMR021-59UAs0b9qDTFT-EZtT6xSNs_xFskLo"
+          }
+        ]
+      }
+    }
+  ],
+  "cases": [
+    {
+      "id": "wpt-02/figure-5",
+      "source": "draft-ietf-wimse-wpt-02 Figure 5 (WIT and WPT); key: draft-ietf-wimse-workload-creds-03 Figure 6",
+      "expect": "accept",
+      "wit": "eyJhbGciOiJFUzI1NiIsImtpZCI6Ikp1bmUgNSIsInR5cCI6IndpdCtqd3QifQ.eyJjbmYiOnsiandrIjp7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiIxQ1hYdmZsTl9MVlZzSXNZWHNVdkIwM0ptbEdXZUNIcVFWdW91Q0Y5MmJnIn19LCJleHAiOjE3NDU1MTI1MTAsImlhdCI6MTc0NTUwODkxMCwianRpIjoieC1fMUNUTDJjY2EzQ1NFNGN3Yl9sIiwic3ViIjoid2ltc2U6Ly9leGFtcGxlLmNvbS9zcGVjaWZpYy13b3JrbG9hZCJ9.ohKJ50QaW8ydALJwaA0Sz4ys3hcN_1S-aTZBytMGc3u8QWUmn5uxUDSonoZFAfZk1Ro1kR4vE_xa7mvoE37R-Q",
+      "wpt": "eyJhbGciOiJFZERTQSIsInR5cCI6IndwdCtqd3QifQ.eyJhdWQiOiJodHRwczovL3dvcmtsb2FkLmV4YW1wbGUuY29tL3BhdGgiLCJleHAiOjE3NDU1MTAwMTYsImp0aSI6Il9fYndjNEVTQzNhY2MyTFRDMS1feCIsInd0aCI6Ilg5d2lQZ3EzamxTR3pBZWdIQ0doTk8xbEpnVWJEb0kxTWprYXQ1UUhKQjAifQ.sa5ZYHTeCx4AsurafaBJ2rrMnE7TBHBB47ZUT7yoiyz2lcGY5XAnpGPjPnzeRroJJiR7Nr_C5J7mexxrsHM3CQ",
+      "method": "POST",
+      "uri": "https://workload.example.com/path",
+      "headers": [
+        [
+          "content-type",
+          "application/json"
+        ]
+      ],
+      "body": "{\"do stuff\":\"please\"}"
+    },
+    {
+      "id": "wpt-02/figure-5/early",
+      "source": "Figure 5 checked 1016 s before the WPT exp, where visado's default 60 s WPT lifetime cap applies",
+      "expect": "accept",
+      "wit": "eyJhbGciOiJFUzI1NiIsImtpZCI6Ikp1bmUgNSIsInR5cCI6IndpdCtqd3QifQ.eyJjbmYiOnsiandrIjp7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiIxQ1hYdmZsTl9MVlZzSXNZWHNVdkIwM0ptbEdXZUNIcVFWdW91Q0Y5MmJnIn19LCJleHAiOjE3NDU1MTI1MTAsImlhdCI6MTc0NTUwODkxMCwianRpIjoieC1fMUNUTDJjY2EzQ1NFNGN3Yl9sIiwic3ViIjoid2ltc2U6Ly9leGFtcGxlLmNvbS9zcGVjaWZpYy13b3JrbG9hZCJ9.ohKJ50QaW8ydALJwaA0Sz4ys3hcN_1S-aTZBytMGc3u8QWUmn5uxUDSonoZFAfZk1Ro1kR4vE_xa7mvoE37R-Q",
+      "wpt": "eyJhbGciOiJFZERTQSIsInR5cCI6IndwdCtqd3QifQ.eyJhdWQiOiJodHRwczovL3dvcmtsb2FkLmV4YW1wbGUuY29tL3BhdGgiLCJleHAiOjE3NDU1MTAwMTYsImp0aSI6Il9fYndjNEVTQzNhY2MyTFRDMS1feCIsInd0aCI6Ilg5d2lQZ3EzamxTR3pBZWdIQ0doTk8xbEpnVWJEb0kxTWprYXQ1UUhKQjAifQ.sa5ZYHTeCx4AsurafaBJ2rrMnE7TBHBB47ZUT7yoiyz2lcGY5XAnpGPjPnzeRroJJiR7Nr_C5J7mexxrsHM3CQ",
+      "method": "POST",
+      "uri": "https://workload.example.com/path",
+      "headers": [
+        [
+          "content-type",
+          "application/json"
+        ]
+      ],
+      "body": "{\"do stuff\":\"please\"}",
+      "now": 1745509000
+    },
+    {
+      "id": "wpt-02/figure-5/expired",
+      "source": "Figure 5 at a time past the WPT exp plus visado's 30 s leeway",
+      "now": 1745510100,
+      "expect": "reject",
+      "wit": "eyJhbGciOiJFUzI1NiIsImtpZCI6Ikp1bmUgNSIsInR5cCI6IndpdCtqd3QifQ.eyJjbmYiOnsiandrIjp7ImFsZyI6IkVkRFNBIiwiY3J2IjoiRWQyNTUxOSIsImt0eSI6Ik9LUCIsIngiOiIxQ1hYdmZsTl9MVlZzSXNZWHNVdkIwM0ptbEdXZUNIcVFWdW91Q0Y5MmJnIn19LCJleHAiOjE3NDU1MTI1MTAsImlhdCI6MTc0NTUwODkxMCwianRpIjoieC1fMUNUTDJjY2EzQ1NFNGN3Yl9sIiwic3ViIjoid2ltc2U6Ly9leGFtcGxlLmNvbS9zcGVjaWZpYy13b3JrbG9hZCJ9.ohKJ50QaW8ydALJwaA0Sz4ys3hcN_1S-aTZBytMGc3u8QWUmn5uxUDSonoZFAfZk1Ro1kR4vE_xa7mvoE37R-Q",
+      "wpt": "eyJhbGciOiJFZERTQSIsInR5cCI6IndwdCtqd3QifQ.eyJhdWQiOiJodHRwczovL3dvcmtsb2FkLmV4YW1wbGUuY29tL3BhdGgiLCJleHAiOjE3NDU1MTAwMTYsImp0aSI6Il9fYndjNEVTQzNhY2MyTFRDMS1feCIsInd0aCI6Ilg5d2lQZ3EzamxTR3pBZWdIQ0doTk8xbEpnVWJEb0kxTWprYXQ1UUhKQjAifQ.sa5ZYHTeCx4AsurafaBJ2rrMnE7TBHBB47ZUT7yoiyz2lcGY5XAnpGPjPnzeRroJJiR7Nr_C5J7mexxrsHM3CQ",
+      "method": "POST",
+      "uri": "https://workload.example.com/path",
+      "headers": [
+        [
+          "content-type",
+          "application/json"
+        ]
+      ],
+      "body": "{\"do stuff\":\"please\"}"
+    },
+    {
+      "id": "creds-03/figure-2+wpt-02/figure-2",
+      "source": "draft-ietf-wimse-workload-creds-03 Figure 2 WIT with the draft-ietf-wimse-wpt-02 Figure 2 WPT: the WPT is bound to the other WIT",
+      "expect": "reject",
+      "wit": "eyJhbGciOiJFUzI1NiIsImtpZCI6Ikp1bmUgNSIsInR5cCI6IndpdCtqd3QifQ.eyJjbmYiOnsiandrIjp7ImFsZyI6IkVkMjU1MTkiLCJjcnYiOiJFZDI1NTE5Iiwia3R5IjoiT0tQIiwieCI6IjFDWFh2ZmxOX0xWVnNJc1lYc1V2QjAzSm1sR1dlQ0hxUVZ1b3VDRjkyYmcifX0sImV4cCI6MTc0NTUxMjUxMCwiaWF0IjoxNzQ1NTA4OTEwLCJqdGkiOiJ4LV8xQ1RMMmNjYTNDU0U0Y3diX2wiLCJzdWIiOiJ3aW1zZTovL2V4YW1wbGUuY29tL3NwZWNpZmljLXdvcmtsb2FkIn0.4kNF4FP1dshxHrFub2kRusiV9qK_xrGi0pbLG5hpOS3fR0izYZu5lPHei94TTvOvORJPT9jSVT-C6IIBattDbg",
+      "wpt": "eyJhbGciOiJFZERTQSIsInR5cCI6IndwdCtqd3QifQ.eyJhdWQiOiJodHRwczovL3dvcmtsb2FkLmV4YW1wbGUuY29tL3BhdGgiLCJleHAiOjE3NDU1MTAwMTYsImp0aSI6Il9fYndjNEVTQzNhY2MyTFRDMS1feCIsInd0aCI6Ilg5d2lQZ3EzamxTR3pBZWdIQ0doTk8xbEpnVWJEb0kxTWprYXQ1UUhKQjAifQ.sa5ZYHTeCx4AsurafaBJ2rrMnE7TBHBB47ZUT7yoiyz2lcGY5XAnpGPjPnzeRroJJiR7Nr_C5J7mexxrsHM3CQ",
+      "method": "POST",
+      "uri": "https://workload.example.com/path",
+      "headers": [
+        [
+          "content-type",
+          "application/json"
+        ]
+      ],
+      "body": "{\"do stuff\":\"please\"}"
+    },
+    {
+      "id": "creds-03/figure-2+visado-wpt",
+      "source": "draft-ietf-wimse-workload-creds-03 Figure 2 WIT with a WPT signed by visado-testkit using the Figure 5 key",
+      "expect": "accept",
+      "wit": "eyJhbGciOiJFUzI1NiIsImtpZCI6Ikp1bmUgNSIsInR5cCI6IndpdCtqd3QifQ.eyJjbmYiOnsiandrIjp7ImFsZyI6IkVkMjU1MTkiLCJjcnYiOiJFZDI1NTE5Iiwia3R5IjoiT0tQIiwieCI6IjFDWFh2ZmxOX0xWVnNJc1lYc1V2QjAzSm1sR1dlQ0hxUVZ1b3VDRjkyYmcifX0sImV4cCI6MTc0NTUxMjUxMCwiaWF0IjoxNzQ1NTA4OTEwLCJqdGkiOiJ4LV8xQ1RMMmNjYTNDU0U0Y3diX2wiLCJzdWIiOiJ3aW1zZTovL2V4YW1wbGUuY29tL3NwZWNpZmljLXdvcmtsb2FkIn0.4kNF4FP1dshxHrFub2kRusiV9qK_xrGi0pbLG5hpOS3fR0izYZu5lPHei94TTvOvORJPT9jSVT-C6IIBattDbg",
+      "pop_private_jwk": {
+        "alg": "Ed25519",
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "1CXXvflN_LVVsIsYXsUvB03JmlGWeCHqQVuouCF92bg",
+        "d": "sdLX8yCYKqo_XvGBLn-ZWeKT7llYeeQpgeCaXVxb5kY"
+      },
+      "method": "POST",
+      "uri": "https://workload.example.com/path",
+      "headers": [
+        [
+          "content-type",
+          "application/json"
+        ]
+      ],
+      "body": "{\"do stuff\":\"please\"}"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "mint_wpt": {
+    "error": "creating WPT signer: go-jose/go-jose: unknown/unsupported algorithm",
+    "ok": false
+  },
+  "cases": [
+    {
+      "agrees": true,
+      "caller": "spiffe://td.example/agent-a",
+      "expect": "accept",
+      "id": "wit-wpt-go/valid",
+      "method": "WitWpt",
+      "verdict": "accept"
+    },
+    {
+      "agrees": true,
+      "code": "wit.invalid",
+      "error": "invalid WIT: token has expired",
+      "expect": "reject",
+      "id": "wit-wpt-go/expired_wit",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "wit.invalid",
+      "error": "invalid WIT: signature verification failed",
+      "expect": "reject",
+      "id": "wit-wpt-go/untrusted_issuer",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "wit.invalid",
+      "error": "invalid WIT: signature verification failed",
+      "expect": "reject",
+      "id": "wit-wpt-go/wit_signature_tampered",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "wpt.invalid",
+      "error": "invalid WPT: WIT binding mismatch",
+      "expect": "reject",
+      "id": "wit-wpt-go/wth_mismatch",
+      "verdict": "reject"
+    },
+    {
+      "agrees": true,
+      "code": "wpt.invalid",
+      "error": "invalid WPT: audience mismatch",
+      "expect": "reject",
+      "id": "wit-wpt-go/other_audience",
+      "verdict": "reject"
+    }
+  ],
+  "now": 1795321452,
+  "verifier": "visado",
+  "version": "0.3.0"
+}

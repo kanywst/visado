@@ -19,6 +19,15 @@
         "y": "UBheiVNy32Ih6joTdVfkc_3bZ1XwW9UHw8Uz_OnJEoU"
       },
       "kid": "p256"
+    },
+    {
+      "jwk": {
+        "alg": "RS256",
+        "e": "AQAB",
+        "kty": "RSA",
+        "n": "jRJcEQVrAtBL71411_2anAcw6aY9tOgl6R610B8DtQMPurpw_e_oCno3zx5FHxVmToWA57iKALw-8ie2YxefwPqPB-BvfNLClvFwRvR37NVJqFQzkuf-XZd6doHT2PytSuhm4fXR0SY2BM1wShQ06s8WkYTwooJf_kzXIulKPHA617JBuxQ1FHeMz1_GsFE7Inc08uYUv9YtN-hSPPGkjjhOLHoBtDpV3OXwvyFemM14ajQu-xJJVetRtHCH0omy_SAoiGEab85fQtOMNek4RsW2fH0g-iC38N3CAFvWNtIDKrOImWlqqOs9xHpRLw3vwl6hh5TZrOGBTM-12hUUiQ"
+      },
+      "kid": "rsa"
     }
   ],
   "negative": [
@@ -153,6 +162,82 @@
       "expect": "txn.invalid_claim",
       "id": "scope-empty",
       "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoiZWQiLCJ0eXAiOiJ0eG50b2tlbitqd3QifQ.eyJhdWQiOiJ0cnVzdC1kb21haW4uZXhhbXBsZSIsImV4cCI6MTgwMDAwMDA1MCwiaWF0IjoxNzk5OTk5OTkwLCJyY3R4Ijp7ImF1dGhuIjoidXJuOmlldGY6cmZjOjY3NDkiLCJyZXFfaXAiOiI2OS4xNTEuNzIuMTIzIn0sInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2FwaWdhdGV3YXkiLCJzY29wZSI6IiAiLCJzdWIiOiJkMDg0c2RydDIzNGZzYXczNHRyMjN0IiwidGN0eCI6eyJhY3Rpb24iOiJCVVkiLCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwidHhuIjoiOTcwNTM5NjMtNzcxZC00OWNjLWE0ZTMtMjBhYWQzOTljMzEyIn0.ZE14AKOCgBamF8o3eJRqc73gX8QCNxv_kKAFZ1U4so8RrTNQo7qcdMXx950LmWggZrf25rqo8pH3qnJBOFPEAg"
+    },
+    {
+      "description": "header says RS256, kid names the Ed25519 key",
+      "expect": "txn.alg_mismatch",
+      "id": "rs256-ed25519-key",
+      "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImVkIiwidHlwIjoidHhudG9rZW4rand0In0.eyJhdWQiOiJ0cnVzdC1kb21haW4uZXhhbXBsZSIsImV4cCI6MTgwMDAwMDA1MCwiaWF0IjoxNzk5OTk5OTkwLCJyY3R4Ijp7ImF1dGhuIjoidXJuOmlldGY6cmZjOjY3NDkiLCJyZXFfaXAiOiI2OS4xNTEuNzIuMTIzIn0sInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2FwaWdhdGV3YXkiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInN1YiI6ImQwODRzZHJ0MjM0ZnNhdzM0dHIyM3QiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsInF1YW50aXR5IjoiMTAwIiwidGlja2VyIjoiTVNGVCJ9LCJ0eG4iOiI5NzA1Mzk2My03NzFkLTQ5Y2MtYTRlMy0yMGFhZDM5OWMzMTIifQ.Yywfh3_mJsLWGdVgrkok0vCuInDwBkzn6LXpg86-pFz2kLGPlTCzdyirP3O1-NWHOuwRUFittlk_lgSMUxKCTBmj7oCVzQnNobeb_kCuiTRGdY1lfElG_EGlMWtkrjjcuw_NCkQv03GWBTcOnOvATgbjr6A56l60X3HRpXw-mekdx83At_dS2eI5uK4XwdlwgAb8RTitcCao9zMfnZmcnQDIxK0dr-9l4eeMbnMOGWyIFx3NRXhMM698Y5d7ygvGhn29hO9zIzUFhMy9BQG6oTtKDSzOjwDZcm7lf_T7szOKKUUgoBSc1RJVb3AyvZk5PGQUFlh1DudByOwGLaoOOw"
+    },
+    {
+      "description": "aud is a one-element array with another trust domain",
+      "expect": "txn.audience_mismatch",
+      "id": "aud-array-other",
+      "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoiZWQiLCJ0eXAiOiJ0eG50b2tlbitqd3QifQ.eyJhdWQiOlsib3RoZXIuZXhhbXBsZSJdLCJleHAiOjE4MDAwMDAwNTAsImlhdCI6MTc5OTk5OTk5MCwicmN0eCI6eyJhdXRobiI6InVybjppZXRmOnJmYzo2NzQ5IiwicmVxX2lwIjoiNjkuMTUxLjcyLjEyMyJ9LCJyZXFfd2wiOiJzcGlmZmU6Ly90cnVzdC1kb21haW4uZXhhbXBsZS9hcGlnYXRld2F5Iiwic2NvcGUiOiJ0cmFkZS5zdG9ja3MiLCJzdWIiOiJkMDg0c2RydDIzNGZzYXczNHRyMjN0IiwidGN0eCI6eyJhY3Rpb24iOiJCVVkiLCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwidHhuIjoiOTcwNTM5NjMtNzcxZC00OWNjLWE0ZTMtMjBhYWQzOTljMzEyIn0.ZJaN3erO4B3uH-Db7YA5Wy7eix-v0xKrMc0gpLtBuWKygZlBqSh8cpN1bLxjf4WGGO9_PFo7-LIaDLM3BiDnDA"
+    },
+    {
+      "description": "aud is an empty array",
+      "expect": "txn.invalid_claim",
+      "id": "aud-array-empty",
+      "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoiZWQiLCJ0eXAiOiJ0eG50b2tlbitqd3QifQ.eyJhdWQiOltdLCJleHAiOjE4MDAwMDAwNTAsImlhdCI6MTc5OTk5OTk5MCwicmN0eCI6eyJhdXRobiI6InVybjppZXRmOnJmYzo2NzQ5IiwicmVxX2lwIjoiNjkuMTUxLjcyLjEyMyJ9LCJyZXFfd2wiOiJzcGlmZmU6Ly90cnVzdC1kb21haW4uZXhhbXBsZS9hcGlnYXRld2F5Iiwic2NvcGUiOiJ0cmFkZS5zdG9ja3MiLCJzdWIiOiJkMDg0c2RydDIzNGZzYXczNHRyMjN0IiwidGN0eCI6eyJhY3Rpb24iOiJCVVkiLCJxdWFudGl0eSI6IjEwMCIsInRpY2tlciI6Ik1TRlQifSwidHhuIjoiOTcwNTM5NjMtNzcxZC00OWNjLWE0ZTMtMjBhYWQzOTljMzEyIn0.iDzux_4S2JfJ65I1Wa0vUVN_NAVsWbD0E85jZMaz6q_-7-WYZpqKLli2aHj4xkYhmE5k4l1Ga4IaPrKKDjlzBw"
+    },
+    {
+      "description": "aud array element is not a string",
+      "expect": "txn.invalid_claim",
+      "id": "aud-array-non-string",
+      "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoiZWQiLCJ0eXAiOiJ0eG50b2tlbitqd3QifQ.eyJhdWQiOls3XSwiZXhwIjoxODAwMDAwMDUwLCJpYXQiOjE3OTk5OTk5OTAsInJjdHgiOnsiYXV0aG4iOiJ1cm46aWV0ZjpyZmM6Njc0OSIsInJlcV9pcCI6IjY5LjE1MS43Mi4xMjMifSwicmVxX3dsIjoic3BpZmZlOi8vdHJ1c3QtZG9tYWluLmV4YW1wbGUvYXBpZ2F0ZXdheSIsInNjb3BlIjoidHJhZGUuc3RvY2tzIiwic3ViIjoiZDA4NHNkcnQyMzRmc2F3MzR0cjIzdCIsInRjdHgiOnsiYWN0aW9uIjoiQlVZIiwicXVhbnRpdHkiOiIxMDAiLCJ0aWNrZXIiOiJNU0ZUIn0sInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiJ9.ntaD_JBeqM-LlESFblo3mAkQxhaJj0JkdmpKLr_sy_h2Jax9brWToc9rpq6sJS4KppiDiYYJT7y0dKFpWDNoAg"
+    },
+    {
+      "description": "aud array names the trust domain and another; a Txn-Token is for one trust domain",
+      "expect": "txn.invalid_claim",
+      "id": "aud-array-several",
+      "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoiZWQiLCJ0eXAiOiJ0eG50b2tlbitqd3QifQ.eyJhdWQiOlsib3RoZXIuZXhhbXBsZSIsInRydXN0LWRvbWFpbi5leGFtcGxlIl0sImV4cCI6MTgwMDAwMDA1MCwiaWF0IjoxNzk5OTk5OTkwLCJyY3R4Ijp7ImF1dGhuIjoidXJuOmlldGY6cmZjOjY3NDkiLCJyZXFfaXAiOiI2OS4xNTEuNzIuMTIzIn0sInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2FwaWdhdGV3YXkiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInN1YiI6ImQwODRzZHJ0MjM0ZnNhdzM0dHIyM3QiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsInF1YW50aXR5IjoiMTAwIiwidGlja2VyIjoiTVNGVCJ9LCJ0eG4iOiI5NzA1Mzk2My03NzFkLTQ5Y2MtYTRlMy0yMGFhZDM5OWMzMTIifQ.V1wSZtooSMKRK-Y9GSI7ymkqUoFLMVEXxk_lKKANeR2g6fqOYjsL55vWXr01OGPmAIGFcpMEXRX7EKMnHsqbAA"
+    }
+  ],
+  "rejected_keys": [
+    {
+      "description": "RSA keys under 2048 bits are refused",
+      "expect": "txn.weak_key",
+      "jwk": {
+        "alg": "RS256",
+        "e": "AQAB",
+        "kty": "RSA",
+        "n": "q5CYDfXEp2NuGKjqFebbMyY7KnAVkEhv2-12YHBgOHZVzKJb88HSm7VgIK_8ht1fBHgTu2mh31su1uKrfdGZtBl9XnNZ434hlxNhQqz20p83xkKJSwZbNUMlD1z6ViHt19nalC3EXX4sGrhIkgG6wMjJ2Jvp-fBqco0XBaJNRjk"
+      },
+      "kid": "rsa-1024"
+    },
+    {
+      "description": "e = 1: every value is its own signature",
+      "expect": "txn.invalid_key",
+      "jwk": {
+        "alg": "RS256",
+        "e": "AQ",
+        "kty": "RSA",
+        "n": "jRJcEQVrAtBL71411_2anAcw6aY9tOgl6R610B8DtQMPurpw_e_oCno3zx5FHxVmToWA57iKALw-8ie2YxefwPqPB-BvfNLClvFwRvR37NVJqFQzkuf-XZd6doHT2PytSuhm4fXR0SY2BM1wShQ06s8WkYTwooJf_kzXIulKPHA617JBuxQ1FHeMz1_GsFE7Inc08uYUv9YtN-hSPPGkjjhOLHoBtDpV3OXwvyFemM14ajQu-xJJVetRtHCH0omy_SAoiGEab85fQtOMNek4RsW2fH0g-iC38N3CAFvWNtIDKrOImWlqqOs9xHpRLw3vwl6hh5TZrOGBTM-12hUUiQ"
+      },
+      "kid": "rsa-e1"
+    },
+    {
+      "description": "e = 3: only e = 65537 is accepted",
+      "expect": "txn.invalid_key",
+      "jwk": {
+        "alg": "RS256",
+        "e": "Aw",
+        "kty": "RSA",
+        "n": "jRJcEQVrAtBL71411_2anAcw6aY9tOgl6R610B8DtQMPurpw_e_oCno3zx5FHxVmToWA57iKALw-8ie2YxefwPqPB-BvfNLClvFwRvR37NVJqFQzkuf-XZd6doHT2PytSuhm4fXR0SY2BM1wShQ06s8WkYTwooJf_kzXIulKPHA617JBuxQ1FHeMz1_GsFE7Inc08uYUv9YtN-hSPPGkjjhOLHoBtDpV3OXwvyFemM14ajQu-xJJVetRtHCH0omy_SAoiGEab85fQtOMNek4RsW2fH0g-iC38N3CAFvWNtIDKrOImWlqqOs9xHpRLw3vwl6hh5TZrOGBTM-12hUUiQ"
+      },
+      "kid": "rsa-e3"
+    },
+    {
+      "description": "an even e is not a valid RSA exponent",
+      "expect": "txn.invalid_key",
+      "jwk": {
+        "alg": "RS256",
+        "e": "AQAA",
+        "kty": "RSA",
+        "n": "jRJcEQVrAtBL71411_2anAcw6aY9tOgl6R610B8DtQMPurpw_e_oCno3zx5FHxVmToWA57iKALw-8ie2YxefwPqPB-BvfNLClvFwRvR37NVJqFQzkuf-XZd6doHT2PytSuhm4fXR0SY2BM1wShQ06s8WkYTwooJf_kzXIulKPHA617JBuxQ1FHeMz1_GsFE7Inc08uYUv9YtN-hSPPGkjjhOLHoBtDpV3OXwvyFemM14ajQu-xJJVetRtHCH0omy_SAoiGEab85fQtOMNek4RsW2fH0g-iC38N3CAFvWNtIDKrOImWlqqOs9xHpRLw3vwl6hh5TZrOGBTM-12hUUiQ"
+      },
+      "kid": "rsa-e-even"
     }
   ],
   "spec": "draft-ietf-oauth-transaction-tokens-11",
@@ -182,6 +267,16 @@
       "description": "tctx and rctx are RECOMMENDED, not REQUIRED",
       "id": "no-optional-claims",
       "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoiZWQiLCJ0eXAiOiJ0eG50b2tlbitqd3QifQ.eyJhdWQiOiJ0cnVzdC1kb21haW4uZXhhbXBsZSIsImV4cCI6MTgwMDAwMDA1MCwiaWF0IjoxNzk5OTk5OTkwLCJyZXFfd2wiOiJzcGlmZmU6Ly90cnVzdC1kb21haW4uZXhhbXBsZS9hcGlnYXRld2F5Iiwic2NvcGUiOiJ0cmFkZS5zdG9ja3MiLCJzdWIiOiJkMDg0c2RydDIzNGZzYXczNHRyMjN0IiwidHhuIjoiOTcwNTM5NjMtNzcxZC00OWNjLWE0ZTMtMjBhYWQzOTljMzEyIn0.m03wl4slKE7arVqFfpLVu1-MrQ-wfpZksVSORi_rzU6NrKxXdx4s1_c_at1xI3gCK6Mc7iFI7P7V-6qu5RTVBQ"
+    },
+    {
+      "description": "RS256 with a 2048-bit RSA key, all claims",
+      "id": "rs256",
+      "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYSIsInR5cCI6InR4bnRva2VuK2p3dCJ9.eyJhdWQiOiJ0cnVzdC1kb21haW4uZXhhbXBsZSIsImV4cCI6MTgwMDAwMDA1MCwiaWF0IjoxNzk5OTk5OTkwLCJyY3R4Ijp7ImF1dGhuIjoidXJuOmlldGY6cmZjOjY3NDkiLCJyZXFfaXAiOiI2OS4xNTEuNzIuMTIzIn0sInJlcV93bCI6InNwaWZmZTovL3RydXN0LWRvbWFpbi5leGFtcGxlL2FwaWdhdGV3YXkiLCJzY29wZSI6InRyYWRlLnN0b2NrcyIsInN1YiI6ImQwODRzZHJ0MjM0ZnNhdzM0dHIyM3QiLCJ0Y3R4Ijp7ImFjdGlvbiI6IkJVWSIsInF1YW50aXR5IjoiMTAwIiwidGlja2VyIjoiTVNGVCJ9LCJ0eG4iOiI5NzA1Mzk2My03NzFkLTQ5Y2MtYTRlMy0yMGFhZDM5OWMzMTIifQ.Erglb3mXgfF6Je7KUuHOCwr781GcaEr-iKIYrVKK7yDMQkUbnf8GeDfF_xvLgA23uFww0uiUsTMwGJLC1xvN9CBMvd-rNFNKYilvij0FxPjKxKLvdjnJQdhX2ZBGKpQLuDPC4c5sRMKcViZP1fjMc5Yp1TwMR5aBhpo8OVLMVEJwp6xWhtssQvauIePCnddYsZkP5sIttN6AUYATP1AKGbovlEq6ptZPYbIXgPe74r1NMN9jotHEmSmguBp3FCjuz9HB2kVixQskiUid4OHCgiv_SX13eVNY5yLNkK1qMqtEqW2lYsBIj-_Q4qZFtsQ2aqc_heee4-NmUFEWWtYAGA"
+    },
+    {
+      "description": "aud as a one-element array holding the trust domain (RFC 7519 §4.1.3)",
+      "id": "aud-array-one",
+      "token": "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoiZWQiLCJ0eXAiOiJ0eG50b2tlbitqd3QifQ.eyJhdWQiOlsidHJ1c3QtZG9tYWluLmV4YW1wbGUiXSwiZXhwIjoxODAwMDAwMDUwLCJpYXQiOjE3OTk5OTk5OTAsInJjdHgiOnsiYXV0aG4iOiJ1cm46aWV0ZjpyZmM6Njc0OSIsInJlcV9pcCI6IjY5LjE1MS43Mi4xMjMifSwicmVxX3dsIjoic3BpZmZlOi8vdHJ1c3QtZG9tYWluLmV4YW1wbGUvYXBpZ2F0ZXdheSIsInNjb3BlIjoidHJhZGUuc3RvY2tzIiwic3ViIjoiZDA4NHNkcnQyMzRmc2F3MzR0cjIzdCIsInRjdHgiOnsiYWN0aW9uIjoiQlVZIiwicXVhbnRpdHkiOiIxMDAiLCJ0aWNrZXIiOiJNU0ZUIn0sInR4biI6Ijk3MDUzOTYzLTc3MWQtNDljYy1hNGUzLTIwYWFkMzk5YzMxMiJ9.2-scnEYUMfenHp4MS0RoaphIEA7Zg6jHyuMbarpee0RjDavf7T2SDnaU49Yqt2x9ridlUopphQ6hXagtfTfbCg"
     }
   ],
   "validation": {

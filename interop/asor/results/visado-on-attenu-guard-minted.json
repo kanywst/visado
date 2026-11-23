@@ -1,0 +1,119 @@
+{
+  "minted_by": "attenu-guard 0.22.0",
+  "verified_by": "visado-chain-asor",
+  "cases": 9,
+  "differ": 0,
+  "results": [
+    {
+      "id": "A.1",
+      "note": "two hops, no request",
+      "attenu_guard": {
+        "verdict": "accept"
+      },
+      "visado": {
+        "verdict": "accept"
+      },
+      "agree": true
+    },
+    {
+      "id": "A.2",
+      "note": "three hops, no request",
+      "attenu_guard": {
+        "verdict": "accept"
+      },
+      "visado": {
+        "verdict": "accept"
+      },
+      "agree": true
+    },
+    {
+      "id": "A.3",
+      "note": "two hops, DPoP-bound request within the ceiling",
+      "attenu_guard": {
+        "verdict": "accept"
+      },
+      "visado": {
+        "verdict": "accept"
+      },
+      "agree": true
+    },
+    {
+      "id": "A.4",
+      "note": "two hops, request over the child's ceiling",
+      "attenu_guard": {
+        "verdict": "reject",
+        "reason": "ceiling_exceeded"
+      },
+      "visado": {
+        "verdict": "reject",
+        "reason": "ceiling_exceeded"
+      },
+      "agree": true
+    },
+    {
+      "id": "A.5",
+      "note": "two hops, scope the leaf does not hold",
+      "attenu_guard": {
+        "verdict": "reject",
+        "reason": "scope_not_granted"
+      },
+      "visado": {
+        "verdict": "reject",
+        "reason": "scope_not_granted"
+      },
+      "agree": true
+    },
+    {
+      "id": "A.6",
+      "note": "child signature altered",
+      "attenu_guard": {
+        "verdict": "reject",
+        "reason": "signature_invalid"
+      },
+      "visado": {
+        "verdict": "reject",
+        "reason": "signature_invalid"
+      },
+      "agree": true
+    },
+    {
+      "id": "A.7",
+      "note": "checked after the child's exp",
+      "attenu_guard": {
+        "verdict": "reject",
+        "reason": "expired"
+      },
+      "visado": {
+        "verdict": "reject",
+        "reason": "expired"
+      },
+      "agree": true
+    },
+    {
+      "id": "A.8",
+      "note": "leaf audience names another enforcement point",
+      "attenu_guard": {
+        "verdict": "reject",
+        "reason": "audience_mismatch"
+      },
+      "visado": {
+        "verdict": "reject",
+        "reason": "audience_mismatch"
+      },
+      "agree": true
+    },
+    {
+      "id": "A.9",
+      "note": "signed by attenu-guard's built-in signer (alg EdDSA)",
+      "attenu_guard": {
+        "verdict": "accept"
+      },
+      "visado": {
+        "verdict": "reject",
+        "reason": "signature_invalid"
+      },
+      "agree": false,
+      "known_divergence": "attenu-guard signs Ed25519 as \"EdDSA\"; Section 3 of the -03 requires the fully-specified \"Ed25519\" (RFC 9864). The draft's Section 11 records this."
+    }
+  ]
+}

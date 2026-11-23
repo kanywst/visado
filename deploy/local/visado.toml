@@ -8,6 +8,9 @@ default_scope = "tickets.read"
 allowed_authorities = ["tools.td.example"]
 internal_callers = ["spiffe://td.example/agent-a"]
 
+# The private JWK that signs Transaction Tokens: OKP Ed25519 or EC P-256, or
+# RSA (at least 2048 bits, e = 65537) to sign RS256. The public half is served at
+# /.well-known/jwks.json.
 [signing_key]
 kid = "txn-1"
 jwk_file = "keys/txn-signing.private.jwk.json"

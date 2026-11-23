@@ -14,7 +14,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 
 - Mint, verify and replace Txn-Tokens per draft-ietf-oauth-transaction-tokens-11. Conformance vectors with negative cases.
 - **Gate:** vectors pass, and replacement rules (`txn`/`sub`/`aud` fixed, scope never widens, expired tokens refused) fail closed.
-- **Status:** met. `visado-txn-token` with 5 valid and 22 negative vectors in `conformance/txn-token/`.
+- **Status:** met. `visado-txn-token` with 7 valid and 27 negative vectors in `conformance/txn-token/`.
 
 ## Phase 2: ext_authz and caller authentication
 
@@ -48,7 +48,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 - Implementation Status entries in the drafts visado implements.
 - Research write-up, then the release announcement.
 - **Gate:** at least one cross-implementation interop result published.
-- **Status:** not started.
+- **Status:** in progress; the gate is met. [docs/interop.md](docs/interop.md) publishes runs against independent implementations, reproducible from [interop/](interop/): AAT with tenuo (229/229 vectors, and visado-minted chains 9/9 in tenuo's verifier), asor with attenu-guard (both directions), Transaction Tokens with authgent, atlas-go and kontxt (both directions with kontxt, over RS256), and WIMSE credentials with wit-wpt-go, go-spiffe and the Cofide PoC. The research write-up is [docs/research/08-findings.md](docs/research/08-findings.md). Remaining: the IETF 128 hackathon, Implementation Status entries (each needs the draft's authors), reporting the divergences in docs/interop.md upstream, and the release announcement.
 
 ## Phase 7: CNCF Sandbox
 

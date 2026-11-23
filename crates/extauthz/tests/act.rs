@@ -47,7 +47,7 @@ fn txn_key() -> SigningKey {
 fn gate_config() -> GateConfig {
     GateConfig {
         trust_domain: TRUST_DOMAIN.into(),
-        signing_key: txn_key(),
+        signing_key: txn_key().into(),
         kid: "txn-1".into(),
         txn_lifetime: 60,
         default_scope: Scope::parse("tools.call"),

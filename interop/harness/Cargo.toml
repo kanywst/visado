@@ -1,0 +1,27 @@
+[package]
+name = "visado-interop"
+description = "Command-line harness for interop runs against other implementations."
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+visado-chain-aat = { workspace = true }
+visado-chain-asor = { workspace = true }
+visado-testkit = { workspace = true }
+visado-txn-token = { workspace = true }
+wimsey-jose = { workspace = true }
+visado-credentials = { workspace = true }
+wimsey-wit = { workspace = true }
+wimsey-wpt = { workspace = true }
+wimsey-identifier = { workspace = true }
+wimsey-httpsig = { workspace = true }
+base64 = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

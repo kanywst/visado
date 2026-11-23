@@ -1,0 +1,4 @@
+suite:  aat-jws-vectors.json
+sha256: b7a42e9dfdce7fbc1f623670bf060f90e6d6b25f64384cbab1bd79363e82209b  (draft-niyikiza-oauth-attenuating-agent-tokens-02, 229 vectors)
+agree 229, differ 0, skipped 0, missing 0
+steps: 175 of 175 agreed denials at the expected step

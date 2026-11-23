@@ -2,12 +2,14 @@
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use wimsey_jose::{Algorithm, JoseError, SIGNATURE_LEN, SigningKey};
 
 use crate::claims::TxnTokenClaims;
 use crate::error::TxnTokenError;
-use crate::keys::KeySet;
+use crate::keys::{Key, KeySet};
+use crate::signer::TxnSigningKey;
 
 /// The JOSE `typ` of a Transaction Token (§9.1).
 pub const TYP: &str = "txntoken+jwt";
@@ -18,6 +20,11 @@ pub const HEADER: &str = "Txn-Token";
 /// The largest compact serialization accepted, in bytes. Checked before any
 /// decoding.
 pub const MAX_TOKEN_LEN: usize = 16 * 1024;
+
+/// `RS256` (RFC 7518 §3.3): verified with keys added by
+/// [`KeySet::with_rsa_key`], minted by [`mint_with`] with an RSA
+/// [`TxnSigningKey`].
+const RS256: &str = "RS256";
 
 #[derive(Serialize, Deserialize)]
 struct Header {
@@ -94,17 +101,30 @@ pub fn mint(
     kid: Option<&str>,
     key: &SigningKey,
 ) -> Result<String, TxnTokenError> {
+    mint_with(claims, kid, &TxnSigningKey::from(key.clone()))
+}
+
+/// Like [`mint`], with any [`TxnSigningKey`], including an `RS256` key.
+///
+/// # Errors
+///
+/// As [`mint`], or [`TxnTokenError::InvalidKey`] if an RSA key fails to sign.
+pub fn mint_with(
+    claims: &TxnTokenClaims,
+    kid: Option<&str>,
+    key: &TxnSigningKey,
+) -> Result<String, TxnTokenError> {
     claims.check()?;
     let header = Header {
         typ: TYP.to_owned(),
-        alg: key.algorithm().as_str().to_owned(),
+        alg: key.alg().to_owned(),
         kid: kid.map(ToOwned::to_owned),
         crit: None,
     };
     let header_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header)?);
     let claims_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_vec(claims)?);
     let signing_input = format!("{header_b64}.{claims_b64}");
-    let signature = URL_SAFE_NO_PAD.encode(key.sign(signing_input.as_bytes()));
+    let signature = key.sign(signing_input.as_bytes())?;
     Ok(format!("{signing_input}.{signature}"))
 }
 
@@ -136,33 +156,65 @@ pub fn verify(
     if !wimsey_jose::typ_conveys(&header.typ, TYP) {
         return Err(TxnTokenError::WrongType { found: header.typ });
     }
-    let alg = Algorithm::parse(&header.alg).map_err(|e| match e {
-        JoseError::UnsupportedAlg { found } | JoseError::ForbiddenAlg { found } => {
-            TxnTokenError::UnsupportedAlg { found }
-        }
-        _ => TxnTokenError::UnsupportedAlg {
-            found: header.alg.clone(),
-        },
-    })?;
-    if header.crit.is_some() {
-        return Err(TxnTokenError::UnsupportedCritical);
-    }
-    let key = keys
-        .get(header.kid.as_deref())
-        .ok_or(TxnTokenError::UnknownKey)?;
-    if !alg.same_signature_as(key.algorithm()) {
-        return Err(TxnTokenError::AlgorithmMismatch);
-    }
-
-    let signature = decode(signature_b64)?;
-    if signature.len() != SIGNATURE_LEN {
-        return Err(TxnTokenError::Malformed);
-    }
     let signing_input = &token[..header_b64.len() + 1 + claims_b64.len()];
-    key.verify(signing_input.as_bytes(), &signature)
-        .map_err(|_| TxnTokenError::InvalidSignature)?;
+    if header.alg == RS256 {
+        if header.crit.is_some() {
+            return Err(TxnTokenError::UnsupportedCritical);
+        }
+        let Key::Rsa(key) = keys
+            .find(header.kid.as_deref())
+            .ok_or(TxnTokenError::UnknownKey)?
+        else {
+            return Err(TxnTokenError::AlgorithmMismatch);
+        };
+        if decode(signature_b64)?.len() != key.len {
+            return Err(TxnTokenError::Malformed);
+        }
+        let ok = jsonwebtoken::crypto::verify(
+            signature_b64,
+            signing_input.as_bytes(),
+            &key.key,
+            jsonwebtoken::Algorithm::RS256,
+        )
+        .unwrap_or(false);
+        if !ok {
+            return Err(TxnTokenError::InvalidSignature);
+        }
+    } else {
+        let alg = Algorithm::parse(&header.alg).map_err(|e| match e {
+            JoseError::UnsupportedAlg { found } | JoseError::ForbiddenAlg { found } => {
+                TxnTokenError::UnsupportedAlg { found }
+            }
+            _ => TxnTokenError::UnsupportedAlg {
+                found: header.alg.clone(),
+            },
+        })?;
+        if header.crit.is_some() {
+            return Err(TxnTokenError::UnsupportedCritical);
+        }
+        let Key::Jose(key) = keys
+            .find(header.kid.as_deref())
+            .ok_or(TxnTokenError::UnknownKey)?
+        else {
+            return Err(TxnTokenError::AlgorithmMismatch);
+        };
+        if !alg.same_signature_as(key.algorithm()) {
+            return Err(TxnTokenError::AlgorithmMismatch);
+        }
+        let signature = decode(signature_b64)?;
+        if signature.len() != SIGNATURE_LEN {
+            return Err(TxnTokenError::Malformed);
+        }
+        key.verify(signing_input.as_bytes(), &signature)
+            .map_err(|_| TxnTokenError::InvalidSignature)?;
+    }
 
-    let claims: TxnTokenClaims = serde_json::from_slice(&decode(claims_b64)?)?;
+    let mut raw: Value = serde_json::from_slice(&decode(claims_b64)?)?;
+    let audience = audience_array(&raw, &validation.trust_domain)?;
+    if let Some(aud) = audience {
+        raw["aud"] = Value::String(aud);
+    }
+    let claims: TxnTokenClaims = serde_json::from_value(raw)?;
     claims.check()?;
     if claims.aud != validation.trust_domain {
         return Err(TxnTokenError::AudienceMismatch);
@@ -182,6 +234,28 @@ pub fn verify(
         claims,
         kid: header.kid,
     })
+}
+
+/// An `aud` given as an array (RFC 7519 §4.1.3). A Transaction Token is
+/// scoped to one trust domain (§9.2), so only an array of exactly one element
+/// is read, as that element. `Some(trust domain)` if the element is the trust
+/// domain, so the claims read it as a string;
+/// [`TxnTokenError::AudienceMismatch`] if it is another non-empty string;
+/// [`TxnTokenError::InvalidClaim`] for an empty array, an array of more than
+/// one element, or an element that is not a non-empty string. `None` when
+/// `aud` is not an array.
+fn audience_array(claims: &Value, trust_domain: &str) -> Result<Option<String>, TxnTokenError> {
+    let Some(values) = claims.get("aud").and_then(Value::as_array) else {
+        return Ok(None);
+    };
+    let [value] = values.as_slice() else {
+        return Err(TxnTokenError::InvalidClaim { claim: "aud" });
+    };
+    match value.as_str() {
+        Some(aud) if aud == trust_domain => Ok(Some(trust_domain.to_owned())),
+        Some(aud) if !aud.is_empty() => Err(TxnTokenError::AudienceMismatch),
+        _ => Err(TxnTokenError::InvalidClaim { claim: "aud" }),
+    }
 }
 
 /// A log-safe identifier for a token: the Base64url SHA-256 of its compact

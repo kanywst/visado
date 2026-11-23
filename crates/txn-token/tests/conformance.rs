@@ -7,8 +7,12 @@
 
 use std::path::PathBuf;
 
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::{
+    Engine,
+    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
+};
 use serde_json::{Value, json};
+use visado_txn_token::TxnTokenError;
 use visado_txn_token::{KeySet, Validation, verify};
 use wimsey_jose::{Jwk, SigningKey};
 
@@ -50,6 +54,58 @@ fn sign_raw(header: &Value, claims: &Value, key: &SigningKey) -> String {
     format!("{input}.{sig}")
 }
 
+fn fixture(name: &str) -> String {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(name);
+    std::fs::read_to_string(path).expect("fixture")
+}
+
+/// The public JWK of a test RSA key in `tests/fixtures`, with `alg`.
+/// The 2048-bit test key's public JWK with the exponent `e` instead of 65537.
+fn rsa_jwk_with_e(e: &[u8]) -> Value {
+    let mut jwk = rsa_jwk(2048);
+    jwk["e"] = json!(URL_SAFE_NO_PAD.encode(e));
+    jwk
+}
+
+fn rsa_jwk(bits: u32) -> Value {
+    let mut jwk: Value =
+        serde_json::from_str(&fixture(&format!("rsa-{bits}.public.jwk.json"))).expect("jwk");
+    jwk["alg"] = json!("RS256");
+    jwk
+}
+
+/// `claims` signed RS256 by the 2048-bit test RSA key, under `kid`, with
+/// jsonwebtoken rather than this crate's signer. PKCS#1 v1.5 is
+/// deterministic, so the vectors are reproducible.
+fn rs256(kid: &str, claims: &Value) -> String {
+    let der = STANDARD
+        .decode(fixture("rsa-2048.private.der.b64").trim())
+        .expect("der");
+    let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header("RS256", kid)).unwrap());
+    let c = URL_SAFE_NO_PAD.encode(serde_json::to_vec(claims).unwrap());
+    let input = format!("{h}.{c}");
+    let sig = jsonwebtoken::crypto::sign(
+        input.as_bytes(),
+        &jsonwebtoken::EncodingKey::from_rsa_der(&der),
+        jsonwebtoken::Algorithm::RS256,
+    )
+    .expect("sign");
+    format!("{input}.{sig}")
+}
+
+/// Adds a vector key to `keys`: an RSA JWK through `with_rsa_key`, any other
+/// through wimsey-jose.
+fn add_key(keys: KeySet, kid: &str, jwk: &Value) -> Result<KeySet, TxnTokenError> {
+    if jwk["kty"] == "RSA" {
+        let part = |name: &str| URL_SAFE_NO_PAD.decode(jwk[name].as_str().unwrap()).unwrap();
+        return keys.with_rsa_key(kid, &part("n"), &part("e"));
+    }
+    let jwk: Jwk = serde_json::from_value(jwk.clone()).unwrap();
+    Ok(keys.with_key(kid, jwk.to_verifying_key().unwrap()))
+}
+
 fn with(mut base: Value, field: &str, value: Value) -> Value {
     base[field] = value;
     base
@@ -80,6 +136,8 @@ fn build() -> Value {
         json!({ "id": "typ-full-media-type", "description": "typ spelled as application/txntoken+jwt", "token": ed(Some(("typ", json!("application/txntoken+jwt"))), &base) }),
         json!({ "id": "unknown-claim-ignored", "description": "recipients ignore claims they do not understand (§9.2)", "token": ed(None, &with(base.clone(), "x_vendor", json!({"a": 1}))) }),
         json!({ "id": "no-optional-claims", "description": "tctx and rctx are RECOMMENDED, not REQUIRED", "token": ed(None, &without(without(base.clone(), "tctx"), "rctx")) }),
+        json!({ "id": "rs256", "description": "RS256 with a 2048-bit RSA key, all claims", "token": rs256("rsa", &base) }),
+        json!({ "id": "aud-array-one", "description": "aud as a one-element array holding the trust domain (RFC 7519 §4.1.3)", "token": ed(None, &with(base.clone(), "aud", json!([TRUST_DOMAIN]))) }),
     ];
 
     let good = ed(None, &base);
@@ -112,6 +170,11 @@ fn build() -> Value {
         ("txn-missing", "txn absent", ed(None, &without(base.clone(), "txn")), "txn.malformed"),
         ("sub-empty", "sub is empty", ed(None, &with(base.clone(), "sub", json!(""))), "txn.invalid_claim"),
         ("scope-empty", "scope is empty", ed(None, &with(base.clone(), "scope", json!(" "))), "txn.invalid_claim"),
+        ("rs256-ed25519-key", "header says RS256, kid names the Ed25519 key", rs256("ed", &base), "txn.alg_mismatch"),
+        ("aud-array-other", "aud is a one-element array with another trust domain", ed(None, &with(base.clone(), "aud", json!(["other.example"]))), "txn.audience_mismatch"),
+        ("aud-array-empty", "aud is an empty array", ed(None, &with(base.clone(), "aud", json!([]))), "txn.invalid_claim"),
+        ("aud-array-non-string", "aud array element is not a string", ed(None, &with(base.clone(), "aud", json!([7]))), "txn.invalid_claim"),
+        ("aud-array-several", "aud array names the trust domain and another; a Txn-Token is for one trust domain", ed(None, &with(base.clone(), "aud", json!(["other.example", TRUST_DOMAIN]))), "txn.invalid_claim"),
     ]
     .into_iter()
     .map(|(id, description, token, expect)| json!({ "id": id, "description": description, "token": token, "expect": expect }))
@@ -124,7 +187,14 @@ fn build() -> Value {
         "validation": { "trust_domain": TRUST_DOMAIN, "now": NOW, "leeway": 0, "max_lifetime": MAX_LIFETIME },
         "keys": [
             { "kid": "ed", "jwk": Jwk::from_verifying_key(&ed25519().verifying_key()) },
-            { "kid": "p256", "jwk": Jwk::from_verifying_key(&es256().verifying_key()) }
+            { "kid": "p256", "jwk": Jwk::from_verifying_key(&es256().verifying_key()) },
+            { "kid": "rsa", "jwk": rsa_jwk(2048) }
+        ],
+        "rejected_keys": [
+            { "kid": "rsa-1024", "jwk": rsa_jwk(1024), "description": "RSA keys under 2048 bits are refused", "expect": "txn.weak_key" },
+            { "kid": "rsa-e1", "jwk": rsa_jwk_with_e(&[1]), "description": "e = 1: every value is its own signature", "expect": "txn.invalid_key" },
+            { "kid": "rsa-e3", "jwk": rsa_jwk_with_e(&[3]), "description": "e = 3: only e = 65537 is accepted", "expect": "txn.invalid_key" },
+            { "kid": "rsa-e-even", "jwk": rsa_jwk_with_e(&[0x01, 0x00, 0x00]), "description": "an even e is not a valid RSA exponent", "expect": "txn.invalid_key" }
         ],
         "valid": valid,
         "negative": negative
@@ -152,8 +222,14 @@ fn vectors_are_fresh_and_pass() {
     let vectors: Value = serde_json::from_str(&on_disk).unwrap();
     let mut keys = KeySet::new();
     for k in vectors["keys"].as_array().unwrap() {
-        let jwk: Jwk = serde_json::from_value(k["jwk"].clone()).unwrap();
-        keys = keys.with_key(k["kid"].as_str().unwrap(), jwk.to_verifying_key().unwrap());
+        keys = add_key(keys, k["kid"].as_str().unwrap(), &k["jwk"])
+            .unwrap_or_else(|e| panic!("key {}: {}", k["kid"], e.code()));
+    }
+    for k in vectors["rejected_keys"].as_array().unwrap() {
+        let err = add_key(KeySet::new(), k["kid"].as_str().unwrap(), &k["jwk"])
+            .err()
+            .unwrap_or_else(|| panic!("key {}: expected {}, loaded", k["kid"], k["expect"]));
+        assert_eq!(err.code(), k["expect"].as_str().unwrap(), "{}", k["kid"]);
     }
     let v = &vectors["validation"];
     let validation = Validation::new(

@@ -95,7 +95,7 @@ fn gate(v: &Vector) -> Gate<ChainPdp> {
 fn gate_requiring(v: &Vector, require_chain: bool) -> Gate<ChainPdp> {
     let config = GateConfig {
         trust_domain: TRUST_DOMAIN.into(),
-        signing_key: txn_key(),
+        signing_key: txn_key().into(),
         kid: "txn-1".into(),
         txn_lifetime: 60,
         default_scope: Scope::parse("tools.call"),
@@ -214,7 +214,7 @@ async fn rejections() {
     let wit = wit_at("spiffe://td.example/orchestrator", &pop, v.now);
     let mut config = GateConfig {
         trust_domain: TRUST_DOMAIN.into(),
-        signing_key: txn_key(),
+        signing_key: txn_key().into(),
         kid: "txn-1".into(),
         txn_lifetime: 60,
         default_scope: Scope::parse("tools.call"),

@@ -38,6 +38,13 @@ pub enum TxnTokenError {
     /// The key found for `kid` uses a different algorithm than the header names.
     #[error("the token's `alg` does not match the key's algorithm")]
     AlgorithmMismatch,
+    /// An RSA key is shorter than [`MIN_RSA_BITS`](crate::MIN_RSA_BITS).
+    #[error("RSA key too weak")]
+    WeakKey,
+    /// A signing or verification key could not be used, such as an RSA key
+    /// whose exponent is not 65537; the text names the problem.
+    #[error("unusable key: {0}")]
+    InvalidKey(&'static str),
     /// The signature does not verify.
     #[error("signature verification failed")]
     InvalidSignature,
@@ -91,6 +98,8 @@ impl TxnTokenError {
             Self::UnsupportedCritical => "txn.unsupported_crit",
             Self::UnknownKey => "txn.unknown_key",
             Self::AlgorithmMismatch => "txn.alg_mismatch",
+            Self::WeakKey => "txn.weak_key",
+            Self::InvalidKey(_) => "txn.invalid_key",
             Self::InvalidSignature => "txn.bad_signature",
             Self::AudienceMismatch => "txn.audience_mismatch",
             Self::Expired => "txn.expired",

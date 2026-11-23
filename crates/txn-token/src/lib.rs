@@ -7,8 +7,9 @@
 //!   checks one (§13.15).
 //! - [`TokenRequest`] parses a request to a Transaction Token Service (§11.1).
 //!
-//! Signing uses `wimsey-jose`, so the supported algorithms are `Ed25519`,
-//! `EdDSA` and `ES256`.
+//! Tokens are signed with `Ed25519`, `EdDSA` or `ES256` through `wimsey-jose`,
+//! or with `RS256` and an RSA key of at least 2048 bits ([`TxnSigningKey`],
+//! [`mint_with`], [`KeySet::with_rsa_key`]).
 //!
 //! ```
 //! use visado_txn_token::{mint, verify, KeySet, Scope, TxnTokenClaims, Validation};
@@ -39,16 +40,18 @@ mod error;
 mod keys;
 mod replace;
 mod request;
+mod signer;
 mod token;
 
 pub use claims::{Scope, TxnTokenClaims};
 pub use error::TxnTokenError;
-pub use keys::KeySet;
+pub use keys::{KeySet, MIN_RSA_BITS, RSA_EXPONENT};
 pub use replace::{Replacement, check_replacement, replace};
 pub use request::{
     GRANT_TYPE_TOKEN_EXCHANGE, TOKEN_TYPE_REFRESH_TOKEN, TOKEN_TYPE_SELF_SIGNED,
     TOKEN_TYPE_TXN_TOKEN, TOKEN_TYPE_UNSIGNED_JSON, TokenRequest,
 };
+pub use signer::TxnSigningKey;
 pub use token::{
-    HEADER, MAX_TOKEN_LEN, TYP, Validation, VerifiedTxnToken, fingerprint, mint, verify,
+    HEADER, MAX_TOKEN_LEN, TYP, Validation, VerifiedTxnToken, fingerprint, mint, mint_with, verify,
 };

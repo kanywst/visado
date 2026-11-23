@@ -1,0 +1,121 @@
+{
+  "minted_by": "visado-testkit 0.3.0",
+  "verified_by": "attenu-guard 0.22.0",
+  "cases": 9,
+  "differ": 0,
+  "results": [
+    {
+      "id": "V.1",
+      "note": "two hops, scope and ceiling narrowed",
+      "visado": {
+        "verdict": "accept"
+      },
+      "attenu_guard": {
+        "verdict": "accept"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.2",
+      "note": "three hops",
+      "visado": {
+        "verdict": "accept"
+      },
+      "attenu_guard": {
+        "verdict": "accept"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.3",
+      "note": "child adds a scope",
+      "visado": {
+        "reason": "not_narrower",
+        "verdict": "reject"
+      },
+      "attenu_guard": {
+        "verdict": "reject",
+        "reason": "not_narrower"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.4",
+      "note": "child raises a ceiling",
+      "visado": {
+        "reason": "not_narrower",
+        "verdict": "reject"
+      },
+      "attenu_guard": {
+        "verdict": "reject",
+        "reason": "not_narrower"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.5",
+      "note": "child changes sub",
+      "visado": {
+        "reason": "principal_altered",
+        "verdict": "reject"
+      },
+      "attenu_guard": {
+        "verdict": "reject",
+        "reason": "principal_altered"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.6",
+      "note": "child's par_hash does not match its parent",
+      "visado": {
+        "reason": "par_hash_mismatch",
+        "verdict": "reject"
+      },
+      "attenu_guard": {
+        "verdict": "reject",
+        "reason": "par_hash_mismatch"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.7",
+      "note": "three tokens under del_max_depth 2",
+      "visado": {
+        "reason": "depth_invalid",
+        "verdict": "reject"
+      },
+      "attenu_guard": {
+        "verdict": "reject",
+        "reason": "depth_invalid"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.8",
+      "note": "child signature altered",
+      "visado": {
+        "reason": "signature_invalid",
+        "verdict": "reject"
+      },
+      "attenu_guard": {
+        "verdict": "reject",
+        "reason": "signature_invalid"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.9",
+      "note": "checked after the child's exp",
+      "visado": {
+        "reason": "expired",
+        "verdict": "reject"
+      },
+      "attenu_guard": {
+        "verdict": "reject",
+        "reason": "expired"
+      },
+      "agree": true
+    }
+  ]
+}

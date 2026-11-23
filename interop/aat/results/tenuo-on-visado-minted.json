@@ -1,0 +1,120 @@
+{
+  "verifier": "tenuo ietf/vectors/gen_vectors.py verify_chain",
+  "cases": 9,
+  "differ": 0,
+  "results": [
+    {
+      "id": "V.1",
+      "note": "two hops, call within the child's one_of",
+      "visado": {
+        "verdict": "PERMIT"
+      },
+      "tenuo": {
+        "verdict": "PERMIT"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.2",
+      "note": "three hops, exact narrows one_of",
+      "visado": {
+        "verdict": "PERMIT"
+      },
+      "tenuo": {
+        "verdict": "PERMIT"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.3",
+      "note": "argument outside the child's one_of",
+      "visado": {
+        "step": "6b",
+        "verdict": "DENY"
+      },
+      "tenuo": {
+        "verdict": "DENY",
+        "step": "6b"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.4",
+      "note": "tool granted by the root but not by the leaf",
+      "visado": {
+        "step": "6b",
+        "verdict": "DENY"
+      },
+      "tenuo": {
+        "verdict": "DENY",
+        "step": "6b"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.5",
+      "note": "child adds a tool its parent does not grant",
+      "visado": {
+        "step": "4p1",
+        "verdict": "DENY"
+      },
+      "tenuo": {
+        "verdict": "DENY",
+        "step": "4p1"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.6",
+      "note": "PoP signed by a key that is not the leaf cnf",
+      "visado": {
+        "step": "7b",
+        "verdict": "DENY"
+      },
+      "tenuo": {
+        "verdict": "DENY",
+        "step": "7b"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.7",
+      "note": "child's par_hash commits to another root",
+      "visado": {
+        "step": "4q",
+        "verdict": "DENY"
+      },
+      "tenuo": {
+        "verdict": "DENY",
+        "step": "4q"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.8",
+      "note": "chain deeper than the root's del_max_depth",
+      "visado": {
+        "step": "4e",
+        "verdict": "DENY"
+      },
+      "tenuo": {
+        "verdict": "DENY",
+        "step": "4e"
+      },
+      "agree": true
+    },
+    {
+      "id": "V.9",
+      "note": "PoP hta differs from the call's arguments",
+      "visado": {
+        "step": "7f",
+        "verdict": "DENY"
+      },
+      "tenuo": {
+        "verdict": "DENY",
+        "step": "7f"
+      },
+      "agree": true
+    }
+  ]
+}
