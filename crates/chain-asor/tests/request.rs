@@ -559,3 +559,17 @@ fn a_leaf_proof_from_the_future_is_refused() {
     assert_eq!(err.outcome(), Outcome::HolderBindingFailed);
     assert_eq!(err.reason(), "DPoP iat in the future");
 }
+
+/// Negative proof limits are taken as zero, and a leaf proof must then be
+/// dated now.
+#[test]
+fn negative_proof_limits_are_zero() {
+    let limits = visado_chain_asor::Limits {
+        proof_window: -60,
+        proof_max_future: -5,
+        ..visado_chain_asor::Limits::default()
+    };
+    let verifier = verifier().with_limits(limits);
+    assert_eq!(verifier.limits().proof_window, 0);
+    assert_eq!(verifier.limits().proof_max_future, 0);
+}

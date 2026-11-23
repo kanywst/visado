@@ -196,10 +196,15 @@ impl Verifier {
         }
     }
 
-    /// Replaces the limits.
+    /// Replaces the limits. A negative `pop_window` or `pop_max_future`
+    /// is taken as zero: no time either side of now.
     #[must_use]
     pub fn with_limits(mut self, limits: Limits) -> Self {
-        self.limits = limits;
+        self.limits = Limits {
+            pop_window: limits.pop_window.max(0),
+            pop_max_future: limits.pop_max_future.max(0),
+            ..limits
+        };
         self
     }
 
@@ -631,10 +636,13 @@ impl Verifier {
         if !hta.numbers_admissible() || hta.jcs() != args.jcs() {
             return Err(deny(Step::S7f, "hta does not match the arguments"));
         }
-        if iat.abs_diff(now) > self.limits.pop_window.unsigned_abs() {
+        // `with_limits` keeps both at zero or more; a negative value set any
+        // other way still admits no wider window than zero.
+        let window = self.limits.pop_window.max(0);
+        if iat.abs_diff(now) > window.unsigned_abs() {
             return Err(deny(Step::S7g, "PoP iat outside the window"));
         }
-        let future = self.limits.pop_max_future.clamp(0, self.limits.pop_window);
+        let future = self.limits.pop_max_future.min(window).max(0);
         if iat > now.saturating_add(future) {
             return Err(deny(Step::S7g, "PoP iat in the future"));
         }
@@ -644,7 +652,7 @@ impl Verifier {
                 return Err(deny(Step::S7h, "nonce missing or not accepted"));
             }
         }
-        let until = iat.saturating_add(self.limits.pop_window);
+        let until = iat.saturating_add(window);
         if let Some(cache) = replay {
             match cache.check_and_record(&leaf.holder.thumbprint, &jti, until, now) {
                 Recorded::Fresh => {}

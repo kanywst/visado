@@ -144,7 +144,9 @@ pub fn verify(
     if iat < now.saturating_sub(expected.iat_window) {
         return Err(bad("DPoP iat outside the accepted window"));
     }
-    if iat > now.saturating_add(expected.max_future.clamp(0, expected.iat_window)) {
+    // Never `clamp`, which panics when a negative window puts its bounds
+    // the wrong way round. A negative window or skew admits no proof.
+    if iat > now.saturating_add(expected.max_future.min(expected.iat_window).max(0)) {
         return Err(bad("DPoP iat in the future"));
     }
     // Every proof checked here comes with an access token, so `ath` is

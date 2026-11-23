@@ -261,3 +261,26 @@ fn a_pop_jti_is_remembered_while_the_pop_is_accepted() {
     assert_eq!(replay.step(), Step::S7i, "iat + window is still accepted");
     assert_eq!(at(NOW + 36).unwrap_err().step(), Step::S7g);
 }
+
+/// Negative PoP limits are taken as zero, and do not panic: the PoP must
+/// be dated now.
+#[test]
+fn negative_pop_limits_are_zero() {
+    let token = root(&root_claims(&wildcard_tools()));
+    let args = json!({ "path": "/a" });
+    let chain = vec![token.clone()];
+    let verifier =
+        Verifier::new(vec![anchor(ISSUER)], vec![AUDIENCE.to_owned()]).with_limits(Limits {
+            pop_window: -30,
+            pop_max_future: -5,
+            ..Limits::default()
+        });
+    assert_eq!(verifier.limits().pop_window, 0);
+    assert_eq!(verifier.limits().pop_max_future, 0);
+    let at = |secs| pop_at(&token, "root-1", &args, &holder_key(), NOW + secs);
+    assert_eq!(verify(&verifier, &chain, &at(0), ARGS), Ok(()));
+    for secs in [-10, 1] {
+        let err = verify(&verifier, &chain, &at(secs), ARGS).unwrap_err();
+        assert_eq!(err.step(), Step::S7g);
+    }
+}

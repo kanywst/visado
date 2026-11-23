@@ -388,10 +388,15 @@ impl Verifier {
         self
     }
 
-    /// Replaces the limits.
+    /// Replaces the limits. A negative `proof_window` or `proof_max_future`
+    /// is taken as zero: no time either side of now.
     #[must_use]
     pub fn with_limits(mut self, limits: Limits) -> Self {
-        self.limits = limits;
+        self.limits = Limits {
+            proof_window: limits.proof_window.max(0),
+            proof_max_future: limits.proof_max_future.max(0),
+            ..limits
+        };
         self
     }
 
