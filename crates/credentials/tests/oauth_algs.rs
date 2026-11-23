@@ -155,10 +155,11 @@ fn a_key_verifies_only_what_it_is_published_for() {
     }
 }
 
-/// Without a `kid`, the one key that may verify the token is used, even
-/// when the set also holds an encryption key.
+/// Without a `kid`, a token verifies only when the set holds exactly one key
+/// in total, and that key passes the `use`, `key_ops` and `alg` checks. A
+/// second key, even one for encryption, refuses it.
 #[test]
-fn without_a_kid_only_signing_keys_count() {
+fn without_a_kid_the_set_must_hold_one_key() {
     use visado_testkit::{OAUTH_ISSUER, oauth_jwks};
     let claims = json!({
         "iss": OAUTH_ISSUER, "sub": "alice", "aud": AUDIENCE, "client_id": "c-1",
@@ -166,16 +167,29 @@ fn without_a_kid_only_signing_keys_count() {
     });
     let header = json!({ "typ": "at+jwt", "alg": "EdDSA" });
     let token = visado_testkit::sign_dpop_proof(&header, &claims, &visado_testkit::oauth_key());
-    let mut jwks = oauth_jwks();
-    let mut enc = jwks["keys"][0].clone();
-    enc["use"] = json!("enc");
-    enc["kid"] = json!("enc-1");
-    jwks["keys"].as_array_mut().unwrap().push(enc);
-    let jwks = serde_json::from_value(jwks).unwrap();
-    let auth =
-        Authenticator::new().with_oauth_issuer(OAuthIssuer::new(OAUTH_ISSUER, AUDIENCE, jwks));
-    assert_eq!(
-        run(&auth, &[("authorization", format!("Bearer {token}"))]),
-        Ok(Method::Bearer)
-    );
+    let with = |jwks: Value| {
+        let jwks = serde_json::from_value(jwks).unwrap();
+        let auth =
+            Authenticator::new().with_oauth_issuer(OAuthIssuer::new(OAUTH_ISSUER, AUDIENCE, jwks));
+        run(&auth, &[("authorization", format!("Bearer {token}"))])
+    };
+    assert_eq!(with(oauth_jwks()), Ok(Method::Bearer));
+
+    // The one key must still be a signing key for this alg.
+    let mut enc_only = oauth_jwks();
+    enc_only["keys"][0]["use"] = json!("enc");
+    assert_eq!(with(enc_only), Err("token.invalid".to_owned()));
+    let mut other_alg = oauth_jwks();
+    other_alg["keys"][0]["alg"] = json!("ES256");
+    assert_eq!(with(other_alg), Err("token.invalid".to_owned()));
+
+    // A second key, for encryption or for signing, refuses a kid-less token.
+    for usage in ["enc", "sig"] {
+        let mut jwks = oauth_jwks();
+        let mut second = jwks["keys"][0].clone();
+        second["use"] = json!(usage);
+        second["kid"] = json!("k-2");
+        jwks["keys"].as_array_mut().unwrap().push(second);
+        assert_eq!(with(jwks), Err("token.invalid".to_owned()), "{usage}");
+    }
 }

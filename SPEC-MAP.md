@@ -173,7 +173,7 @@ Every chain goes through the format-neutral invariant engine after its format's 
 | Several issuers | | Each needs a `subject_prefix`, so `sub` and `client_id` cannot collide |
 | `typ` | RFC 9068 `at+jwt` | Not required. An AAT `typ` (`aat+jwt`, `aat-pop+jwt`) is rejected (`token.delegation`) |
 | Delegation-chain tokens | Not defined | A token with `del_depth`, `del_max_depth`, `par_hash`, `status`, an AAT proof claim or an `authorization_details` entry of type `agent_delegation` or `attenuating_agent_token` is rejected (`token.delegation`): it is verified only on its chain path. An `[aat]` or `[asor]` anchor key in an OAuth issuer's JWKS stops startup |
-| JWKS key `use`, `key_ops`, `alg` | RFC 7517 §4.2-4.4 | A key with `use` other than `sig`, `key_ops` without `verify`, or an `alg` other than the token's is not used |
+| JWKS key `use`, `key_ops`, `alg` | RFC 7517 §4.2-4.4 | A key with `use` other than `sig`, `key_ops` without `verify`, or an `alg` other than the token's is not used. A token without `kid` verifies only when the JWKS holds exactly one key in total and that key passes these checks |
 
 ## DPoP (RFC 9449): choices
 

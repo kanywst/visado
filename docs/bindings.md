@@ -126,7 +126,7 @@ The caller is the token's `client_id` (or `azp`), and the user is its `sub`.
 
 Rules for every access token, bearer or DPoP-bound, and for a user token:
 
-- A JWKS key verifies a token only when its `use`, if present, is `sig`, its `key_ops`, if present, include `verify`, and its `alg`, if present, is the token's `alg` (RFC 7517 §4.2-4.4). Without a `kid`, the set must hold exactly one such key.
+- A JWKS key verifies a token only when its `use`, if present, is `sig`, its `key_ops`, if present, include `verify`, and its `alg`, if present, is the token's `alg` (RFC 7517 §4.2-4.4). A token without a `kid` verifies only when the set holds exactly one key in total, and that key passes these checks.
 - A delegation-chain token is not an access token: a token whose `typ` is an AAT type (`aat+jwt`, `aat-pop+jwt`), or that carries `del_depth`, `del_max_depth`, `par_hash`, `status`, an AAT proof claim (`aat_id`, `aat_hash`, `aat_tool`, `aat_aud`, `hta`) or an `authorization_details` entry of type `agent_delegation` or `attenuating_agent_token`, is denied (`token.delegation`). It is checked only on its chain path, which reads the status list, the depth, the parent hash and the constraints.
 - The server refuses to start when an `[aat]` or `[asor]` trust anchor key, by RFC 7638 thumbprint, is also in an `[[oauth_issuers]]` JWKS. A Delegation Token is an `at+jwt` like any access token, so a shared key would let it verify as one.
 

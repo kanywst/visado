@@ -186,17 +186,19 @@ pub(crate) fn verify_bound(
         .iter()
         .find(|i| i.issuer == iss)
         .ok_or(AuthError::UntrustedIssuer)?;
-    // Only keys that may verify this token are candidates, so a key published
-    // for encryption or for another algorithm is never used.
-    let mut usable = issuer
-        .jwks
-        .keys
-        .iter()
-        .filter(|jwk| verifies(jwk, header.alg));
+    // A key published for encryption or for another algorithm never
+    // verifies. Without a `kid`, the set must hold exactly one key in total,
+    // so adding a key (a rotation) never changes which key a kid-less token
+    // is checked against.
+    let keys = &issuer.jwks.keys;
     let jwk = match &header.kid {
-        Some(kid) => usable.find(|jwk| jwk.common.key_id.as_deref() == Some(kid.as_str())),
-        None => usable.next().filter(|_| usable.next().is_none()),
+        Some(kid) => keys
+            .iter()
+            .find(|jwk| jwk.common.key_id.as_deref() == Some(kid.as_str())),
+        None if keys.len() == 1 => keys.first(),
+        None => None,
     }
+    .filter(|jwk| verifies(jwk, header.alg))
     .ok_or_else(|| AuthError::AccessToken("no trusted key".into()))?;
     let key = DecodingKey::from_jwk(jwk).map_err(invalid)?;
     let key_thumbprint = jwk.thumbprint(ThumbprintHash::SHA256).map_err(invalid)?;
