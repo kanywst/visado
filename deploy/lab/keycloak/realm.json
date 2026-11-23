@@ -1,17 +1,24 @@
 {
   "realm": "lab",
   "enabled": true,
+  "sslRequired": "none",
   "accessTokenLifespan": 300,
   "clientScopes": [
     {
       "name": "tickets.read",
       "protocol": "openid-connect",
-      "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "false" }
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
     },
     {
       "name": "roles.write",
       "protocol": "openid-connect",
-      "attributes": { "include.in.token.scope": "true", "display.on.consent.screen": "false" }
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
     }
   ],
   "clients": [
@@ -26,8 +33,13 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "fullScopeAllowed": false,
-      "defaultClientScopes": ["basic", "tickets.read"],
-      "optionalClientScopes": ["roles.write"],
+      "defaultClientScopes": [
+        "basic",
+        "tickets.read"
+      ],
+      "optionalClientScopes": [
+        "roles.write"
+      ],
       "protocolMappers": [
         {
           "name": "tools audience",
@@ -40,7 +52,41 @@
             "introspection.token.claim": "true"
           }
         }
-      ]
+      ],
+      "attributes": {
+        "oauth2.jwt.authorization.grant.enabled": "true",
+        "oauth2.jwt.authorization.grant.idp": "casdoor"
+      }
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "casdoor",
+      "displayName": "Casdoor",
+      "providerId": "oidc",
+      "enabled": true,
+      "config": {
+        "issuer": "http://casdoor.td.example:8190",
+        "jwksUrl": "http://casdoor:8000/.well-known/jwks",
+        "useJwksUrl": "true",
+        "validateSignature": "true",
+        "jwtAuthorizationGrantEnabled": "true",
+        "clientId": "keycloak-lab",
+        "clientSecret": "unused-keycloak-lab-secret",
+        "clientAuthMethod": "client_secret_post",
+        "authorizationUrl": "http://casdoor.td.example:8190/login/oauth/authorize",
+        "tokenUrl": "http://casdoor:8000/api/login/oauth/access_token"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@td.example",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Lab"
     }
   ]
 }

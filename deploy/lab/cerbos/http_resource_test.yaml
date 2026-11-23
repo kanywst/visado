@@ -22,6 +22,12 @@ principals:
     id: bob
     roles: [client]
     attr: { scope: tickets.read }
+  # A user from Keycloak, through an ID-JAG: the issuer's subject_prefix and
+  # Keycloak's user ID.
+  keycloak_user:
+    id: keycloak:6c3477ca-a4a9-4a65-908f-ecd24aa6fc1f
+    roles: [client]
+    attr: { scope: tickets.read }
   other_role:
     id: bob
     roles: [user]
@@ -39,7 +45,7 @@ resources:
 tests:
   - name: tickets.read reads tickets, roles.write the admin API
     input:
-      principals: [read, admin, lookalike, noscope, client, other_role]
+      principals: [read, admin, lookalike, noscope, client, keycloak_user, other_role]
       resources: [tickets, admin, mtls_tickets]
       actions: [GET, POST]
     expected:
@@ -86,6 +92,15 @@ tests:
         resource: mtls_tickets
         actions: { GET: EFFECT_ALLOW, POST: EFFECT_ALLOW }
       - principal: client
+        resource: admin
+        actions: { GET: EFFECT_DENY, POST: EFFECT_DENY }
+      - principal: keycloak_user
+        resource: tickets
+        actions: { GET: EFFECT_ALLOW, POST: EFFECT_ALLOW }
+      - principal: keycloak_user
+        resource: mtls_tickets
+        actions: { GET: EFFECT_ALLOW, POST: EFFECT_ALLOW }
+      - principal: keycloak_user
         resource: admin
         actions: { GET: EFFECT_DENY, POST: EFFECT_DENY }
       - principal: other_role
