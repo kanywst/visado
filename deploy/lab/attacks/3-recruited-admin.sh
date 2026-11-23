@@ -16,7 +16,7 @@ call 403/pdp.deny "attack 3: agent-b assigns the role in bob's transaction" /adm
 call 403/pdp.deny "attack 3: agent-b drops bob's transaction, acts as itself" /admin/roles \
   with_body "$grant" headers agent-b /admin/roles
 expect_audit "attack 3: audit ties agent-b's call to bob's transaction" \
-  '.txn == $t and .agent == "spiffe://td.example/agent-b" and .principal == "bob"
+  '.txn == $t and .agent == "spiffe://td.example/agent-b" and .principal == "idp:bob"
    and .resource == "http://tools.td.example/admin/roles" and .action == "POST"
    and .reason == "pdp.deny"' \
   --arg t "$(txn_of "$bob_txn")"

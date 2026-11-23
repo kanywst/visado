@@ -481,7 +481,7 @@ expect_audit "MCP: audit records the denied tool" \
 audit_mark=0
 first_txn=$(txn_of "$txn")
 expect_audit "audit: agent-a reading tickets for bob" \
-  '.txn == $t and .agent == "spiffe://td.example/agent-a" and .principal == "bob"
+  '.txn == $t and .agent == "spiffe://td.example/agent-a" and .principal == "idp:bob"
    and .resource == "http://tools.td.example/tickets" and .action == "GET"
    and .decision == "allow" and .status == 200 and .reason == "ok" and .pdp == "allow"
    and .auth_method == "wit-wpt" and .sender_constrained == true and .remediation == "none"
