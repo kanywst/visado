@@ -102,6 +102,12 @@ impl KeySet {
         }
     }
 
+    /// Adds an RSA key that has already been checked.
+    pub(crate) fn with_checked_rsa_key(mut self, kid: impl Into<String>, key: RsaKey) -> Self {
+        self.by_kid.insert(kid.into(), Key::Rsa(key));
+        self
+    }
+
     pub(crate) fn find(&self, kid: Option<&str>) -> Option<&Key> {
         match kid {
             Some(kid) => self.by_kid.get(kid),
@@ -110,7 +116,10 @@ impl KeySet {
     }
 }
 
-fn rsa(n: &[u8], e: &[u8]) -> Result<RsaKey, TxnTokenError> {
+/// Checks `n` and `e` and builds the verification key. The only way to make
+/// an [`RsaKey`], so every one in a [`KeySet`] or a signer has passed the
+/// size check.
+pub(crate) fn rsa(n: &[u8], e: &[u8]) -> Result<RsaKey, TxnTokenError> {
     let first = n.iter().position(|b| *b != 0).unwrap_or(n.len());
     let n = &n[first..];
     let bits = n.first().map_or(0, |top| {

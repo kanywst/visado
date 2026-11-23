@@ -124,3 +124,19 @@ fn a_jose_key_converts_and_mints_as_before() {
     let b = mint_with(&claims(), Some("k"), &TxnSigningKey::from(ed)).unwrap();
     assert_eq!(a, b);
 }
+
+#[test]
+fn an_rsa_signers_key_set_holds_its_key_under_the_kid() {
+    let key = rsa();
+    let token = mint_with(&claims(), Some("rsa-1"), &key).unwrap();
+    let validation = Validation::new(DOMAIN, NOW + 1);
+    assert!(verify(&token, &key.key_set("rsa-1"), &validation).is_ok());
+    // Under another kid the set has no key for this token: never a silent
+    // empty set standing in for a failed key.
+    assert!(matches!(
+        verify(&token, &key.key_set("other"), &validation),
+        Err(TxnTokenError::UnknownKey)
+    ));
+    let other = mint_with(&claims(), Some("other"), &key).unwrap();
+    assert!(verify(&other, &key.key_set("other"), &validation).is_ok());
+}

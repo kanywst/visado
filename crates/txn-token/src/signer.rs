@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use wimsey_jose::{Jwk, SigningKey};
 
 use crate::error::TxnTokenError;
-use crate::keys::KeySet;
+use crate::keys::{KeySet, RsaKey, rsa};
 
 /// A key that signs Transaction Tokens.
 ///
@@ -23,6 +23,8 @@ enum Inner {
     Jose(SigningKey),
     Rsa {
         key: EncodingKey,
+        /// The public half, checked once by `keys::rsa`.
+        public: RsaKey,
         n: Vec<u8>,
         e: Vec<u8>,
     },
@@ -65,8 +67,9 @@ impl TxnSigningKey {
         };
         let n = member("n")?;
         let e = member("e")?;
-        // The minimum size is checked as for a verification key.
-        KeySet::new().with_rsa_key("", &n, &e)?;
+        // The minimum size is checked as for a verification key, and the
+        // checked key is kept: `key_set` cannot fail later.
+        let public = rsa(&n, &e)?;
         let parts = [
             &[0u8][..],
             &n,
@@ -82,7 +85,7 @@ impl TxnSigningKey {
         // A key whose members do not fit together fails here, not at mint.
         jsonwebtoken::crypto::sign(b"probe", &key, jsonwebtoken::Algorithm::RS256)
             .map_err(|_| TxnTokenError::InvalidKey("RSA key does not sign"))?;
-        Ok(Self(Inner::Rsa { key, n, e }))
+        Ok(Self(Inner::Rsa { key, public, n, e }))
     }
 
     /// The JOSE `alg` of tokens this key mints.
@@ -112,7 +115,7 @@ impl TxnSigningKey {
     pub fn key_set(&self, kid: &str) -> KeySet {
         match &self.0 {
             Inner::Jose(key) => KeySet::new().with_key(kid, key.verifying_key()),
-            Inner::Rsa { n, e, .. } => KeySet::new().with_rsa_key(kid, n, e).unwrap_or_default(),
+            Inner::Rsa { public, .. } => KeySet::new().with_checked_rsa_key(kid, public.clone()),
         }
     }
 
