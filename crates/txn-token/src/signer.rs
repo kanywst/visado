@@ -98,15 +98,19 @@ impl TxnSigningKey {
     }
 
     /// The public key as a JWK, without `kid` or `use`.
-    #[must_use]
-    pub fn public_jwk(&self) -> Value {
+    ///
+    /// # Errors
+    ///
+    /// [`TxnTokenError::InvalidKey`] if the key cannot be written as a JWK,
+    /// so a broken key never reaches a JWKS as `null`.
+    pub fn public_jwk(&self) -> Result<Value, TxnTokenError> {
         match &self.0 {
             Inner::Jose(key) => serde_json::to_value(Jwk::from_verifying_key(&key.verifying_key()))
-                .unwrap_or(Value::Null),
-            Inner::Rsa { n, e, .. } => json!({
+                .map_err(|_| TxnTokenError::InvalidKey("public key is not serializable as a JWK")),
+            Inner::Rsa { n, e, .. } => Ok(json!({
                 "kty": "RSA", "alg": "RS256",
                 "n": URL_SAFE_NO_PAD.encode(n), "e": URL_SAFE_NO_PAD.encode(e),
-            }),
+            })),
         }
     }
 

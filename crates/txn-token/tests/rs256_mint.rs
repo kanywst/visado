@@ -79,7 +79,7 @@ fn another_rs256_verifier_accepts_the_token() {
 
 #[test]
 fn the_public_jwk_has_no_private_members() {
-    let public = rsa().public_jwk();
+    let public = rsa().public_jwk().unwrap();
     assert_eq!(public["kty"], "RSA");
     assert_eq!(public["alg"], "RS256");
     assert_eq!(public["n"], jwk("rsa-2048.public.jwk.json")["n"]);

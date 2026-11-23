@@ -222,7 +222,10 @@ impl Keys {
             jwk
         })
         .chain(std::iter::once({
-            let mut jwk = self.rs256.public_jwk();
+            let mut jwk = self
+                .rs256
+                .public_jwk()
+                .expect("RSA fixture has a public JWK");
             jwk["kid"] = json!("visado-rs256");
             jwk["use"] = json!("sig");
             jwk

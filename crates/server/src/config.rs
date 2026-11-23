@@ -1235,7 +1235,7 @@ fn txn_signing_key(path: &Path) -> Result<(TxnSigningKey, serde_json::Value), St
     let value: serde_json::Value = read_json(path)?;
     if value.get("kty").and_then(serde_json::Value::as_str) == Some("RSA") {
         let key = TxnSigningKey::from_rsa_jwk(&value).map_err(|e| format!("signing key: {e}"))?;
-        let public = key.public_jwk();
+        let public = key.public_jwk().map_err(|e| format!("signing key: {e}"))?;
         return Ok((key, public));
     }
     let private: PrivateJwk =
