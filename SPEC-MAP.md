@@ -54,7 +54,7 @@ No divergences: all 229 vectors in [conformance/aat](conformance/aat/) give the 
 | Chain and Txn-Token scope | Not defined | The chain gates the call (tool and arguments); the minted `scope` is not narrowed by it. The chain is carried as `tctx.chain` on a minted token, or `tctx.chain:<caller>` on a replacement of a forwarded token |
 | Who may present a chain | Holder proves possession with the PoP | Only a WIT caller, and the leaf `cnf` must be the WIT key; bearer-only callers are denied (`chain.unbound_caller`) |
 | Audience (§9.5) | `aud` and `aat_aud` optional | The server requires both by default (`require_chain_aud`, `require_pop_aud`), so a chain cannot be replayed at another enforcement point |
-| PoP replay | Shared state across replicas (§7.3) | In-memory cache of 100 000 entries per process |
+| PoP replay | Shared state across replicas (§7.3) | In-memory cache per process of `replay_capacity` entries (default 100 000), at most `replay_key_quota` of them per holder key |
 | `aud` type | Checked at step 6c | Checked right after step 5 and reported as 6c, so `decode()` also rejects an `aud` that is not a string or an array of strings |
 | `decode()` | Not defined | Steps 1 to 5 and the `aud` type check. No PoP, so the chain has `holder_proof: false` |
 

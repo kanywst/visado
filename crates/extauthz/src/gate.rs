@@ -158,8 +158,10 @@ pub struct Gate<P> {
     pdp: P,
     txn_keys: KeySet,
     stripped: Vec<String>,
+    /// AAT PoP `jti` values, per leaf holder key.
     aat_replay: MemoryReplayCache,
-    dpop_replay: MemoryReplayCache,
+    /// asor leaf DPoP proof `jti` values, per leaf key.
+    asor_replay: MemoryReplayCache,
     /// The nonces handed out: the authenticator's, or else the asor
     /// verifier's.
     nonces: Option<Nonces>,
@@ -200,18 +202,30 @@ impl<P: Pdp> Gate<P> {
         stripped.extend(FORWARDED_HEADERS.map(str::to_owned));
         stripped.push(authenticator.user_token_header().to_owned());
         let engine = Engine::new(chain_algebras(&config));
+        let replay_limits = authenticator.replay_limits();
         Self {
             config,
             authenticator,
             pdp,
             txn_keys,
             stripped,
-            aat_replay: MemoryReplayCache::new(100_000),
-            dpop_replay: MemoryReplayCache::new(100_000),
+            aat_replay: replay_cache(replay_limits),
+            asor_replay: replay_cache(replay_limits),
             nonces,
             log: None,
             engine,
         }
+    }
+
+    /// Bounds the replay caches of chain proofs (AAT PoP and asor leaf proof
+    /// `jti` values, one cache each): at most `capacity` live entries, at
+    /// most `key_quota` of them for one holder key. By default the
+    /// authenticator's limits ([`Authenticator::replay_limits`]).
+    #[must_use]
+    pub fn with_replay_limits(mut self, capacity: usize, key_quota: usize) -> Self {
+        self.aat_replay = replay_cache((capacity, key_quota));
+        self.asor_replay = replay_cache((capacity, key_quota));
+        self
     }
 
     /// Records a summary of every decision in `log`, for the chain view.
@@ -540,7 +554,7 @@ impl<P: Pdp> Gate<P> {
                     totals: None,
                 },
                 now,
-                Some(&self.dpop_replay),
+                Some(&self.asor_replay),
             )
             .map(|authorized| (authorized.chain, (tool, args)))
             .map_err(|e| match e.dpop_nonce() {
@@ -775,6 +789,10 @@ fn chain_algebras(config: &GateConfig) -> Algebras {
 
 /// An AAT or asor chain must belong to the caller: its leaf holder key is
 /// the key the caller proved possession of with its WIT (or certificate).
+fn replay_cache((capacity, key_quota): (usize, usize)) -> MemoryReplayCache {
+    MemoryReplayCache::new(capacity).with_owner_quota(key_quota)
+}
+
 fn bound_to_caller(
     chain: &NormalizedChain,
     caller: &Authenticated,

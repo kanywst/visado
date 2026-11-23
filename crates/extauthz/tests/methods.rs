@@ -442,3 +442,67 @@ async fn a_jwt_svid_caller_is_a_workload_without_a_proof_key() {
         )
     );
 }
+
+/// An MCP call over mTLS from the workload with key `caller`, carrying a
+/// one-hop AAT chain held by key `holder` with PoP `jti` `pop-<n>`.
+fn aat_call(caller: u8, holder: u8, n: &str) -> CheckInput {
+    let tools = json!({ "read_file": { "path": { "constraint_type": "wildcard" } } });
+    let args = json!({ "path": "/data/report.pdf" });
+    let body = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                       "params": { "name": "read_file", "arguments": args } })
+    .to_string();
+    let root = aat_root(
+        &format!("root-{n}"),
+        &pop_key(holder),
+        &tools,
+        NOW,
+        1,
+        AAT_AUDIENCE,
+    );
+    let pop = aat_pop(
+        &format!("pop-{n}"),
+        &root,
+        &format!("root-{n}"),
+        &pop_key(holder),
+        "read_file",
+        &args,
+        AAT_AUDIENCE,
+        NOW,
+    );
+    mtls_call(
+        "agent-b",
+        caller,
+        &[("aat-chain", &root), ("aat-pop", &pop)],
+        Some(&body),
+    )
+}
+
+/// `replay_capacity` and `replay_key_quota` govern the chain proof caches
+/// too: one holder key gets its quota of the AAT PoP cache, and another
+/// still has room.
+#[tokio::test]
+async fn the_chain_replay_caches_follow_the_configured_limits() {
+    let (gate, _) = gate_with(
+        authenticator()
+            .with_replay_limits(64, 60)
+            .with_replay_key_quota(2),
+    );
+    for n in ["c1", "c2"] {
+        let outcome = gate.check(&aat_call(2, 2, n), NOW, "t").await;
+        assert!(minted(&outcome).tctx.unwrap().contains_key("chain"));
+    }
+    let outcome = gate.check(&aat_call(2, 2, "c3"), NOW, "t").await;
+    assert_eq!(denied(&outcome), (403, "aat.pop_replayed", None));
+    let outcome = gate.check(&aat_call(3, 3, "c3"), NOW, "t").await;
+    assert!(minted(&outcome).tctx.unwrap().contains_key("chain"));
+}
+
+/// `Gate::with_replay_limits` sets the chain proof caches on their own.
+#[tokio::test]
+async fn the_chain_replay_limits_can_be_set_on_the_gate() {
+    let gate = gate().with_replay_limits(8, 1);
+    let outcome = gate.check(&aat_call(2, 2, "c1"), NOW, "t").await;
+    assert!(minted(&outcome).tctx.unwrap().contains_key("chain"));
+    let outcome = gate.check(&aat_call(2, 2, "c2"), NOW, "t").await;
+    assert_eq!(denied(&outcome), (403, "aat.pop_replayed", None));
+}

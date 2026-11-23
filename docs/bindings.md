@@ -203,13 +203,14 @@ Rules:
 
 Every accepted proof is remembered for as long as it could be accepted, so a copy of it is refused.
 
-- There is one bounded in-memory cache per proof type: WPT `jti`, HTTP signature `nonce` and DPoP `jti` for an access token. A flood of one type cannot refuse proofs of another.
+- There is one bounded in-memory cache per proof type: WPT `jti`, HTTP signature `nonce`, DPoP `jti` for an access token, AAT PoP `jti` and asor leaf proof `jti`. A flood of one type cannot refuse proofs of another.
 - Each cache holds at most `replay_capacity` live entries (default 100000, about 150 bytes each). When one is full, new proofs of its type are refused with a 503 (`wpt.replay_cache_full`).
-- One caller holds at most `replay_key_quota` live entries in each cache (default a quarter of `replay_capacity`, at most `replay_capacity`): a workload by WIT `sub` for WPTs and signatures, a key by thumbprint for DPoP proofs. Past it, that caller's new proofs are refused with a 429 (`credential.replay_quota`) while other callers still have room.
+- One caller holds at most `replay_key_quota` live entries in each cache (default a quarter of `replay_capacity`, at most `replay_capacity`): a workload by WIT `sub` for WPTs and signatures, a key by thumbprint for DPoP proofs, and the leaf holder key for AAT and asor proofs. Past it, that caller's new proofs are refused with a 429 (`credential.replay_quota`) while other callers still have room.
 - An entry lives as long as its proof could be accepted, counted from the proof's own time, which is at most `max_proof_skew` (default 5 s, at most 60) ahead of the clock:
   - a WPT `jti` until `exp` plus the clock leeway; `exp` is at most `max_wpt_lifetime` after now, so at most 90 s with the defaults;
   - a signature `nonce` until `expires` plus the leeway; `expires` is at most `max_signature_lifetime` after `created`, so at most 95 s;
-  - a DPoP `jti` until `iat` plus `dpop_iat_window`, so at most 65 s.
+  - a DPoP `jti` until `iat` plus `dpop_iat_window`, so at most 65 s;
+  - an AAT PoP `jti` until `iat` plus 30 s, so at most 35 s, and an asor leaf proof `jti` until `iat` plus 60 s, so at most 65 s.
 - Size the cache for the peak rate of each proof type times the time an entry lives, and the quota for the busiest single caller's rate times the same.
 - The caches live in the process. Replicas do not share them, so a proof can be replayed once at each replica.
 

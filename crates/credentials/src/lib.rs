@@ -263,6 +263,13 @@ impl Authenticator {
         self
     }
 
+    /// The replay cache capacity and per-caller quota in force, for other
+    /// replay caches that should follow the same configuration.
+    #[must_use]
+    pub fn replay_limits(&self) -> (usize, usize) {
+        (self.replay_capacity, self.replay.dpop.owner_quota())
+    }
+
     fn rebuild_replay(&mut self) {
         let quota = self
             .replay_key_quota
