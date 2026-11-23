@@ -224,6 +224,12 @@ impl AuditChain {
         state.1.clone_from(&record.hash);
         record
     }
+
+    /// The `seq` the next record gets.
+    #[cfg(test)]
+    pub(crate) fn next_seq(&self) -> u64 {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner).0
+    }
 }
 
 fn emit(r: &AuditRecord) {

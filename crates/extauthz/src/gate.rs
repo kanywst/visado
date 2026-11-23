@@ -242,6 +242,32 @@ impl<P: Pdp> Gate<P> {
         self
     }
 
+    /// Records a request the transport refused before the gate could decide
+    /// on it (no HTTP attributes, a header that is not text, no clock): one
+    /// audit record and one request log entry, like any other denial, with
+    /// what `input` holds of the request and the rest empty. `now` is 0
+    /// when the clock could not be read.
+    pub(crate) fn record_refusal(
+        &self,
+        input: &CheckInput,
+        now: u64,
+        id: &str,
+        status: u16,
+        code: &'static str,
+    ) {
+        let result = Err(Denied::new(status, code, &Trail::default()));
+        if let Some(log) = &self.log {
+            log.record(summary(input, now, id, &result));
+        }
+        self.audit.append(audit_record(input, now, id, &result));
+    }
+
+    /// The `seq` the next audit record gets.
+    #[cfg(test)]
+    pub(crate) fn next_audit_seq(&self) -> u64 {
+        self.audit.next_seq()
+    }
+
     /// Decides on `input` at `now`. `txn` is the identifier used if a new
     /// Transaction Token is minted.
     pub async fn check(&self, input: &CheckInput, now: u64, txn: &str) -> Outcome {
@@ -1101,6 +1127,16 @@ fn requesting_workload(caller: &Authenticated) -> String {
     }
 }
 
+/// The resource as recorded: empty when the transport refused a request
+/// before its target was known.
+fn recorded_resource(input: &CheckInput) -> String {
+    if input.scheme.is_empty() && input.authority.is_empty() && input.path.is_empty() {
+        String::new()
+    } else {
+        resource_id(input)
+    }
+}
+
 fn resource_id(input: &CheckInput) -> String {
     let path = input.path.split(['?', '#']).next().unwrap_or("");
     format!("{}://{}{}", input.scheme, input.authority, path)
@@ -1345,7 +1381,7 @@ fn summary(
         txn: known(&trail.txn),
         time: now,
         method: scrubbed(&input.method),
-        resource: scrubbed(&resource_id(input)),
+        resource: scrubbed(&recorded_resource(input)),
         caller: known(&trail.agent),
         auth_method: trail.method.map(method_name),
         principal: known(&trail.principal),
@@ -1398,7 +1434,7 @@ fn audit_record(
         chain_hops: u32::try_from(actors.len()).unwrap_or(u32::MAX),
         chain_actors: serde_json::to_string(&actors).unwrap_or_else(|_| "[]".into()),
         depth_semantics: trail.depth_semantics.unwrap_or_default().to_owned(),
-        resource: scrubbed(&resource_id(input)),
+        resource: scrubbed(&recorded_resource(input)),
         tool: mcp_tool(input).as_deref().map(scrubbed).unwrap_or_default(),
         action: scrubbed(&input.method),
         decision: decision.to_owned(),

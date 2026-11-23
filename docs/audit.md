@@ -1,6 +1,6 @@
 # Audit record
 
-visado writes one audit record per decision, allowed or denied, to stdout as a JSON log line whose `target` is `visado::audit`. The record is the line's `fields` object:
+visado writes one audit record per decision, allowed or denied, to stdout as a JSON log line whose `target` is `visado::audit`. Requests the ext_authz service refuses before the gate decides get one too: no HTTP attributes (`request.no_http_attributes`), a header value that is not text (`request.invalid_header`) and an unreadable clock (`internal.clock`), with what is known of the request and the rest empty. The record is the line's `fields` object:
 
 ```json
 {"timestamp":"2026-11-22T09:14:03.120Z","level":"INFO","target":"visado::audit","fields":{"audit_version":1,"seq":41,"prev":"9f2c…","id":"0b7e…","txn":"0b7e…","time":1795338843,"agent":"spiffe://td.example/agent-b","auth_method":"wit-wpt","sender_constrained":true,"principal":"bob","chain_profile":"aat-02","chain_issuer":"https://aat.td.example","chain_hops":2,"chain_actors":"[\"Lm1…\",\"q9X…\"]","depth_semantics":"aat-holder-cap","resource":"http://tools.td.example/mcp","tool":"delete_file","action":"POST","decision":"deny","status":403,"reason":"aat.invocation_denied","detail":"","pdp":"not_asked","remediation":"refused","hash":"5d01…"}}
@@ -19,7 +19,7 @@ The order below is the schema order, which the hash uses. Every member is always
 | `prev` | string | `hash` of the previous record; empty for `seq` 0 |
 | `id` | string | This check's identifier, unique per decision |
 | `txn` | string | The transaction the request belongs to: the newly minted one, or the one of a forwarded Transaction Token. Empty when the gate stopped before it was known (an authentication failure) |
-| `time` | integer | When the gate decided, in seconds since the Unix epoch |
+| `time` | integer | When the gate decided, in seconds since the Unix epoch; 0 for an `internal.clock` refusal |
 | `agent` | string | The authenticated caller, such as a SPIFFE ID or an OAuth `client_id`. Empty if authentication failed |
 | `auth_method` | string | `wit-wpt`, `wit-httpsig`, `mtls`, `jwt-svid`, `bearer` or `oauth-dpop` |
 | `sender_constrained` | boolean | Whether the caller proved possession of a key for this request (WPT, HTTP signature, mTLS, DPoP) rather than presenting a bearer credential |
@@ -29,7 +29,7 @@ The order below is the schema order, which the hash uses. Every member is always
 | `chain_hops` | integer | Hops in the chain; 0 without one. At most 32: the invariant engine refuses a longer chain |
 | `chain_actors` | string | The actor of every hop, first hop first, as a JSON array of strings (key thumbprints, names or subjects); it has `chain_hops` elements |
 | `depth_semantics` | string | How the chain's depth bound was read: `aat-holder-cap`, `asor-strict` or `uncapped`; empty without a chain |
-| `resource` | string | `scheme://authority/path`, without the query |
+| `resource` | string | `scheme://authority/path`, without the query; empty for a `request.no_http_attributes` refusal |
 | `tool` | string | `params.name` of a JSON-RPC `tools/call` body; otherwise empty |
 | `action` | string | The HTTP method |
 | `decision` | string | `allow` or `deny` |

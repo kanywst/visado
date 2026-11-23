@@ -10,6 +10,7 @@ use envoy_types::ext_authz::v3::pb::{
 use envoy_types::ext_authz::v3::{
     CheckResponseExt, DeniedHttpResponseBuilder, OkHttpResponseBuilder,
 };
+use envoy_types::pb::envoy::service::auth::v3::attribute_context::HttpRequest;
 use envoy_types::pb::google::protobuf::value::Kind;
 use envoy_types::pb::google::protobuf::{Struct, Value as ProtoValue};
 use tonic::{Request, Response, Status};
@@ -98,6 +99,26 @@ fn input_from(request: &CheckRequest) -> Result<CheckInput, &'static str> {
     })
 }
 
+/// What a refused request's audit record can name of it: the method and
+/// target when the HTTP attributes are there, nothing else.
+fn known_input(request: &CheckRequest) -> CheckInput {
+    let http = request
+        .attributes
+        .as_ref()
+        .and_then(|a| a.request.as_ref())
+        .and_then(|r| r.http.as_ref());
+    let field = |f: fn(&HttpRequest) -> &String| http.map(f).cloned().unwrap_or_default();
+    CheckInput {
+        method: field(|h| &h.method),
+        scheme: field(|h| &h.scheme),
+        authority: field(|h| &h.host),
+        path: field(|h| &h.path),
+        headers: Vec::new(),
+        body: None,
+        peer_certificate: None,
+    }
+}
+
 /// The reason code for a header value that is not UTF-8.
 const INVALID_HEADER: &str = "request.invalid_header";
 
@@ -180,21 +201,36 @@ impl<P: Pdp + 'static> Authorization for ExtAuthz<P> {
         // limit): tonic rejects it before this handler runs and the proxy
         // applies its failure mode, which must therefore deny. See "Proxy
         // settings" in docs/bindings.md.
-        let input = match input_from(request.get_ref()) {
-            Ok(input) => input,
-            Err(code) => return Ok(Response::new(denied_response(400, code, None, &[]))),
-        };
-        let Ok(elapsed) = SystemTime::now().duration_since(UNIX_EPOCH) else {
-            return Ok(Response::new(denied_response(
-                500,
-                "internal.clock",
-                None,
-                &[],
-            )));
-        };
-        let txn = uuid::Uuid::new_v4().to_string();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .ok()
+            .map(|d| d.as_secs());
+        Ok(Response::new(self.respond(request.get_ref(), now).await))
+    }
+}
 
-        let response = match self.gate.check(&input, elapsed.as_secs(), &txn).await {
+impl<P: Pdp + 'static> ExtAuthz<P> {
+    /// The response to `request` at `now`, or `None` if the clock could not
+    /// be read. Every request gets one audit record, the ones refused here
+    /// before the gate decides included.
+    async fn respond(&self, request: &CheckRequest, now: Option<u64>) -> CheckResponse {
+        let txn = uuid::Uuid::new_v4().to_string();
+        let input = match input_from(request) {
+            Ok(input) => input,
+            Err(code) => {
+                let known = known_input(request);
+                self.gate
+                    .record_refusal(&known, now.unwrap_or(0), &txn, 400, code);
+                return denied_response(400, code, None, &[]);
+            }
+        };
+        let Some(now) = now else {
+            const CLOCK: &str = "internal.clock";
+            self.gate.record_refusal(&input, 0, &txn, 500, CLOCK);
+            return denied_response(500, CLOCK, None, &[]);
+        };
+
+        match self.gate.check(&input, now, &txn).await {
             Outcome::Allow {
                 txn,
                 set,
@@ -234,14 +270,86 @@ impl<P: Pdp + 'static> Authorization for ExtAuthz<P> {
                 challenge,
                 headers,
             } => denied_response(status, &code, challenge.as_deref(), &headers),
-        };
-        Ok(Response::new(response))
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{denied_response, input_from};
+    use super::{ExtAuthz, denied_response, input_from};
+    use crate::recent::{Decision, RequestLog};
+    use crate::{Gate, GateConfig};
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
+    use visado_authzen::{Decision as PdpDecision, EvaluationRequest, Pdp, PdpError};
+    use visado_credentials::Authenticator;
+    use visado_txn_token::Scope;
+    use wimsey_jose::SigningKey;
+
+    struct AllowPdp;
+
+    impl Pdp for AllowPdp {
+        #[allow(clippy::unused_async_trait_impl)]
+        async fn evaluate(&self, _: &EvaluationRequest, _: &str) -> Result<PdpDecision, PdpError> {
+            Ok(PdpDecision {
+                allowed: true,
+                context: None,
+            })
+        }
+    }
+
+    /// Without a clock the request is refused with `internal.clock`, and
+    /// still gets its audit record (with `time` 0) and its log entry.
+    #[tokio::test]
+    async fn a_refusal_for_the_clock_is_recorded() {
+        let log = Arc::new(RequestLog::new(8));
+        let gate = Gate::new(
+            GateConfig {
+                trust_domain: "td.example".into(),
+                signing_key: SigningKey::from_ed25519_seed(&[0x51; 32]).into(),
+                kid: "txn-1".into(),
+                txn_lifetime: 60,
+                default_scope: Scope::parse("tools.call"),
+                internal_callers: BTreeSet::new(),
+                allowed_authorities: BTreeSet::from(["tools.td.example".to_owned()]),
+                aat: None,
+                asor: None,
+                act: None,
+                require_chain: false,
+            },
+            Authenticator::new(),
+            AllowPdp,
+        )
+        .with_request_log(Arc::clone(&log));
+        let service = ExtAuthz::new(gate);
+        let request = CheckRequest {
+            attributes: Some(AttributeContext {
+                request: Some(Request {
+                    http: Some(HttpRequest {
+                        method: "GET".into(),
+                        scheme: "https".into(),
+                        host: "tools.td.example".into(),
+                        path: "/tickets".into(),
+                        ..HttpRequest::default()
+                    }),
+                    ..Request::default()
+                }),
+                ..AttributeContext::default()
+            }),
+        };
+        let response = service.respond(&request, None).await;
+        let Some(Http::DeniedResponse(denied)) = response.http_response else {
+            panic!("not denied");
+        };
+        assert_eq!(denied.status.map(|s| s.code), Some(500));
+        assert_eq!(service.gate.next_audit_seq(), 1, "one audit record");
+        let entries = log.recent(8);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].time, 0);
+        assert_eq!(entries[0].resource, "https://tools.td.example/tickets");
+        assert_eq!(entries[0].code, "internal.clock");
+        assert_eq!(entries[0].decision, Decision::Deny);
+    }
     use envoy_types::ext_authz::v3::pb::CheckRequest;
     use envoy_types::pb::envoy::service::auth::v3::AttributeContext;
     use envoy_types::pb::envoy::service::auth::v3::attribute_context::{HttpRequest, Request};
