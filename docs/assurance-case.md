@@ -52,7 +52,7 @@ Any failure along the way denies the request with a stable reason code. There is
 | --- | --- | --- |
 | Memory safety (CWE-119 family) | Rust with `unsafe_code = "forbid"` across the workspace | `Cargo.toml` `[workspace.lints.rust]` |
 | Algorithm confusion, `alg: none` (CWE-347) | Allow-listed algorithms: RS256, PS256, ES256 and EdDSA for access tokens, RS256 and ES256 for JWT-SVIDs | `ALGORITHMS` in `crates/credentials/src/oauth.rs` and `svid.rs` |
-| Replay (CWE-294) | WPT `jti`, HTTP signature `nonce` and DPoP `jti` checked against a bounded cache; optional DPoP server nonces | [design.md](design.md#2-authenticate), conformance vectors |
+| Replay (CWE-294) | WPT `jti`, HTTP signature `nonce`, DPoP `jti`, AAT PoP `jti` and asor proof `jti` checked against bounded caches, one per proof type, with per-caller quotas; optional DPoP server nonces | [bindings.md](bindings.md#replay), `crates/chain/src/replay.rs` |
 | Resource exhaustion from input (CWE-400) | Credentials capped at 16 KiB and `jti` at 256 bytes; chains capped at 32 hops; bounded replay caches and chain-view buffer | `crates/credentials/src/lib.rs`, `crates/chain/src/invariants.rs` |
 | Panics on untrusted input (CWE-248) | The credential, Transaction Token, AAT and AuthZEN response parsers are fuzzed in CI on every push and pull request | `fuzz/`, `.github/workflows/ci.yml` |
 | Spoofed Transaction Token (CWE-290) | An inbound `Txn-Token` from a caller not in `internal_callers` is denied (`txn.untrusted_hop`) | `crates/extauthz/src/gate.rs` |

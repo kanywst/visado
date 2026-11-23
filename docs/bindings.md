@@ -234,8 +234,9 @@ A denial answers with the HTTP status below and `{"error": "<code>"}` (an RFC 94
 | 400 | `request.no_http_attributes`, `request.no_scheme`, `request.unnormalized_path`, `request.invalid_header` | The request target and header values |
 | 403 | `request.unknown_authority` | The request target |
 | 401 | `credential.missing`, `credential.ambiguous`, `credential.repeated_header`, `credential.too_large`, `credential.unbound_user_token` | Method selection |
+| 429 | `credential.replay_quota` | A caller over its quota in the WPT, signature or DPoP replay cache ([Replay](#replay)) |
 | 401 | `wit.invalid`, `wit.untrusted_domain`, `wpt.missing`, `wpt.invalid`, `wpt.replay` | WIT with WPT |
-| 503 | `wpt.replay_cache_full` | The replay cache shared by WPT `jti`, signature `nonce` and DPoP `jti` |
+| 503 | `wpt.replay_cache_full` | A full WPT, signature or DPoP replay cache |
 | 400 | `httpsig.invalid` | HTTP message signatures |
 | 401 | `mtls.invalid`, `mtls.untrusted_domain` | mTLS |
 | 401 | `jwt_svid.invalid`, `jwt_svid.untrusted_domain` | JWT-SVID |
@@ -244,9 +245,12 @@ A denial answers with the HTTP status below and `{"error": "<code>"}` (an RFC 94
 | 400 | `chain.ambiguous`, `chain.bad_invocation`, `chain.partial_body`, `chain.proof_conflict` | Chain selection |
 | 401 | `chain.missing_pop` | Chain selection |
 | 403 | `chain.required`, `chain.unsupported`, `chain.unbound_caller`, `chain.holder_mismatch` | Chain selection |
+| 429 | `chain.replay_quota` | A holder key over its quota in the AAT or asor proof replay cache |
+| 503 | `chain.replay_cache_full` | A full AAT or asor proof replay cache |
 | 403 | `aat.*`, `asor.*` (the outcome names of the draft's Table 2), `act.*` | The chain format |
 | 403 | `chain.malformed`, `chain.link_mismatch`, `chain.principal_altered`, `chain.exp_extended`, `chain.depth_exceeded`, `chain.audience_widened`, `chain.token_repeated`, `chain.unverified`, `chain.unknown_authority`, `chain.scope_escalation`, `chain.status_unchecked`, `chain.no_holder_proof`, `chain.action_denied` | The invariant engine |
 | 403 | `txn.untrusted_hop`, and `txn.*` from verifying a forwarded token or minting its replacement | Transaction Tokens |
 | 403 | `chain.principal_mismatch`, `token.no_scope` | Principal and scope |
 | 403 | `pdp.deny`, `pdp.unavailable`, `pdp.status`, `pdp.invalid_response`, `pdp.request_id_mismatch` | The PDP |
 | 500 | `internal.clock`, `internal.act` | visado itself |
+| 401 | `internal` | visado itself: the clock out of range while checking a DPoP proof |
