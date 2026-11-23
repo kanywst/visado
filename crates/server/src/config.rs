@@ -48,10 +48,15 @@ pub struct Config {
     #[serde(default = "default_replay_capacity")]
     pub replay_capacity: usize,
     /// The most live proofs one caller may hold in each replay cache: a
-    /// workload by WIT `sub`, or a proof key by thumbprint. Default a quarter
-    /// of `replay_capacity`.
+    /// workload by WIT `sub`, or a proof key by thumbprint. Default a 32nd of
+    /// `replay_capacity`, at most 5000.
     #[serde(default)]
     pub replay_key_quota: Option<usize>,
+    /// The most live DPoP proofs one OAuth client (issuer and `client_id`)
+    /// may hold across all its keys. Default a 16th of `replay_capacity`, at
+    /// most 10000.
+    #[serde(default)]
+    pub replay_client_quota: Option<usize>,
     #[serde(default = "default_max_wpt_lifetime")]
     pub max_wpt_lifetime: u64,
     /// The longest HTTP message signature window (`expires` minus
@@ -557,11 +562,13 @@ impl Config {
         if self.replay_capacity == 0 || self.max_wpt_lifetime == 0 {
             return Err("replay_capacity and max_wpt_lifetime must be positive".into());
         }
-        if self
-            .replay_key_quota
-            .is_some_and(|quota| !(1..=self.replay_capacity).contains(&quota))
-        {
-            return Err("replay_key_quota must be 1..=replay_capacity".into());
+        for (name, quota) in [
+            ("replay_key_quota", self.replay_key_quota),
+            ("replay_client_quota", self.replay_client_quota),
+        ] {
+            if quota.is_some_and(|quota| !(1..=self.replay_capacity).contains(&quota)) {
+                return Err(format!("{name} must be 1..=replay_capacity"));
+            }
         }
         if !(1..=MAX_SIGNATURE_LIFETIME).contains(&self.max_signature_lifetime) {
             return Err(format!(
@@ -744,8 +751,12 @@ impl Config {
             .with_signature_lifetime(self.max_signature_lifetime)
             .with_dpop_iat_window(self.dpop_iat_window)
             .with_proof_skew(self.max_proof_skew);
-        match self.replay_key_quota {
+        let authenticator = match self.replay_key_quota {
             Some(quota) => authenticator.with_replay_key_quota(quota),
+            None => authenticator,
+        };
+        match self.replay_client_quota {
+            Some(quota) => authenticator.with_replay_client_quota(quota),
             None => authenticator,
         }
     }
@@ -1398,6 +1409,9 @@ endpoint = "http://127.0.0.1:8181/access/v1/evaluation"
         assert!(parse("replay_key_quota = 0").is_err());
         assert!(parse("replay_capacity = 10\nreplay_key_quota = 11").is_err());
         assert!(parse("replay_capacity = 10\nreplay_key_quota = 10").is_ok());
+        assert!(parse("replay_client_quota = 0").is_err());
+        assert!(parse("replay_capacity = 10\nreplay_client_quota = 11").is_err());
+        assert!(parse("replay_capacity = 10\nreplay_client_quota = 10").is_ok());
         assert!(parse("max_signature_lifetime = 0").is_err());
         assert!(parse("max_signature_lifetime = 3600").is_err());
         assert!(parse("max_signature_lifetime = 120").is_ok());

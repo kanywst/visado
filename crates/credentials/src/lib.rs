@@ -128,6 +128,7 @@ pub struct Authenticator {
     dpop_nonces: Option<Nonces>,
     replay_capacity: usize,
     replay_key_quota: Option<usize>,
+    replay_client_quota: Option<usize>,
     replay: Replay,
 }
 
@@ -144,21 +145,45 @@ struct Replay {
 }
 
 impl Replay {
-    fn new(capacity: usize, key_quota: usize) -> Self {
+    fn new(capacity: usize, key_quota: usize, client_quota: usize) -> Self {
         let cache = || MemoryReplayCache::new(capacity).with_owner_quota(key_quota);
         Self {
             wpt: cache(),
             signature: cache(),
-            dpop: cache(),
+            dpop: cache().with_group_quota(client_quota),
         }
     }
 }
 
-/// The share of a replay cache one key or workload may hold unless
-/// configured: a quarter, so at least four of them are needed to fill it.
+/// The most live proofs one key or workload holds by default, whatever the
+/// capacity.
+pub const MAX_DEFAULT_REPLAY_KEY_QUOTA: usize = 5_000;
+
+/// The most live DPoP proofs one OAuth client holds by default, whatever the
+/// capacity.
+pub const MAX_DEFAULT_REPLAY_CLIENT_QUOTA: usize = 10_000;
+
+/// The live proofs one key or workload may hold in a replay cache of
+/// `capacity` unless configured: a 32nd of it, at most
+/// [`MAX_DEFAULT_REPLAY_KEY_QUOTA`] and at least one. Filling a cache takes
+/// at least 32 of them.
 #[must_use]
 pub const fn default_replay_key_quota(capacity: usize) -> usize {
-    if capacity < 4 { capacity } else { capacity / 4 }
+    share(capacity, 32, MAX_DEFAULT_REPLAY_KEY_QUOTA)
+}
+
+/// The live DPoP proofs one OAuth client may hold, across all its keys,
+/// unless configured: a 16th of the capacity, at most
+/// [`MAX_DEFAULT_REPLAY_CLIENT_QUOTA`] and at least one.
+#[must_use]
+pub const fn default_replay_client_quota(capacity: usize) -> usize {
+    share(capacity, 16, MAX_DEFAULT_REPLAY_CLIENT_QUOTA)
+}
+
+const fn share(capacity: usize, parts: usize, cap: usize) -> usize {
+    let share = capacity / parts;
+    let share = if share < cap { share } else { cap };
+    if share == 0 && capacity > 0 { 1 } else { share }
 }
 
 impl Authenticator {
@@ -180,9 +205,11 @@ impl Authenticator {
             dpop_nonces: None,
             replay_capacity: DEFAULT_REPLAY_CAPACITY,
             replay_key_quota: None,
+            replay_client_quota: None,
             replay: Replay::new(
                 DEFAULT_REPLAY_CAPACITY,
                 default_replay_key_quota(DEFAULT_REPLAY_CAPACITY),
+                default_replay_client_quota(DEFAULT_REPLAY_CAPACITY),
             ),
         }
     }
@@ -263,6 +290,17 @@ impl Authenticator {
         self
     }
 
+    /// The most live DPoP proofs one OAuth client (issuer and `client_id`)
+    /// may hold across all its keys. Past it, the client's new proofs are
+    /// rejected ([`AuthError::ReplayQuota`]), whichever key made them.
+    /// Default: [`default_replay_client_quota`] of the capacity.
+    #[must_use]
+    pub fn with_replay_client_quota(mut self, quota: usize) -> Self {
+        self.replay_client_quota = Some(quota);
+        self.rebuild_replay();
+        self
+    }
+
     /// The replay cache capacity and per-caller quota in force, for other
     /// replay caches that should follow the same configuration.
     #[must_use]
@@ -274,7 +312,10 @@ impl Authenticator {
         let quota = self
             .replay_key_quota
             .unwrap_or_else(|| default_replay_key_quota(self.replay_capacity));
-        self.replay = Replay::new(self.replay_capacity, quota);
+        let client_quota = self
+            .replay_client_quota
+            .unwrap_or_else(|| default_replay_client_quota(self.replay_capacity));
+        self.replay = Replay::new(self.replay_capacity, quota, client_quota);
     }
 
     /// The longest window between an HTTP signature's `created` and
@@ -614,9 +655,19 @@ impl Authenticator {
         // Accepted until `iat` falls out of the window behind now; `iat` is
         // at most the proof skew ahead.
         let until = u64::try_from(proof.iat.saturating_add(window)).unwrap_or(0);
-        record(&self.replay.dpop, &jkt, &proof.jti, until, now).map_err(|e| match e {
-            AuthError::Replay => AuthError::DpopReplay,
-            other => other,
+        // One quota per proof key and one per client (issuer and
+        // `client_id`), so a client with many bound keys cannot take many
+        // key quotas.
+        let client = format!(
+            "{}:{}{caller}",
+            token_claims.issuer.len(),
+            token_claims.issuer
+        );
+        record_in_group(&self.replay.dpop, &client, &jkt, &proof.jti, until, now).map_err(|e| {
+            match e {
+                AuthError::Replay => AuthError::DpopReplay,
+                other => other,
+            }
         })?;
         Ok(Authenticated {
             caller,
@@ -688,8 +739,27 @@ fn record(
     until: u64,
     now: u64,
 ) -> Result<(), AuthError> {
-    let secs = |t: u64| i64::try_from(t).unwrap_or(i64::MAX);
-    match cache.check_and_record(owner, id, secs(until), secs(now)) {
+    recorded(cache.check_and_record(owner, id, secs(until), secs(now)))
+}
+
+/// [`record`] for an owner within `group`, which has a quota of its own.
+fn record_in_group(
+    cache: &MemoryReplayCache,
+    group: &str,
+    owner: &str,
+    id: &str,
+    until: u64,
+    now: u64,
+) -> Result<(), AuthError> {
+    recorded(cache.check_and_record_in_group(group, owner, id, secs(until), secs(now)))
+}
+
+fn secs(t: u64) -> i64 {
+    i64::try_from(t).unwrap_or(i64::MAX)
+}
+
+fn recorded(recorded: Recorded) -> Result<(), AuthError> {
+    match recorded {
         Recorded::Fresh => Ok(()),
         Recorded::Replayed | Recorded::Stale => Err(AuthError::Replay),
         Recorded::OverQuota => Err(AuthError::ReplayQuota),

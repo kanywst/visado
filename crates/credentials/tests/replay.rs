@@ -10,7 +10,7 @@ use wimsey_jose::SigningKey;
 
 const AUDIENCE: &str = "https://tools.td.example/mcp";
 const HTU: &str = "https://tools.td.example/mcp";
-const CAPACITY: usize = 32;
+const CAPACITY: usize = 256;
 
 fn authenticator() -> Authenticator {
     let jwks = serde_json::from_value(oauth_jwks()).unwrap();
@@ -39,14 +39,11 @@ fn run(auth: &Authenticator, headers: &[(&str, &str)], now: u64) -> Result<Authe
 }
 
 fn token(holder: &SigningKey) -> String {
-    dpop_access_token(
-        "alice",
-        "mcp-client",
-        "files.read",
-        AUDIENCE,
-        NOW + 300,
-        holder,
-    )
+    client_token("mcp-client", holder)
+}
+
+fn client_token(client: &str, holder: &SigningKey) -> String {
+    dpop_access_token("alice", client, "files.read", AUDIENCE, NOW + 300, holder)
 }
 
 /// A DPoP request by `holder` with proof `jti` issued at `iat`, at `NOW`.
@@ -93,7 +90,9 @@ fn workload(auth: &Authenticator, workload: &str, jti: &str) -> Result<(), Strin
 /// a WPT must still get through.
 #[test]
 fn a_dpop_flood_does_not_lock_out_workloads() {
-    let auth = authenticator().with_replay_key_quota(CAPACITY);
+    let auth = authenticator()
+        .with_replay_key_quota(CAPACITY)
+        .with_replay_client_quota(CAPACITY);
     let holder = pop_key(7);
     // iat as far ahead as the window allowed when the flood was reported.
     let refused = (0..=CAPACITY)
@@ -108,13 +107,15 @@ fn a_dpop_flood_does_not_lock_out_workloads() {
 /// refuses DPoP proofs only.
 #[test]
 fn a_full_dpop_cache_refuses_only_dpop_proofs() {
-    let auth = authenticator().with_replay_key_quota(CAPACITY);
+    let auth = authenticator()
+        .with_replay_key_quota(CAPACITY)
+        .with_replay_client_quota(CAPACITY);
     let holder = pop_key(7);
     for i in 0..CAPACITY {
         assert_eq!(dpop(&auth, &holder, &format!("p-{i}"), NOW), Ok(()));
     }
     assert_eq!(
-        dpop(&auth, &pop_key(8), "other-key", NOW).unwrap_err(),
+        client_dpop(&auth, "other-client", &pop_key(8), "other-key").unwrap_err(),
         "wpt.replay_cache_full"
     );
     assert_eq!(workload(&auth, "agent-a", "w-1"), Ok(()));
@@ -126,7 +127,7 @@ fn a_full_dpop_cache_refuses_only_dpop_proofs() {
 fn one_dpop_key_holds_at_most_its_quota() {
     let auth = authenticator();
     let flood = pop_key(7);
-    let quota = CAPACITY / 4;
+    let quota = visado_credentials::default_replay_key_quota(CAPACITY);
     for i in 0..quota {
         assert_eq!(dpop(&auth, &flood, &format!("p-{i}"), NOW), Ok(()));
     }
@@ -201,4 +202,61 @@ fn a_dpop_jti_lives_exactly_as_long_as_its_proof() {
         "dpop.invalid"
     );
     assert_eq!(dpop_at(&auth, &holder, "p-2", NOW + 66, NOW + 66), Ok(()));
+}
+
+/// A DPoP request from OAuth client `client` with a token bound to `holder`.
+fn client_dpop(
+    auth: &Authenticator,
+    client: &str,
+    holder: &SigningKey,
+    jti: &str,
+) -> Result<(), String> {
+    let at = client_token(client, holder);
+    let proof = dpop_proof(holder, "POST", HTU, &at, jti, NOW);
+    run(
+        auth,
+        &[("authorization", &format!("DPoP {at}")), ("dpop", &proof)],
+        NOW,
+    )
+    .map(|_| ())
+}
+
+/// One client with many DPoP-bound keys holds one client quota across all
+/// of them, so more keys do not buy it more of the cache.
+#[test]
+fn one_client_holds_at_most_its_quota_across_its_keys() {
+    let auth = authenticator()
+        .with_replay_key_quota(4)
+        .with_replay_client_quota(6);
+    let accepted = (1..=4)
+        .flat_map(|key| (0..4).map(move |i| (key, i)))
+        .filter(|(key, i)| {
+            client_dpop(&auth, "mcp-client", &pop_key(*key), &format!("p-{key}-{i}")).is_ok()
+        })
+        .count();
+    assert_eq!(accepted, 6, "four keys of one client share six entries");
+    assert_eq!(
+        client_dpop(&auth, "mcp-client", &pop_key(5), "p-5").unwrap_err(),
+        "credential.replay_quota"
+    );
+    // Another client still has room.
+    assert_eq!(
+        client_dpop(&auth, "other-client", &pop_key(9), "p-9"),
+        Ok(())
+    );
+}
+
+/// The default quotas leave a large number of keys or clients needed to
+/// fill a cache, with an absolute cap for large caches.
+#[test]
+fn default_quotas_are_a_small_share() {
+    use visado_credentials::{
+        DEFAULT_REPLAY_CAPACITY, default_replay_client_quota, default_replay_key_quota,
+    };
+    assert_eq!(default_replay_key_quota(DEFAULT_REPLAY_CAPACITY), 3_125);
+    assert_eq!(default_replay_client_quota(DEFAULT_REPLAY_CAPACITY), 6_250);
+    assert_eq!(default_replay_key_quota(10_000_000), 5_000);
+    assert_eq!(default_replay_client_quota(10_000_000), 10_000);
+    assert_eq!(default_replay_key_quota(10), 1);
+    assert_eq!(default_replay_key_quota(0), 0);
 }

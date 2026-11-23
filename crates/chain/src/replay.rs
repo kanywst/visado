@@ -45,8 +45,9 @@ pub enum Recorded {
     /// dropped. It cannot be told apart from a replay and is refused like
     /// one.
     Stale,
-    /// The owner already holds its quota of live entries. Only this owner's
-    /// new proofs are refused until some of its entries expire.
+    /// The owner, or the group it belongs to, already holds its quota of
+    /// live entries. Only its new proofs are refused until some of its
+    /// entries expire.
     OverQuota,
     /// The cache is full of live entries, so the proof cannot be recorded.
     Full,
@@ -73,6 +74,7 @@ type Digest32 = [u8; 32];
 pub struct MemoryReplayCache {
     capacity: usize,
     owner_quota: usize,
+    group_quota: usize,
     state: Mutex<State>,
 }
 
@@ -83,12 +85,32 @@ struct State {
     /// stepped back) is handled at this time, so it cannot find an entry
     /// absent that a later call already dropped.
     high_water: i64,
-    /// Live entries by key, with the expiry and the owner of each.
-    live: HashMap<Digest32, (i64, Digest32)>,
+    /// Live entries by key, with the expiry, the owner and the group of
+    /// each.
+    live: HashMap<Digest32, Entry>,
     /// The same entries ordered by expiry, so the expired ones come first.
     by_expiry: BTreeSet<(i64, Digest32)>,
     /// How many live entries each owner holds.
     per_owner: HashMap<Digest32, usize>,
+    /// How many live entries each group holds.
+    per_group: HashMap<Digest32, usize>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Entry {
+    until: i64,
+    owner: Digest32,
+    group: Option<Digest32>,
+}
+
+/// Takes one from `key`'s count, dropping the count at zero.
+fn release(counts: &mut HashMap<Digest32, usize>, key: &Digest32) {
+    if let Some(count) = counts.get_mut(key) {
+        *count = count.saturating_sub(1);
+        if *count == 0 {
+            counts.remove(key);
+        }
+    }
 }
 
 impl Default for State {
@@ -98,6 +120,7 @@ impl Default for State {
             live: HashMap::new(),
             by_expiry: BTreeSet::new(),
             per_owner: HashMap::new(),
+            per_group: HashMap::new(),
         }
     }
 }
@@ -110,12 +133,10 @@ impl State {
                 break;
             }
             self.by_expiry.pop_first();
-            if let Some((_, owner)) = self.live.remove(&key)
-                && let Some(count) = self.per_owner.get_mut(&owner)
-            {
-                *count = count.saturating_sub(1);
-                if *count == 0 {
-                    self.per_owner.remove(&owner);
+            if let Some(entry) = self.live.remove(&key) {
+                release(&mut self.per_owner, &entry.owner);
+                if let Some(group) = &entry.group {
+                    release(&mut self.per_group, group);
                 }
             }
         }
@@ -131,6 +152,7 @@ impl MemoryReplayCache {
         Self {
             capacity,
             owner_quota: capacity,
+            group_quota: capacity,
             state: Mutex::new(State::default()),
         }
     }
@@ -142,6 +164,87 @@ impl MemoryReplayCache {
     pub const fn with_owner_quota(mut self, quota: usize) -> Self {
         self.owner_quota = quota;
         self
+    }
+
+    /// Caps the live entries of one group at `quota`, for proofs recorded
+    /// with [`MemoryReplayCache::check_and_record_in_group`]. A group is
+    /// whoever stands behind several owners, such as the OAuth client that
+    /// holds several proof keys; without it, one client with `n` keys could
+    /// take `n` owner quotas.
+    #[must_use]
+    pub const fn with_group_quota(mut self, quota: usize) -> Self {
+        self.group_quota = quota;
+        self
+    }
+
+    /// The most live entries one group may hold.
+    #[must_use]
+    pub const fn group_quota(&self) -> usize {
+        self.group_quota
+    }
+
+    /// [`ReplayCache::check_and_record`] for an owner that belongs to
+    /// `group`: the proof is refused as [`Recorded::OverQuota`] when either
+    /// the owner or the group holds its quota.
+    pub fn check_and_record_in_group(
+        &self,
+        group: &str,
+        owner: &str,
+        jti: &str,
+        until: i64,
+        now: i64,
+    ) -> Recorded {
+        self.record(Some(group), owner, jti, until, now)
+    }
+
+    fn record(
+        &self,
+        group: Option<&str>,
+        owner: &str,
+        jti: &str,
+        until: i64,
+        now: i64,
+    ) -> Recorded {
+        // A poisoned lock fails closed: nothing is recorded, nothing accepted.
+        let Ok(mut state) = self.state.lock() else {
+            return Recorded::Full;
+        };
+        let now = now.max(state.high_water);
+        state.high_water = now;
+        state.expire(now);
+        let key = entry_key(owner, jti);
+        if state.live.contains_key(&key) {
+            return Recorded::Replayed;
+        }
+        if until < now {
+            return Recorded::Stale;
+        }
+        let owner = owner_key(owner);
+        let group = group.map(group_key);
+        let held =
+            |counts: &HashMap<Digest32, usize>, k: &Digest32| counts.get(k).copied().unwrap_or(0);
+        if held(&state.per_owner, &owner) >= self.owner_quota
+            || group.is_some_and(|g| held(&state.per_group, &g) >= self.group_quota)
+        {
+            return Recorded::OverQuota;
+        }
+        if state.live.len() >= self.capacity {
+            return Recorded::Full;
+        }
+        state.live.insert(
+            key,
+            Entry {
+                until,
+                owner,
+                group,
+            },
+        );
+        state.by_expiry.insert((until, key));
+        *state.per_owner.entry(owner).or_insert(0) += 1;
+        if let Some(group) = group {
+            *state.per_group.entry(group).or_insert(0) += 1;
+        }
+        Recorded::Fresh
     }
 
     /// The most entries the cache holds.
@@ -162,7 +265,7 @@ impl MemoryReplayCache {
         let key = entry_key(owner, jti);
         self.state
             .lock()
-            .is_ok_and(|state| state.live.get(&key).is_some_and(|(t, _)| *t >= now))
+            .is_ok_and(|state| state.live.get(&key).is_some_and(|e| e.until >= now))
     }
 
     /// The number of entries held, expired ones included until the next
@@ -181,32 +284,7 @@ impl MemoryReplayCache {
 
 impl ReplayCache for MemoryReplayCache {
     fn check_and_record(&self, owner: &str, jti: &str, until: i64, now: i64) -> Recorded {
-        // A poisoned lock fails closed: nothing is recorded, nothing accepted.
-        let Ok(mut state) = self.state.lock() else {
-            return Recorded::Full;
-        };
-        let now = now.max(state.high_water);
-        state.high_water = now;
-        state.expire(now);
-        let key = entry_key(owner, jti);
-        if state.live.contains_key(&key) {
-            return Recorded::Replayed;
-        }
-        if until < now {
-            return Recorded::Stale;
-        }
-        let owner = owner_key(owner);
-        let held = state.per_owner.get(&owner).copied().unwrap_or(0);
-        if held >= self.owner_quota {
-            return Recorded::OverQuota;
-        }
-        if state.live.len() >= self.capacity {
-            return Recorded::Full;
-        }
-        state.live.insert(key, (until, owner));
-        state.by_expiry.insert((until, key));
-        *state.per_owner.entry(owner).or_insert(0) += 1;
-        Recorded::Fresh
+        self.record(None, owner, jti, until, now)
     }
 }
 
@@ -219,6 +297,13 @@ fn entry_key(owner: &str, jti: &str) -> Digest32 {
     hash.update(owner.as_bytes());
     hash.update((jti.len() as u64).to_be_bytes());
     hash.update(jti.as_bytes());
+    hash.finalize().into()
+}
+
+fn group_key(group: &str) -> Digest32 {
+    let mut hash = Sha256::new();
+    hash.update(b"visado-replay-group\0");
+    hash.update(group.as_bytes());
     hash.finalize().into()
 }
 
@@ -307,6 +392,35 @@ mod tests {
         assert!(cache.check_and_record("other", "a", 300, 100).is_fresh());
         assert!(cache.check_and_record("flood", "d", 300, 201).is_fresh());
         assert_eq!(cache.len(), 2, "the expired entries were dropped");
+    }
+
+    /// One group spreading its proofs over many owners is held to its own
+    /// quota, while other groups and ungrouped owners keep their room.
+    #[test]
+    fn a_group_cannot_take_more_than_its_quota_through_many_owners() {
+        let cache = MemoryReplayCache::new(100)
+            .with_owner_quota(5)
+            .with_group_quota(8);
+        let fresh = (0..20)
+            .filter(|i| {
+                cache
+                    .check_and_record_in_group("client-a", &format!("key-{i}"), "x", 1_000, 100)
+                    .is_fresh()
+            })
+            .count();
+        assert_eq!(fresh, 8);
+        assert!(
+            cache
+                .check_and_record_in_group("client-b", "key-0", "z", 1_000, 100)
+                .is_fresh()
+        );
+        assert!(cache.check_and_record("key-0", "y", 1_000, 100).is_fresh());
+        // Expiry gives the group its room back.
+        assert!(
+            cache
+                .check_and_record_in_group("client-a", "key-99", "x", 2_000, 1_001)
+                .is_fresh()
+        );
     }
 
     #[test]

@@ -422,7 +422,8 @@ async fn a_key_over_its_replay_quota_gets_429() {
     let (gate, _) = gate_with(
         authenticator()
             .with_replay_limits(16, 60)
-            .with_replay_key_quota(2),
+            .with_replay_key_quota(2)
+            .with_replay_client_quota(16),
     );
     let at = token();
     for jti in ["p-1", "p-2"] {
