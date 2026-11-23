@@ -4,6 +4,11 @@
 # with them.
 trust_domain = "td.example"
 grpc_listen = "172.30.91.10:9191"
+# grpc_listen is not loopback, but it is visado's address on the internal
+# authz network, which only the proxies share (compose.yaml), so the proxies
+# connect without TLS. A deployment that cannot close the network that way
+# sets [grpc_tls] with a client_ca_file instead.
+grpc_reachable_only_by_proxy = true
 http_listen = "0.0.0.0:8080"
 txn_lifetime = 60
 default_scope = "tickets.read"
@@ -22,6 +27,9 @@ jwk_file = "keys/txn-signing.private.jwk.json"
 [pdp]
 endpoint = "http://pdp:8181/access/v1/evaluation"
 timeout_ms = 500
+# Plain http on the lab's internal compose network, which only the lab
+# containers share. A deployment points this at an https PDP.
+allow_insecure_http = true
 
 [[oauth_issuers]]
 issuer = "https://idp.example"
@@ -50,10 +58,8 @@ trust_anchors = [{ issuer = "https://aat.td.example", jwk_file = "keys/aat-ancho
 
 [mtls]
 trust_bundles = [{ trust_domain = "td.example", ca_file = "spire/x509-bundle.pem" }]
-# grpc_listen is not loopback, but it is visado's address on the internal
-# authz network, which only the proxies share (compose.yaml). agentgateway
-# never sends a peer certificate, so only Envoy's mTLS listener passes one.
-grpc_reachable_only_by_proxy = true
+# agentgateway never sends a peer certificate, so only Envoy's mTLS listener
+# passes one.
 
 [jwt_svid]
 audiences = ["http://tools.td.example"]

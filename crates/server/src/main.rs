@@ -13,6 +13,7 @@
 
 mod chain_view;
 mod config;
+mod grpc;
 mod status;
 
 use std::path::PathBuf;
@@ -62,6 +63,18 @@ async fn run(path: &std::path::Path) -> Result<(), String> {
     if loaded.dpop_nonce_keys == Some(config::NonceKeys::Generated) {
         tracing::warn!(
             "DPoP nonces use a key made at startup: each replica has its own key, so another replica or a restart rejects this one's nonces and clients behind a load balancer keep getting use_dpop_nonce; set dpop.nonce_key_files to share a key"
+        );
+    }
+    if loaded.grpc_open {
+        tracing::warn!(
+            grpc = %loaded.grpc_listen,
+            "the gRPC listener is not loopback and asks for no client certificate (grpc_reachable_only_by_proxy): anything that can reach it gets decisions and Transaction Tokens"
+        );
+    }
+    if loaded.pdp_insecure_http {
+        tracing::warn!(
+            pdp = %config::url_origin(&loaded.pdp_endpoint),
+            "the PDP endpoint is plain http to another host (pdp.allow_insecure_http): anyone on the network path can answer for the PDP and allow any request"
         );
     }
     if chains && !loaded.gate.require_chain {
@@ -159,7 +172,7 @@ async fn serve(loaded: config::Loaded) -> Result<(), String> {
             "chain view enabled at /chain: it shows caller and principal identities to anyone who can reach the HTTP listener"
         );
     }
-    let grpc = tonic::transport::Server::builder()
+    let grpc = grpc::server(loaded.grpc_tls.as_ref())?
         .add_service(AuthorizationServer::new(ExtAuthz::new(gate)))
         .serve_with_incoming_shutdown(
             tonic::transport::server::TcpIncoming::from(grpc_listener),
@@ -167,7 +180,12 @@ async fn serve(loaded: config::Loaded) -> Result<(), String> {
         );
     let http = axum::serve(http_listener, http).with_graceful_shutdown(shutdown());
 
-    tracing::info!(grpc = %loaded.grpc_listen, http = %loaded.http_listen, "visado listening");
+    tracing::info!(
+        grpc = %loaded.grpc_listen,
+        grpc_tls = loaded.grpc_tls.is_some(),
+        http = %loaded.http_listen,
+        "visado listening"
+    );
     // A check request that fails to decode never reaches the gate, so the
     // proxy's failure mode decides it.
     tracing::info!(

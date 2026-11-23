@@ -146,7 +146,7 @@ Every chain goes through the format-neutral invariant engine after its format's 
 | HTTP signature body | `Content-Digest` covered when present | The digest is recomputed over the body Envoy sends (`with_request_body`); `sha-256` only; a missing body counts as empty and a partial body is denied; unless the request has exactly one `Content-Length: 0`, a body is assumed and `content-digest` must be covered |
 | HTTP signature failures | 400, one problem type, no detail | `httpsig.invalid`, 400, `application/problem+json`; the detail goes to the audit record only |
 | User token with an HTTP signature | Not defined | Read from `x-user-token` (configurable) and used only when the signature covers it; `Authorization` next to a signature is denied |
-| mTLS certificate source | The TLS peer | Envoy's `source.certificate`; Envoy must terminate TLS and be the only client of the gRPC port, which the server enforces by requiring a loopback `grpc_listen` unless `grpc_reachable_only_by_proxy` is set |
+| mTLS certificate source | The TLS peer | Envoy's `source.certificate`; Envoy must terminate TLS and be the only client of the gRPC port, which the server enforces by requiring a loopback `grpc_listen` unless `[grpc_tls]` requires a client certificate or the top-level `grpc_reachable_only_by_proxy` is set |
 | mTLS path validation | RFC 5280 path validation and revocation | One CA per trust domain that signs the leaf directly; no intermediates, name constraints or revocation. The leaf must not be a CA and its key usage, if present, must allow signatures only |
 | mTLS with credential headers | Not defined | A WIT or `Authorization` header takes precedence; the certificate authenticates only a request with neither |
 | Proof key for AAT chains | Not defined | The WIT `cnf` key (WPT and HTTP signature) or the certificate key (mTLS, Ed25519 or P-256); bearer methods have none and cannot present a chain |
@@ -171,7 +171,10 @@ Every chain goes through the format-neutral invariant engine after its format's 
 | `scope` vs `scp` | RFC 9068 uses `scope` | `scp` (string or array) is read when `scope` is absent |
 | No scope in a user token | Txn-Tokens §13.14 | Denied (`token.no_scope`); the default scope applies only to a workload without a user token |
 | Several issuers | | Each needs a `subject_prefix`, so `sub` and `client_id` cannot collide |
-| `typ` | RFC 9068 `at+jwt` | Not checked |
+| `typ` | RFC 9068 `at+jwt` | Not required. An AAT `typ` (`aat+jwt`, `aat-pop+jwt`) is rejected (`token.delegation`) |
+| Delegation-chain tokens | Not defined | A token with `del_depth`, `del_max_depth`, `par_hash`, `status`, an AAT proof claim or an `authorization_details` entry of type `agent_delegation` or `attenuating_agent_token` (any case, trimmed) is rejected (`token.delegation`): it is verified only on its chain path. An `[aat]` or `[asor]` anchor key in an OAuth issuer's JWKS stops startup |
+| `authorization_details` shape | RFC 9396 §2: a JSON array | Anything else is rejected on the access-token path (`token.invalid`) |
+| JWKS key `use`, `key_ops`, `alg` | RFC 7517 §4.2-4.4 | A key with `use` other than `sig`, `key_ops` without `verify`, or an `alg` other than the token's is not used. A token without `kid` verifies only when the JWKS holds exactly one key in total and that key passes these checks |
 
 ## DPoP (RFC 9449): choices
 

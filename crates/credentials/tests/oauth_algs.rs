@@ -114,3 +114,82 @@ fn rs256_and_es256_tokens_can_be_dpop_bound() {
         );
     }
 }
+
+/// A JWKS key is used only for what it says it is for (RFC 7517 §4.2-4.4):
+/// a `use` other than `sig`, `key_ops` without `verify`, or an `alg` other
+/// than the token's keeps it from verifying the token.
+#[test]
+fn a_key_verifies_only_what_it_is_published_for() {
+    use visado_testkit::{OAUTH_ISSUER, access_token, oauth_jwks};
+    let token = access_token("alice", "c-1", "files.read", AUDIENCE, NOW + 300);
+    let with = |edit: &dyn Fn(&mut Value)| {
+        let mut jwks = oauth_jwks();
+        edit(&mut jwks["keys"][0]);
+        let jwks = serde_json::from_value(jwks).unwrap();
+        let auth =
+            Authenticator::new().with_oauth_issuer(OAuthIssuer::new(OAUTH_ISSUER, AUDIENCE, jwks));
+        run(&auth, &[("authorization", format!("Bearer {token}"))])
+    };
+    assert_eq!(with(&|_| {}), Ok(Method::Bearer));
+    assert_eq!(with(&|k| k["alg"] = json!("EdDSA")), Ok(Method::Bearer));
+    assert_eq!(
+        with(&|k| {
+            k.as_object_mut().unwrap().remove("use");
+            k["key_ops"] = json!(["verify"]);
+        }),
+        Ok(Method::Bearer)
+    );
+    for (what, edit) in [
+        (
+            "use enc",
+            &(|k: &mut Value| k["use"] = json!("enc")) as &dyn Fn(&mut Value),
+        ),
+        ("use other", &|k: &mut Value| k["use"] = json!("wit-svid")),
+        ("alg", &|k: &mut Value| k["alg"] = json!("ES256")),
+        ("key_ops", &|k: &mut Value| {
+            k.as_object_mut().unwrap().remove("use");
+            k["key_ops"] = json!(["encrypt"]);
+        }),
+    ] {
+        assert_eq!(with(edit), Err("token.invalid".to_owned()), "{what}");
+    }
+}
+
+/// Without a `kid`, a token verifies only when the set holds exactly one key
+/// in total, and that key passes the `use`, `key_ops` and `alg` checks. A
+/// second key, even one for encryption, refuses it.
+#[test]
+fn without_a_kid_the_set_must_hold_one_key() {
+    use visado_testkit::{OAUTH_ISSUER, oauth_jwks};
+    let claims = json!({
+        "iss": OAUTH_ISSUER, "sub": "alice", "aud": AUDIENCE, "client_id": "c-1",
+        "iat": NOW - 5, "exp": NOW + 300,
+    });
+    let header = json!({ "typ": "at+jwt", "alg": "EdDSA" });
+    let token = visado_testkit::sign_dpop_proof(&header, &claims, &visado_testkit::oauth_key());
+    let with = |jwks: Value| {
+        let jwks = serde_json::from_value(jwks).unwrap();
+        let auth =
+            Authenticator::new().with_oauth_issuer(OAuthIssuer::new(OAUTH_ISSUER, AUDIENCE, jwks));
+        run(&auth, &[("authorization", format!("Bearer {token}"))])
+    };
+    assert_eq!(with(oauth_jwks()), Ok(Method::Bearer));
+
+    // The one key must still be a signing key for this alg.
+    let mut enc_only = oauth_jwks();
+    enc_only["keys"][0]["use"] = json!("enc");
+    assert_eq!(with(enc_only), Err("token.invalid".to_owned()));
+    let mut other_alg = oauth_jwks();
+    other_alg["keys"][0]["alg"] = json!("ES256");
+    assert_eq!(with(other_alg), Err("token.invalid".to_owned()));
+
+    // A second key, for encryption or for signing, refuses a kid-less token.
+    for usage in ["enc", "sig"] {
+        let mut jwks = oauth_jwks();
+        let mut second = jwks["keys"][0].clone();
+        second["use"] = json!(usage);
+        second["kid"] = json!("k-2");
+        jwks["keys"].as_array_mut().unwrap().push(second);
+        assert_eq!(with(jwks), Err("token.invalid".to_owned()), "{usage}");
+    }
+}

@@ -21,6 +21,16 @@ pub struct Config {
     pub trust_domain: String,
     #[serde(default = "default_grpc")]
     pub grpc_listen: SocketAddr,
+    /// Anyone who can call the gRPC port gets a decision and, on an allow, a
+    /// minted Transaction Token, and can put any certificate in an mTLS
+    /// check. Unless this is set, a non-loopback `grpc_listen` needs
+    /// `[grpc_tls]` with a `client_ca_file`; set it only when the network
+    /// lets nothing but the proxy reach the port.
+    #[serde(default)]
+    pub grpc_reachable_only_by_proxy: bool,
+    /// TLS on the gRPC listener.
+    #[serde(default)]
+    pub grpc_tls: Option<GrpcTlsConfig>,
     #[serde(default = "default_http")]
     pub http_listen: SocketAddr,
     #[serde(default = "default_lifetime")]
@@ -209,12 +219,38 @@ pub struct JwtBundleConfig {
 #[serde(deny_unknown_fields)]
 pub struct MtlsConfig {
     pub trust_bundles: Vec<X509BundleConfig>,
-    /// A certificate is public, so anyone who can call the gRPC port can claim
-    /// any workload's. Unless this is set, `[mtls]` needs a loopback
-    /// `grpc_listen`; set it only when the network lets nothing but the proxy
-    /// reach that port.
+    /// Moved to the top level, where it covers every configuration. Kept
+    /// here only to say so.
     #[serde(default)]
-    pub grpc_reachable_only_by_proxy: bool,
+    pub grpc_reachable_only_by_proxy: Option<bool>,
+}
+
+/// TLS on the gRPC listener, so the proxy can authenticate visado and, with a
+/// client CA, visado the proxy.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[expect(
+    clippy::struct_field_names,
+    reason = "every file setting in this file ends in _file"
+)]
+pub struct GrpcTlsConfig {
+    /// The server certificate chain, PEM.
+    pub cert_file: PathBuf,
+    /// The server private key, PEM.
+    pub key_file: PathBuf,
+    /// CA certificates, PEM, that issue the proxy's client certificate. When
+    /// set, a client without a certificate from one of them is refused during
+    /// the handshake.
+    #[serde(default)]
+    pub client_ca_file: Option<PathBuf>,
+}
+
+/// The gRPC listener's TLS material, read at startup.
+#[derive(Debug, Clone)]
+pub struct GrpcTls {
+    pub cert: Vec<u8>,
+    pub key: Vec<u8>,
+    pub client_ca: Option<Vec<u8>>,
 }
 
 /// The CA for one trust domain. Leaf certificates must be issued directly by
@@ -365,6 +401,11 @@ pub struct PdpConfig {
     /// that do not pass `context` to the policy (Cerbos).
     #[serde(default)]
     pub context_in_subject: bool,
+    /// Allow a plain `http` endpoint that is not loopback. Anyone on the path
+    /// can then answer for the PDP, so set it only on a network nothing else
+    /// can reach. Logged as a warning at startup.
+    #[serde(default)]
+    pub allow_insecure_http: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -443,8 +484,15 @@ pub struct Loaded {
     pub pdp_timeout: Duration,
     pub pdp_bearer: Option<String>,
     pub pdp_context_in_subject: bool,
+    /// The PDP endpoint is plain `http` to another host
+    /// (`pdp.allow_insecure_http`).
+    pub pdp_insecure_http: bool,
     pub public_jwk: Jwk,
     pub grpc_listen: SocketAddr,
+    pub grpc_tls: Option<GrpcTls>,
+    /// `grpc_listen` is not loopback and no client certificate is required:
+    /// the operator vouched for the network (`grpc_reachable_only_by_proxy`).
+    pub grpc_open: bool,
     pub http_listen: SocketAddr,
     pub telemetry: Option<TelemetryConfig>,
     pub chain_view: Option<ChainView>,
@@ -475,6 +523,13 @@ impl Config {
                 "txn_lifetime must be 1..={MAX_TXN_LIFETIME} seconds"
             ));
         }
+        if let Some(header) = &self.user_token_header {
+            check_user_token_header(header)?;
+        }
+        check_no_userinfo("pdp.endpoint", &self.pdp.endpoint)?;
+        if let Some(telemetry) = &self.telemetry {
+            check_no_userinfo("telemetry.otlp_endpoint", &telemetry.otlp_endpoint)?;
+        }
         if self.pdp.timeout_ms == 0 {
             return Err("pdp.timeout_ms must be positive".into());
         }
@@ -499,8 +554,18 @@ impl Config {
         if !self.dpop.require_nonce && !self.dpop.nonce_key_files.is_empty() {
             return Err("dpop.nonce_key_files needs dpop.require_nonce = true".into());
         }
-        if self.pdp.bearer_env.is_some() && !is_https_or_loopback(&self.pdp.endpoint) {
-            return Err("pdp.bearer_env needs an https endpoint (or loopback)".into());
+        // Whoever answers the PDP endpoint decides every request, so it must
+        // be authenticated by TLS unless it is on this host.
+        if !is_https_or_loopback(&self.pdp.endpoint) {
+            let http = reqwest::Url::parse(&self.pdp.endpoint).is_ok_and(|u| u.scheme() == "http");
+            if !(http && self.pdp.allow_insecure_http) {
+                return Err(
+                    "pdp.endpoint needs https (or a loopback http address); set pdp.allow_insecure_http = true only when nothing else can reach the network path to the PDP".into(),
+                );
+            }
+            if self.pdp.bearer_env.is_some() {
+                return Err("pdp.bearer_env needs an https endpoint (or loopback)".into());
+            }
         }
         let mut domains = BTreeSet::new();
         for issuer in &self.wit_issuers {
@@ -517,9 +582,12 @@ impl Config {
                 ));
             }
         }
+        self.validate_grpc()?;
         if let Some(mtls) = &self.mtls {
-            if !self.grpc_listen.ip().is_loopback() && !mtls.grpc_reachable_only_by_proxy {
-                return Err("[mtls] needs a loopback grpc_listen, or grpc_reachable_only_by_proxy = true when only the proxy can reach the port".into());
+            if mtls.grpc_reachable_only_by_proxy.is_some() {
+                return Err(
+                    "[mtls] grpc_reachable_only_by_proxy moved to the top level of the file".into(),
+                );
             }
             check_trust_domains(
                 "mtls.trust_bundles",
@@ -542,6 +610,23 @@ impl Config {
             if !issuers.insert(&issuer.issuer) {
                 return Err(format!("duplicate oauth_issuers issuer {}", issuer.issuer));
             }
+        }
+        Ok(())
+    }
+
+    /// Only the proxy may call the gRPC port: it is loopback, the proxy
+    /// presents a client certificate, or the operator says the network
+    /// allows nothing else.
+    fn validate_grpc(&self) -> Result<(), String> {
+        let proxy_authenticated = self
+            .grpc_tls
+            .as_ref()
+            .is_some_and(|tls| tls.client_ca_file.is_some());
+        if !self.grpc_listen.ip().is_loopback()
+            && !proxy_authenticated
+            && !self.grpc_reachable_only_by_proxy
+        {
+            return Err("a non-loopback grpc_listen needs [grpc_tls] with a client_ca_file, or grpc_reachable_only_by_proxy = true when only the proxy can reach the port: anyone who can call it gets decisions and Transaction Tokens".into());
         }
         Ok(())
     }
@@ -627,6 +712,10 @@ impl Config {
             .map_err(|e| format!("signing key: {e}"))?;
         let public_jwk = private.to_public();
 
+        let anchors = self.chain_anchor_thumbprints(base)?;
+        let grpc_tls = self.grpc_tls.as_ref().map(|t| t.read(base)).transpose()?;
+        let grpc_open = !self.grpc_listen.ip().is_loopback()
+            && grpc_tls.as_ref().is_none_or(|t| t.client_ca.is_none());
         let mut authenticator = Authenticator::new()
             .with_replay_limits(self.replay_capacity, self.max_wpt_lifetime)
             .with_signature_lifetime(self.max_signature_lifetime)
@@ -655,14 +744,7 @@ impl Config {
             }
             authenticator = authenticator.with_wit_issuer(wit);
         }
-        for issuer in self.oauth_issuers {
-            let jwks = read_json(&base.join(&issuer.jwks_file))?;
-            let mut oauth = OAuthIssuer::new(issuer.issuer, issuer.audience, jwks);
-            if let Some(prefix) = issuer.subject_prefix {
-                oauth = oauth.with_subject_prefix(prefix);
-            }
-            authenticator = authenticator.with_oauth_issuer(oauth);
-        }
+        let authenticator = with_oauth_issuers(authenticator, self.oauth_issuers, &anchors, base)?;
         let mut authenticator = with_svid_bundles(authenticator, self.mtls, self.jwt_svid, base)?;
         let dpop_nonce_keys = if self.dpop.require_nonce {
             let (nonces, keys) = self.dpop.nonces(base)?;
@@ -709,12 +791,15 @@ impl Config {
                 require_chain,
             },
             authenticator,
+            pdp_insecure_http: !is_https_or_loopback(&self.pdp.endpoint),
             pdp_endpoint: self.pdp.endpoint,
             pdp_timeout: Duration::from_millis(self.pdp.timeout_ms),
             pdp_bearer,
             pdp_context_in_subject: self.pdp.context_in_subject,
             public_jwk,
             grpc_listen: self.grpc_listen,
+            grpc_tls,
+            grpc_open,
             http_listen: self.http_listen,
             telemetry: self.telemetry,
             chain_view: self.chain_view.enabled.then_some(ChainView {
@@ -723,6 +808,42 @@ impl Config {
             }),
             asor_status,
             dpop_nonce_keys,
+        })
+    }
+}
+
+impl Config {
+    /// The RFC 7638 thumbprint of every `[aat]` and `[asor]` trust anchor key,
+    /// mapped to the section and issuer it is trusted for.
+    fn chain_anchor_thumbprints(&self, base: &Path) -> Result<BTreeMap<String, String>, String> {
+        let sections = [
+            ("aat", self.aat.as_ref().map(|c| &c.trust_anchors)),
+            ("asor", self.asor.as_ref().map(|c| &c.trust_anchors)),
+        ];
+        let mut thumbprints = BTreeMap::new();
+        for (section, anchors) in sections {
+            for anchor in anchors.into_iter().flatten() {
+                let key = anchor_key(base, anchor)?;
+                thumbprints.insert(
+                    visado_chain_aat::jwk_thumbprint(&key),
+                    format!("[{section}] {}", anchor.issuer),
+                );
+            }
+        }
+        Ok(thumbprints)
+    }
+}
+
+impl GrpcTlsConfig {
+    fn read(&self, base: &Path) -> Result<GrpcTls, String> {
+        let read = |file: &PathBuf| {
+            let path = base.join(file);
+            std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))
+        };
+        Ok(GrpcTls {
+            cert: read(&self.cert_file)?,
+            key: read(&self.key_file)?,
+            client_ca: self.client_ca_file.as_ref().map(read).transpose()?,
         })
     }
 }
@@ -766,6 +887,46 @@ fn read_nonce_key(path: &Path) -> Result<Vec<u8>, String> {
         ));
     }
     Ok(key)
+}
+
+/// Adds the OAuth issuers. A key that is also a chain trust anchor key
+/// (`anchors`, by RFC 7638 thumbprint) is refused: a delegation token it
+/// signs would verify as an access token.
+fn with_oauth_issuers(
+    mut authenticator: Authenticator,
+    issuers: Vec<OAuthIssuerConfig>,
+    anchors: &BTreeMap<String, String>,
+    base: &Path,
+) -> Result<Authenticator, String> {
+    for issuer in issuers {
+        let jwks: jsonwebtoken::jwk::JwkSet = read_json(&base.join(&issuer.jwks_file))?;
+        for key in &jwks.keys {
+            // A key that cannot be thumbprinted cannot be compared with the
+            // anchors, so it is not trusted at all.
+            let thumbprint = key
+                .thumbprint(jsonwebtoken::jwk::ThumbprintHash::SHA256)
+                .map_err(|e| {
+                    format!(
+                        "oauth_issuers {}: a key in {} has no RFC 7638 thumbprint: {e}",
+                        issuer.issuer,
+                        issuer.jwks_file.display(),
+                    )
+                })?;
+            if let Some(anchor) = anchors.get(&thumbprint) {
+                return Err(format!(
+                    "oauth_issuers {}: a key in {} is also the {anchor} trust anchor key; a delegation token it signs would verify as an access token, so the two need different keys",
+                    issuer.issuer,
+                    issuer.jwks_file.display(),
+                ));
+            }
+        }
+        let mut oauth = OAuthIssuer::new(issuer.issuer, issuer.audience, jwks);
+        if let Some(prefix) = issuer.subject_prefix {
+            oauth = oauth.with_subject_prefix(prefix);
+        }
+        authenticator = authenticator.with_oauth_issuer(oauth);
+    }
+    Ok(authenticator)
 }
 
 /// Adds the SPIFFE trust bundles: X.509 CAs for mTLS and JWT keys for
@@ -882,6 +1043,7 @@ impl AsorStatusConfig {
         }
         let mut uris = BTreeSet::new();
         for list in &self.lists {
+            check_no_userinfo("asor.status.lists uri", &list.uri)?;
             if list.uri.trim().is_empty() || !uris.insert(&list.uri) {
                 return Err(format!(
                     "asor.status.lists: {:?} is empty or listed twice",
@@ -1019,9 +1181,86 @@ impl JwkSet {
     }
 }
 
+/// Headers a user token header may not be: credentials and proofs visado
+/// reads itself, the delegation chain headers, and headers the proxy or HTTP
+/// itself owns.
+const RESERVED_HEADERS: [&str; 18] = [
+    "authorization",
+    "proxy-authorization",
+    "workload-identity-token",
+    visado_credentials::DPOP_HEADER,
+    visado_extauthz::DPOP_NONCE_HEADER,
+    "txn-token",
+    visado_extauthz::AAT_CHAIN_HEADER,
+    visado_extauthz::AAT_POP_HEADER,
+    "agent-delegation-chain",
+    "host",
+    "cookie",
+    "x-forwarded-client-cert",
+    "connection",
+    "keep-alive",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+];
+
+/// Prefixes of reserved headers: HTTP message signatures, the body's
+/// metadata and digest, and Envoy's own headers.
+const RESERVED_HEADER_PREFIXES: [&str; 3] = ["signature", "content-", "x-envoy-"];
+
+/// A lowercase HTTP field name (RFC 9110 §5.1) that is not a reserved header.
+fn check_user_token_header(name: &str) -> Result<(), String> {
+    let token = !name.is_empty()
+        && name.bytes().all(|b| {
+            b.is_ascii_lowercase() || b.is_ascii_digit() || b"!#$%&'*+-.^_`|~".contains(&b)
+        });
+    if !token {
+        return Err(format!(
+            "user_token_header {name:?} is not a lowercase HTTP header name"
+        ));
+    }
+    if RESERVED_HEADERS.contains(&name)
+        || RESERVED_HEADER_PREFIXES
+            .iter()
+            .any(|prefix| name.starts_with(prefix))
+    {
+        return Err(format!(
+            "user_token_header {name:?} is a header visado or the proxy already uses"
+        ));
+    }
+    Ok(())
+}
+
 fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Refuses a URL with userinfo (`user:password@`): it would be logged, and
+/// credentials belong in `bearer_env`. The error does not repeat the URL.
+fn check_no_userinfo(what: &str, url: &str) -> Result<(), String> {
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return Ok(());
+    };
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err(format!(
+            "{what} must not carry credentials (user:password@) in the URL"
+        ));
+    }
+    Ok(())
+}
+
+/// `scheme://host:port` of `url`, for logs: no userinfo, path or query.
+pub fn url_origin(url: &str) -> String {
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return "<invalid url>".into();
+    };
+    let host = parsed.host_str().unwrap_or("");
+    match parsed.port_or_known_default() {
+        Some(port) => format!("{}://{host}:{port}", parsed.scheme()),
+        None => format!("{}://{host}", parsed.scheme()),
+    }
 }
 
 fn is_https_or_loopback(endpoint: &str) -> bool {
@@ -1146,8 +1385,41 @@ jwks_file = "j"
             config.validate()
         };
         assert!(open("").is_err());
-        assert!(open("grpc_reachable_only_by_proxy = true\n").is_ok());
+        // The setting moved to the top level.
+        assert!(open("grpc_reachable_only_by_proxy = true\n").is_err());
+        let config: Config = toml::from_str(&format!(
+            "grpc_listen = \"0.0.0.0:9191\"\ngrpc_reachable_only_by_proxy = true\n{BASE}[mtls]\n[[mtls.trust_bundles]]\ntrust_domain = \"td.example\"\nca_file = \"ca.pem\"\n"
+        ))
+        .unwrap();
+        config.validate().unwrap();
         assert!(parse_tables("[[mtls.trust_bundles]]\ntrust_domain = \"td.example\"\nca_file = \"ca.pem\"\nchain = true\n").is_err());
+    }
+
+    #[test]
+    fn a_reachable_grpc_listener_needs_client_certificates_or_a_closed_network() {
+        let with = |top: &str, tables: &str| {
+            let config: Config =
+                toml::from_str(&format!("{top}{BASE}{tables}")).map_err(|e| e.to_string())?;
+            config.validate()
+        };
+        let tls = "[grpc_tls]\ncert_file = \"c.pem\"\nkey_file = \"k.pem\"\n";
+        let mtls = format!("{tls}client_ca_file = \"ca.pem\"\n");
+        for listen in ["127.0.0.1:9191", "[::1]:9191"] {
+            let top = format!("grpc_listen = \"{listen}\"\n");
+            with(&top, "").unwrap();
+            with(&top, tls).unwrap();
+        }
+        let remote = "grpc_listen = \"0.0.0.0:9191\"\n";
+        assert!(with(remote, "").is_err());
+        // TLS without client certificates still lets anyone call.
+        assert!(with(remote, tls).is_err());
+        with(remote, &mtls).unwrap();
+        with(
+            &format!("{remote}grpc_reachable_only_by_proxy = true\n"),
+            "",
+        )
+        .unwrap();
+        assert!(with(remote, "[grpc_tls]\ncert_file = \"c.pem\"\n").is_err());
     }
 
     #[test]
@@ -1490,6 +1762,205 @@ jwks_file = "j"
         assert!(missing.is_some_and(|e| e.contains("could not be fetched")));
         assert_eq!(loaded, Ok(true));
         assert!(other.is_some_and(|e| e.contains("sub is not the uri")));
+    }
+
+    #[test]
+    fn a_chain_anchor_key_is_never_an_oauth_issuer_key() {
+        use visado_testkit::{AAT_ISSUER, ASOR_ISSUER, aat_anchor_key, asor_anchor_key, oauth_key};
+        use wimsey_jose::{Algorithm, Jwk, SigningKey};
+        let dir = std::env::temp_dir().join(format!("visado-anchors-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let key = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../deploy/local/keys/txn-signing.private.jwk.json");
+        std::fs::copy(key, dir.join("k.json")).unwrap();
+        let jwk = |key: &SigningKey| {
+            serde_json::to_string(&Jwk::from_verifying_key(&key.verifying_key())).unwrap()
+        };
+        // The same key as an OAuth issuer publishes it: `EdDSA`, with a kid.
+        let jwks = |key: &SigningKey| {
+            let key = key.clone().with_algorithm(Algorithm::EdDsa).unwrap();
+            let mut jwk =
+                serde_json::to_value(Jwk::from_verifying_key(&key.verifying_key())).unwrap();
+            jwk["kid"] = serde_json::json!("k1");
+            jwk["use"] = serde_json::json!("sig");
+            serde_json::json!({ "keys": [jwk] }).to_string()
+        };
+        std::fs::write(dir.join("asor.json"), jwk(&asor_anchor_key())).unwrap();
+        std::fs::write(dir.join("aat.json"), jwk(&aat_anchor_key())).unwrap();
+        std::fs::write(dir.join("idp.json"), jwks(&oauth_key())).unwrap();
+        std::fs::write(dir.join("asor-idp.json"), jwks(&asor_anchor_key())).unwrap();
+        std::fs::write(dir.join("aat-idp.json"), jwks(&aat_anchor_key())).unwrap();
+        // An OKP key on P-256 parses but has no RFC 7638 thumbprint, so it
+        // could not be compared with the anchors.
+        let mut odd: serde_json::Value = serde_json::from_str(&jwks(&oauth_key())).unwrap();
+        odd["keys"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({ "kty": "OKP", "crv": "P-256", "x": "AAAA", "kid": "k2" }));
+        std::fs::write(dir.join("odd-idp.json"), odd.to_string()).unwrap();
+        let path = dir.join("visado.toml");
+        let load = |jwks_file: &str| {
+            let tables = format!(
+                "[[oauth_issuers]]\nissuer = \"https://idp\"\naudience = \"a\"\njwks_file = \"{jwks_file}\"\n\
+                 [aat]\naudiences = [\"a\"]\nrequired = true\n\
+                 trust_anchors = [{{ issuer = \"{AAT_ISSUER}\", jwk_file = \"aat.json\" }}]\n\
+                 [asor]\naudiences = [\"a\"]\nrequired = true\n\
+                 trust_anchors = [{{ issuer = \"{ASOR_ISSUER}\", jwk_file = \"asor.json\" }}]\n"
+            );
+            std::fs::write(&path, format!("{BASE}{tables}")).unwrap();
+            Config::load(&path).err()
+        };
+        let distinct = load("idp.json");
+        let asor = load("asor-idp.json");
+        let aat = load("aat-idp.json");
+        let odd = load("odd-idp.json");
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(
+            odd.as_ref()
+                .is_some_and(|e| e.contains("no RFC 7638 thumbprint")),
+            "a key without a thumbprint must stop startup"
+        );
+        assert_eq!(distinct, None);
+        assert!(
+            asor.as_ref()
+                .is_some_and(|e| e.contains("[asor] https://asor.td.example trust anchor")),
+            "an [asor] anchor key in an OAuth JWKS did not stop startup"
+        );
+        assert!(
+            aat.as_ref()
+                .is_some_and(|e| e.contains("[aat] https://aat.td.example trust anchor")),
+            "an [aat] anchor key in an OAuth JWKS did not stop startup"
+        );
+    }
+
+    #[test]
+    fn user_token_header_is_a_free_lowercase_header_name() {
+        for ok in ["x-user-token", "x-subject-token", "user_token"] {
+            parse(&format!("user_token_header = \"{ok}\"")).unwrap();
+        }
+        for bad in [
+            "",
+            "X-User-Token",
+            "x user",
+            "x-user:",
+            ":authority",
+            "authorization",
+            "proxy-authorization",
+            "dpop",
+            "dpop-nonce",
+            "workload-identity-token",
+            "txn-token",
+            "aat-chain",
+            "aat-pop",
+            "agent-delegation-chain",
+            "signature",
+            "signature-input",
+            "signature-agent",
+            "content-digest",
+            "content-type",
+            "host",
+            "cookie",
+            "x-forwarded-client-cert",
+            "x-envoy-original-path",
+            "transfer-encoding",
+        ] {
+            assert!(
+                parse(&format!("user_token_header = \"{bad}\"")).is_err(),
+                "{bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_remote_pdp_needs_https_unless_insecure_http_is_allowed() {
+        let with = |endpoint: &str, extra: &str| {
+            let config: Config = toml::from_str(&format!(
+                "{}{extra}",
+                BASE.replace("http://127.0.0.1:8181/access/v1/evaluation", endpoint)
+            ))
+            .unwrap();
+            config.validate()
+        };
+        with("https://pdp.example/access/v1/evaluation", "").unwrap();
+        with("http://127.0.0.1:8181/e", "").unwrap();
+        with("http://[::1]:8181/e", "").unwrap();
+        with("http://localhost:8181/e", "").unwrap();
+        assert!(with("http://pdp:8181/e", "").is_err());
+        assert!(with("http://10.0.0.1:8181/e", "").is_err());
+        assert!(with("ftp://pdp/e", "").is_err());
+        assert!(with("not a url", "").is_err());
+        with("http://pdp:8181/e", "allow_insecure_http = true\n").unwrap();
+        assert!(with("ftp://pdp/e", "allow_insecure_http = true\n").is_err());
+        // A bearer token never goes over plain http to another host.
+        assert!(
+            with(
+                "http://pdp:8181/e",
+                "allow_insecure_http = true\nbearer_env = \"T\"\n"
+            )
+            .is_err()
+        );
+        with("https://pdp/e", "bearer_env = \"T\"\n").unwrap();
+    }
+
+    #[test]
+    fn configured_urls_carry_no_credentials() {
+        let pdp = |endpoint: &str| {
+            let config: Config = toml::from_str(
+                &BASE.replace("http://127.0.0.1:8181/access/v1/evaluation", endpoint),
+            )
+            .unwrap();
+            config.validate()
+        };
+        pdp("https://pdp.example/e").unwrap();
+        // The assertion messages name the case, never the URL or the error,
+        // so a test failure does not print the credentials either.
+        for (case, bad) in [
+            ("user and password", "https://user:secret@pdp.example/e"),
+            ("user only", "https://user@pdp.example/e"),
+            ("password only", "https://:secret@pdp.example/e"),
+            ("loopback", "http://user:secret@127.0.0.1:8181/e"),
+        ] {
+            let refused = pdp(bad).is_err_and(|e| {
+                e.contains("credentials") && !e.contains("secret") && !e.contains("user@")
+            });
+            assert!(
+                refused,
+                "pdp.endpoint with userinfo ({case}) was accepted or echoed"
+            );
+        }
+        let otlp = |endpoint: &str| {
+            parse_tables(&format!("[telemetry]\notlp_endpoint = \"{endpoint}\"\n"))
+        };
+        otlp("http://jaeger:4317").unwrap();
+        assert!(otlp("http://u:p@jaeger:4317").is_err());
+        let status = |uri: &str| {
+            parse_tables(&format!(
+                "[asor]\naudiences = [\"a\"]\ntrust_anchors = []\nrequired = true\n\
+                 [asor.status]\ntrust_anchors = []\nlists = [{{ uri = \"{uri}\" }}]\n"
+            ))
+        };
+        status("https://status.example/1").unwrap();
+        let refused = status("https://u:secret@status.example/1")
+            .is_err_and(|e| e.contains("credentials") && !e.contains("secret"));
+        assert!(
+            refused,
+            "a status list uri with userinfo was accepted or echoed"
+        );
+    }
+
+    #[test]
+    fn url_origin_keeps_only_scheme_host_and_port() {
+        use super::url_origin;
+        assert_eq!(
+            url_origin("http://user:secret@pdp:8181/access/v1/evaluation?x=1"),
+            "http://pdp:8181"
+        );
+        assert_eq!(
+            url_origin("https://pdp.example/e"),
+            "https://pdp.example:443"
+        );
+        assert_eq!(url_origin("http://[::1]:8181/e"), "http://[::1]:8181");
+        assert_eq!(url_origin("not a url"), "<invalid url>");
     }
 
     #[test]
