@@ -45,7 +45,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
   - agentgateway's MCP backend in front of a real MCP server (`deploy/lab/mcp`): tool calls are checked against the AAT chain, one allowed and one denied in CI.
   - The audit record: one per decision with the AIMS §11 minimum, hash-chained ([docs/audit.md](docs/audit.md)); `demo.sh` checks its members and the chain in visado's log.
   - The four attack demos ([deploy/lab/attacks](deploy/lab/attacks/README.md)): a widened delegation, a stolen chain, a recruited admin agent (stopped), and exfiltration within granted scope (not stopped).
-  - The gate: `docker compose up -d --build` and `docker compose run --rm demo` reproduce every demo with only Docker on the host, as CI does.
+  - The gate: `docker compose up -d --build` and `docker compose run --rm --no-deps demo` reproduce every demo with only Docker on the host, as CI does.
 
 ## Phase 6: Interop and launch
 
