@@ -365,6 +365,11 @@ pub struct PdpConfig {
     /// that do not pass `context` to the policy (Cerbos).
     #[serde(default)]
     pub context_in_subject: bool,
+    /// Allow a plain `http` endpoint that is not loopback. Anyone on the path
+    /// can then answer for the PDP, so set it only on a network nothing else
+    /// can reach. Logged as a warning at startup.
+    #[serde(default)]
+    pub allow_insecure_http: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -443,6 +448,9 @@ pub struct Loaded {
     pub pdp_timeout: Duration,
     pub pdp_bearer: Option<String>,
     pub pdp_context_in_subject: bool,
+    /// The PDP endpoint is plain `http` to another host
+    /// (`pdp.allow_insecure_http`).
+    pub pdp_insecure_http: bool,
     pub public_jwk: Jwk,
     pub grpc_listen: SocketAddr,
     pub http_listen: SocketAddr,
@@ -502,8 +510,18 @@ impl Config {
         if !self.dpop.require_nonce && !self.dpop.nonce_key_files.is_empty() {
             return Err("dpop.nonce_key_files needs dpop.require_nonce = true".into());
         }
-        if self.pdp.bearer_env.is_some() && !is_https_or_loopback(&self.pdp.endpoint) {
-            return Err("pdp.bearer_env needs an https endpoint (or loopback)".into());
+        // Whoever answers the PDP endpoint decides every request, so it must
+        // be authenticated by TLS unless it is on this host.
+        if !is_https_or_loopback(&self.pdp.endpoint) {
+            let http = reqwest::Url::parse(&self.pdp.endpoint).is_ok_and(|u| u.scheme() == "http");
+            if !(http && self.pdp.allow_insecure_http) {
+                return Err(
+                    "pdp.endpoint needs https (or a loopback http address); set pdp.allow_insecure_http = true only when nothing else can reach the network path to the PDP".into(),
+                );
+            }
+            if self.pdp.bearer_env.is_some() {
+                return Err("pdp.bearer_env needs an https endpoint (or loopback)".into());
+            }
         }
         let mut domains = BTreeSet::new();
         for issuer in &self.wit_issuers {
@@ -706,6 +724,7 @@ impl Config {
                 require_chain,
             },
             authenticator,
+            pdp_insecure_http: !is_https_or_loopback(&self.pdp.endpoint),
             pdp_endpoint: self.pdp.endpoint,
             pdp_timeout: Duration::from_millis(self.pdp.timeout_ms),
             pdp_bearer,
@@ -1683,6 +1702,37 @@ jwks_file = "j"
                 "{bad:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_remote_pdp_needs_https_unless_insecure_http_is_allowed() {
+        let with = |endpoint: &str, extra: &str| {
+            let config: Config = toml::from_str(&format!(
+                "{}{extra}",
+                BASE.replace("http://127.0.0.1:8181/access/v1/evaluation", endpoint)
+            ))
+            .unwrap();
+            config.validate()
+        };
+        with("https://pdp.example/access/v1/evaluation", "").unwrap();
+        with("http://127.0.0.1:8181/e", "").unwrap();
+        with("http://[::1]:8181/e", "").unwrap();
+        with("http://localhost:8181/e", "").unwrap();
+        assert!(with("http://pdp:8181/e", "").is_err());
+        assert!(with("http://10.0.0.1:8181/e", "").is_err());
+        assert!(with("ftp://pdp/e", "").is_err());
+        assert!(with("not a url", "").is_err());
+        with("http://pdp:8181/e", "allow_insecure_http = true\n").unwrap();
+        assert!(with("ftp://pdp/e", "allow_insecure_http = true\n").is_err());
+        // A bearer token never goes over plain http to another host.
+        assert!(
+            with(
+                "http://pdp:8181/e",
+                "allow_insecure_http = true\nbearer_env = \"T\"\n"
+            )
+            .is_err()
+        );
+        with("https://pdp/e", "bearer_env = \"T\"\n").unwrap();
     }
 
     #[test]

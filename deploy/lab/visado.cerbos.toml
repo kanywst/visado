@@ -25,6 +25,9 @@ jwk_file = "keys/txn-signing.private.jwk.json"
 # policy, so the context members go into subject.properties too.
 endpoint = "http://cerbos:3592/access/v1/evaluation"
 timeout_ms = 500
+# Plain http on the lab's internal compose network, which only the lab
+# containers share. A deployment points this at an https PDP.
+allow_insecure_http = true
 context_in_subject = true
 
 [[oauth_issuers]]

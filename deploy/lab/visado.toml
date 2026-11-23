@@ -22,6 +22,9 @@ jwk_file = "keys/txn-signing.private.jwk.json"
 [pdp]
 endpoint = "http://pdp:8181/access/v1/evaluation"
 timeout_ms = 500
+# Plain http on the lab's internal compose network, which only the lab
+# containers share. A deployment points this at an https PDP.
+allow_insecure_http = true
 
 [[oauth_issuers]]
 issuer = "https://idp.example"

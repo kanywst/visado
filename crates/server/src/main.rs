@@ -64,6 +64,12 @@ async fn run(path: &std::path::Path) -> Result<(), String> {
             "DPoP nonces use a key made at startup: each replica has its own key, so another replica or a restart rejects this one's nonces and clients behind a load balancer keep getting use_dpop_nonce; set dpop.nonce_key_files to share a key"
         );
     }
+    if loaded.pdp_insecure_http {
+        tracing::warn!(
+            pdp = %loaded.pdp_endpoint,
+            "the PDP endpoint is plain http to another host (pdp.allow_insecure_http): anyone on the network path can answer for the PDP and allow any request"
+        );
+    }
     if chains && !loaded.gate.require_chain {
         tracing::warn!(
             "a delegation chain format is configured without required = true: requests without a chain skip the chain checks"
