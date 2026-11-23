@@ -31,7 +31,21 @@ The query string is not checked.
 
 ## Header values
 
-A header value that is not valid UTF-8 is a 400 `request.invalid_header`, and so is a value with U+FFFD in it, which is what a proxy that decodes values lossily (agentgateway does) leaves in place of the bytes it could not decode. Decoding lossily would map different bytes to the same text, which a signature over that text could not tell apart. With Envoy, set `encode_raw_headers: true` so visado gets the bytes as received.
+A header value that is not valid UTF-8 is a 400 `request.invalid_header`, and so is a value with U+FFFD in it, which is what a proxy that decodes values lossily (agentgateway does) leaves in place of the bytes it could not decode. Decoding lossily would map different bytes to the same text, which a signature over that text could not tell apart. With Envoy, set `encode_raw_headers: true` so visado gets the bytes as received (see [Proxy settings](#proxy-settings)).
+
+## Proxy settings
+
+visado decides only on check requests it can decode. A check request that fails to decode never reaches its handler: a protobuf string field (a header value, the path, the body) that is not UTF-8, or a message over gRPC's 4 MiB limit, is a gRPC error, and the proxy then applies its failure mode. These settings are required:
+
+| Setting | Envoy `ext_authz` | agentgateway `extAuthz` |
+| --- | --- | --- |
+| Deny when visado errs or cannot decode the request | `failure_mode_allow: false` | `failureMode: deny` |
+| Header values as bytes, repeated fields kept apart | `encode_raw_headers: true` | No equivalent: agentgateway decodes values lossily itself, and visado denies a value with U+FFFD (`request.invalid_header`) |
+| The body as bytes | `with_request_body.pack_as_bytes: true` | `includeRequestBody.packAsBytes: true` |
+| The whole body or none | `with_request_body.allow_partial_message: false` | `includeRequestBody.allowPartialMessage: false` |
+| Room in the 4 MiB message | `max_request_bytes` plus the largest headers the listener accepts (`max_request_headers_kb`) well under 4 MiB | `maxRequestBytes` likewise |
+
+visado denies a partial body (`x-envoy-auth-partial-body`) wherever it reads the body, but with `allow_partial_message: false` the proxy itself refuses a body over the limit. `deploy/lab/envoy.yaml` and `deploy/lab/agentgateway.yaml` use these settings.
 
 ## WIMSE
 

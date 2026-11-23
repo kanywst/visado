@@ -1,7 +1,9 @@
 # agentgateway in front of the same echo upstream as Envoy. Its extAuthz
 # policy calls visado over gRPC with the same body settings as Envoy's
 # ext_authz filter: the body for MCP arguments and for Content-Digest, as raw
-# bytes.
+# bytes. failureMode: deny and packAsBytes: true are required
+# (docs/bindings.md, Proxy settings); agentgateway has no raw-header option,
+# and visado denies a header value it decoded lossily.
 binds:
 - port: 10001
   listeners:

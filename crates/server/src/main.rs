@@ -168,6 +168,11 @@ async fn serve(loaded: config::Loaded) -> Result<(), String> {
     let http = axum::serve(http_listener, http).with_graceful_shutdown(shutdown());
 
     tracing::info!(grpc = %loaded.grpc_listen, http = %loaded.http_listen, "visado listening");
+    // A check request that fails to decode never reaches the gate, so the
+    // proxy's failure mode decides it.
+    tracing::info!(
+        "the proxy must fail closed and send raw bytes: Envoy failure_mode_allow: false, encode_raw_headers: true, with_request_body.pack_as_bytes: true; agentgateway failureMode: deny, packAsBytes: true (docs/bindings.md, Proxy settings)"
+    );
     tokio::try_join!(
         async { grpc.await.map_err(|e| format!("grpc: {e}")) },
         async { http.await.map_err(|e| format!("http: {e}")) },

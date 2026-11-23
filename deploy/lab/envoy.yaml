@@ -24,7 +24,11 @@ static_resources:
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
                       transport_api_version: V3
+                      # Required (docs/bindings.md, Proxy settings): deny when
+                      # visado cannot decode the check request, and send header
+                      # values and the body as raw bytes.
                       failure_mode_allow: false
+                      encode_raw_headers: true
                       # The body for MCP arguments and for Content-Digest;
                       # pack_as_bytes passes a non-UTF-8 body unchanged.
                       with_request_body:
@@ -76,6 +80,7 @@ static_resources:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
                       transport_api_version: V3
                       failure_mode_allow: false
+                      encode_raw_headers: true
                       include_peer_certificate: true
                       with_request_body:
                         max_request_bytes: 65536

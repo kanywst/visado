@@ -172,8 +172,13 @@ impl<P: Pdp + 'static> Authorization for ExtAuthz<P> {
         &self,
         request: Request<CheckRequest>,
     ) -> Result<Response<CheckResponse>, Status> {
-        // Malformed requests are denied in the response, not as gRPC errors,
-        // so Envoy's failure_mode_allow cannot turn them into an allow.
+        // A request visado can decode but refuses is denied in the response,
+        // not as a gRPC error, so failure_mode_allow cannot turn it into an
+        // allow. That does not cover a CheckRequest that fails to decode (a
+        // string field that is not UTF-8, or a message over the 4 MiB gRPC
+        // limit): tonic rejects it before this handler runs and the proxy
+        // applies its failure mode, which must therefore deny. See "Proxy
+        // settings" in docs/bindings.md.
         let input = match input_from(request.get_ref()) {
             Ok(input) => input,
             Err(code) => return Ok(Response::new(denied_response(400, code, None, &[]))),
