@@ -1,6 +1,6 @@
 header:
   schema-version: 2.0.0
-  last-updated: "2026-11-22"
+  last-updated: "2026-11-23"
   last-reviewed: "2026-11-19"
   url: https://raw.githubusercontent.com/kanywst/visado/main/SECURITY-INSIGHTS.yml
 project:
@@ -38,7 +38,8 @@ repository:
   security:
     assessments:
       self:
-        comment: No self-assessment yet. The threat model is in docs/research/05-threats.md.
+        comment: Assurance case covering what visado protects against, its trust boundaries and the weaknesses it counters. The threat model is in docs/research/05-threats.md.
+        evidence: https://github.com/kanywst/visado/blob/main/docs/assurance-case.md
     tools:
       - name: OpenSSF Scorecard
         type: SCA
@@ -61,6 +62,14 @@ repository:
           adhoc: false
           ci: true
           release: false
+      - name: cargo-fuzz
+        type: fuzzing
+        rulesets: [default]
+        integration:
+          adhoc: true
+          ci: true
+          release: false
+        comment: libFuzzer targets for the credential, Transaction Token, AAT and AuthZEN response parsers; a short run per target on every push and pull request.
   release:
     changelog: https://github.com/kanywst/visado/blob/main/CHANGELOG.md
     automated-pipeline: true

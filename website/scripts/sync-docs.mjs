@@ -39,6 +39,7 @@ const pages = [
   { src: 'docs/bindings.md', slug: 'concepts/bindings', optional: true },
   { src: 'SPEC-MAP.md', slug: 'spec-map' },
   { src: 'SECURITY.md', slug: 'security/policy' },
+  { src: 'docs/assurance-case.md', slug: 'security/assurance-case' },
   { src: 'docs/research/05-threats.md', slug: 'security/threats', title: 'Threat model' },
   { src: 'ROADMAP.md', slug: 'roadmap' },
   { src: 'CHANGELOG.md', slug: 'changelog' },

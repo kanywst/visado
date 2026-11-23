@@ -62,6 +62,7 @@ To see it behind Envoy and agentgateway with a real PDP, run the [lab](deploy/la
 - [docs/scope.md](docs/scope.md): what visado covers and what it leaves to other projects
 - [docs/design.md](docs/design.md): request pipeline and plugin interfaces
 - [SPEC-MAP.md](SPEC-MAP.md): pinned draft revisions and known divergences
+- [docs/assurance-case.md](docs/assurance-case.md): what visado protects against, what it does not, and the evidence
 - [docs/research/](docs/research/): background research
 
 ## Contributing

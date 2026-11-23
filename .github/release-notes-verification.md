@@ -23,4 +23,11 @@ The tarballs carry SLSA build provenance, which says which workflow run built th
 gh attestation verify visado-__TAG__-<target>.tar.gz --repo __REPO__
 ```
 
+The same attestation is attached as `visado-__TAG__-provenance.intoto.jsonl`, for checking without a call to GitHub's attestation API:
+
+```bash
+gh attestation verify visado-__TAG__-<target>.tar.gz --repo __REPO__ \
+  --bundle visado-__TAG__-provenance.intoto.jsonl
+```
+
 An SPDX software bill of materials is attached as `visado-__TAG__-sbom.spdx.json`.
