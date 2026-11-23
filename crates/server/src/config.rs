@@ -535,30 +535,8 @@ impl Config {
         config.build(base)
     }
 
-    fn validate(&self) -> Result<(), String> {
-        if self.trust_domain.trim().is_empty() {
-            return Err("trust_domain is empty".into());
-        }
-        // WPT and HTTP signature audiences name the request's own authority;
-        // without a list, anyone who sets Host matches any audience.
-        if self.allowed_authorities.is_empty() {
-            return Err("allowed_authorities must list the authorities this gate protects".into());
-        }
-        if !(1..=MAX_TXN_LIFETIME).contains(&self.txn_lifetime) {
-            return Err(format!(
-                "txn_lifetime must be 1..={MAX_TXN_LIFETIME} seconds"
-            ));
-        }
-        if let Some(header) = &self.user_token_header {
-            check_user_token_header(header)?;
-        }
-        check_no_userinfo("pdp.endpoint", &self.pdp.endpoint)?;
-        if let Some(telemetry) = &self.telemetry {
-            check_no_userinfo("telemetry.otlp_endpoint", &telemetry.otlp_endpoint)?;
-        }
-        if self.pdp.timeout_ms == 0 {
-            return Err("pdp.timeout_ms must be positive".into());
-        }
+    /// The replay cache sizes and the proof time limits.
+    fn validate_proof_limits(&self) -> Result<(), String> {
         if self.replay_capacity == 0 || self.max_wpt_lifetime == 0 {
             return Err("replay_capacity and max_wpt_lifetime must be positive".into());
         }
@@ -585,6 +563,34 @@ impl Config {
                 "max_proof_skew must be 0..={MAX_PROOF_SKEW} seconds"
             ));
         }
+        Ok(())
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        if self.trust_domain.trim().is_empty() {
+            return Err("trust_domain is empty".into());
+        }
+        // WPT and HTTP signature audiences name the request's own authority;
+        // without a list, anyone who sets Host matches any audience.
+        if self.allowed_authorities.is_empty() {
+            return Err("allowed_authorities must list the authorities this gate protects".into());
+        }
+        if !(1..=MAX_TXN_LIFETIME).contains(&self.txn_lifetime) {
+            return Err(format!(
+                "txn_lifetime must be 1..={MAX_TXN_LIFETIME} seconds"
+            ));
+        }
+        if let Some(header) = &self.user_token_header {
+            check_user_token_header(header)?;
+        }
+        check_no_userinfo("pdp.endpoint", &self.pdp.endpoint)?;
+        if let Some(telemetry) = &self.telemetry {
+            check_no_userinfo("telemetry.otlp_endpoint", &telemetry.otlp_endpoint)?;
+        }
+        if self.pdp.timeout_ms == 0 {
+            return Err("pdp.timeout_ms must be positive".into());
+        }
+        self.validate_proof_limits()?;
         if !(1..=MAX_DPOP_NONCE_LIFETIME).contains(&self.dpop.nonce_lifetime) {
             return Err(format!(
                 "dpop.nonce_lifetime must be 1..={MAX_DPOP_NONCE_LIFETIME} seconds"
