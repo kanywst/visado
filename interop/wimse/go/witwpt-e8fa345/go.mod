@@ -8,4 +8,4 @@ require (
 	github.com/strideynet/wit-wpt-go v0.0.0-20251126093821-e8fa34519d8d
 )
 
-require golang.org/x/crypto v0.39.0 // indirect
+require golang.org/x/crypto v0.52.0 // indirect
