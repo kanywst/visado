@@ -2,7 +2,8 @@
   "minted_by": "attenu-guard 0.22.0",
   "verified_by": "visado-chain-asor",
   "cases": 9,
-  "differ": 0,
+  "differ": 1,
+  "unexpected": 0,
   "results": [
     {
       "id": "A.1",

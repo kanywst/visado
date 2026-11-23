@@ -37,6 +37,6 @@ mkdir -p "$out"
 "${py[@]}" verify "$out/visado-minted.json" > "$out/attenu-guard-on-visado-minted.json"
 
 for f in visado-on-attenu-guard-minted attenu-guard-on-visado-minted; do
-  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); a=sum(r["agree"] for r in d["results"]); print(sys.argv[2] + ":", a, "of", d["cases"], "agree,", d["differ"], "unexpected")' \
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); a=sum(r["agree"] for r in d["results"]); print(sys.argv[2] + ":", a, "of", d["cases"], "agree,", d["unexpected"], "unexpected")' \
     "$out/$f.json" "$f"
 done
