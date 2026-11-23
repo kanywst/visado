@@ -475,6 +475,9 @@ impl Config {
                 "txn_lifetime must be 1..={MAX_TXN_LIFETIME} seconds"
             ));
         }
+        if let Some(header) = &self.user_token_header {
+            check_user_token_header(header)?;
+        }
         if self.pdp.timeout_ms == 0 {
             return Err("pdp.timeout_ms must be positive".into());
         }
@@ -1052,6 +1055,57 @@ impl JwkSet {
     }
 }
 
+/// Headers a user token header may not be: credentials and proofs visado
+/// reads itself, the delegation chain headers, and headers the proxy or HTTP
+/// itself owns.
+const RESERVED_HEADERS: [&str; 18] = [
+    "authorization",
+    "proxy-authorization",
+    "workload-identity-token",
+    visado_credentials::DPOP_HEADER,
+    visado_extauthz::DPOP_NONCE_HEADER,
+    "txn-token",
+    visado_extauthz::AAT_CHAIN_HEADER,
+    visado_extauthz::AAT_POP_HEADER,
+    "agent-delegation-chain",
+    "host",
+    "cookie",
+    "x-forwarded-client-cert",
+    "connection",
+    "keep-alive",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+];
+
+/// Prefixes of reserved headers: HTTP message signatures, the body's
+/// metadata and digest, and Envoy's own headers.
+const RESERVED_HEADER_PREFIXES: [&str; 3] = ["signature", "content-", "x-envoy-"];
+
+/// A lowercase HTTP field name (RFC 9110 §5.1) that is not a reserved header.
+fn check_user_token_header(name: &str) -> Result<(), String> {
+    let token = !name.is_empty()
+        && name.bytes().all(|b| {
+            b.is_ascii_lowercase() || b.is_ascii_digit() || b"!#$%&'*+-.^_`|~".contains(&b)
+        });
+    if !token {
+        return Err(format!(
+            "user_token_header {name:?} is not a lowercase HTTP header name"
+        ));
+    }
+    if RESERVED_HEADERS.contains(&name)
+        || RESERVED_HEADER_PREFIXES
+            .iter()
+            .any(|prefix| name.starts_with(prefix))
+    {
+        return Err(format!(
+            "user_token_header {name:?} is a header visado or the proxy already uses"
+        ));
+    }
+    Ok(())
+}
+
 fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
@@ -1578,6 +1632,44 @@ jwks_file = "j"
                 .is_some_and(|e| e.contains("[aat] https://aat.td.example trust anchor")),
             "{aat:?}"
         );
+    }
+
+    #[test]
+    fn user_token_header_is_a_free_lowercase_header_name() {
+        for ok in ["x-user-token", "x-subject-token", "user_token"] {
+            parse(&format!("user_token_header = \"{ok}\"")).unwrap();
+        }
+        for bad in [
+            "",
+            "X-User-Token",
+            "x user",
+            "x-user:",
+            ":authority",
+            "authorization",
+            "proxy-authorization",
+            "dpop",
+            "dpop-nonce",
+            "workload-identity-token",
+            "txn-token",
+            "aat-chain",
+            "aat-pop",
+            "agent-delegation-chain",
+            "signature",
+            "signature-input",
+            "signature-agent",
+            "content-digest",
+            "content-type",
+            "host",
+            "cookie",
+            "x-forwarded-client-cert",
+            "x-envoy-original-path",
+            "transfer-encoding",
+        ] {
+            assert!(
+                parse(&format!("user_token_header = \"{bad}\"")).is_err(),
+                "{bad:?}"
+            );
+        }
     }
 
     #[test]
