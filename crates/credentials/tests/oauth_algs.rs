@@ -114,3 +114,68 @@ fn rs256_and_es256_tokens_can_be_dpop_bound() {
         );
     }
 }
+
+/// A JWKS key is used only for what it says it is for (RFC 7517 §4.2-4.4):
+/// a `use` other than `sig`, `key_ops` without `verify`, or an `alg` other
+/// than the token's keeps it from verifying the token.
+#[test]
+fn a_key_verifies_only_what_it_is_published_for() {
+    use visado_testkit::{OAUTH_ISSUER, access_token, oauth_jwks};
+    let token = access_token("alice", "c-1", "files.read", AUDIENCE, NOW + 300);
+    let with = |edit: &dyn Fn(&mut Value)| {
+        let mut jwks = oauth_jwks();
+        edit(&mut jwks["keys"][0]);
+        let jwks = serde_json::from_value(jwks).unwrap();
+        let auth =
+            Authenticator::new().with_oauth_issuer(OAuthIssuer::new(OAUTH_ISSUER, AUDIENCE, jwks));
+        run(&auth, &[("authorization", format!("Bearer {token}"))])
+    };
+    assert_eq!(with(&|_| {}), Ok(Method::Bearer));
+    assert_eq!(with(&|k| k["alg"] = json!("EdDSA")), Ok(Method::Bearer));
+    assert_eq!(
+        with(&|k| {
+            k.as_object_mut().unwrap().remove("use");
+            k["key_ops"] = json!(["verify"]);
+        }),
+        Ok(Method::Bearer)
+    );
+    for (what, edit) in [
+        (
+            "use enc",
+            &(|k: &mut Value| k["use"] = json!("enc")) as &dyn Fn(&mut Value),
+        ),
+        ("use other", &|k: &mut Value| k["use"] = json!("wit-svid")),
+        ("alg", &|k: &mut Value| k["alg"] = json!("ES256")),
+        ("key_ops", &|k: &mut Value| {
+            k.as_object_mut().unwrap().remove("use");
+            k["key_ops"] = json!(["encrypt"]);
+        }),
+    ] {
+        assert_eq!(with(edit), Err("token.invalid".to_owned()), "{what}");
+    }
+}
+
+/// Without a `kid`, the one key that may verify the token is used, even
+/// when the set also holds an encryption key.
+#[test]
+fn without_a_kid_only_signing_keys_count() {
+    use visado_testkit::{OAUTH_ISSUER, oauth_jwks};
+    let claims = json!({
+        "iss": OAUTH_ISSUER, "sub": "alice", "aud": AUDIENCE, "client_id": "c-1",
+        "iat": NOW - 5, "exp": NOW + 300,
+    });
+    let header = json!({ "typ": "at+jwt", "alg": "EdDSA" });
+    let token = visado_testkit::sign_dpop_proof(&header, &claims, &visado_testkit::oauth_key());
+    let mut jwks = oauth_jwks();
+    let mut enc = jwks["keys"][0].clone();
+    enc["use"] = json!("enc");
+    enc["kid"] = json!("enc-1");
+    jwks["keys"].as_array_mut().unwrap().push(enc);
+    let jwks = serde_json::from_value(jwks).unwrap();
+    let auth =
+        Authenticator::new().with_oauth_issuer(OAuthIssuer::new(OAUTH_ISSUER, AUDIENCE, jwks));
+    assert_eq!(
+        run(&auth, &[("authorization", format!("Bearer {token}"))]),
+        Ok(Method::Bearer)
+    );
+}

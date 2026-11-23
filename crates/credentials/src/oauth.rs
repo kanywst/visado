@@ -1,4 +1,4 @@
-use jsonwebtoken::jwk::{JwkSet, ThumbprintHash};
+use jsonwebtoken::jwk::{Jwk, JwkSet, KeyOperations, PublicKeyUse, ThumbprintHash};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::Deserialize;
 
@@ -115,6 +115,24 @@ const ALGORITHMS: [Algorithm; 4] = [
     Algorithm::EdDSA,
 ];
 
+/// Whether `jwk` may verify a signature made with `alg` (RFC 7517 §4.2-4.4):
+/// `use`, when present, is `sig`; `key_ops`, when present, includes `verify`;
+/// and `alg`, when present, is `alg`.
+fn verifies(jwk: &Jwk, alg: Algorithm) -> bool {
+    let common = &jwk.common;
+    common
+        .public_key_use
+        .as_ref()
+        .is_none_or(|u| *u == PublicKeyUse::Signature)
+        && common
+            .key_operations
+            .as_ref()
+            .is_none_or(|ops| ops.contains(&KeyOperations::Verify))
+        && common
+            .key_algorithm
+            .is_none_or(|key_alg| Algorithm::try_from(key_alg).is_ok_and(|a| a == alg))
+}
+
 /// How a verified access token is bound to its presenter.
 #[derive(Debug)]
 pub(crate) enum Binding {
@@ -168,10 +186,16 @@ pub(crate) fn verify_bound(
         .iter()
         .find(|i| i.issuer == iss)
         .ok_or(AuthError::UntrustedIssuer)?;
+    // Only keys that may verify this token are candidates, so a key published
+    // for encryption or for another algorithm is never used.
+    let mut usable = issuer
+        .jwks
+        .keys
+        .iter()
+        .filter(|jwk| verifies(jwk, header.alg));
     let jwk = match &header.kid {
-        Some(kid) => issuer.jwks.find(kid),
-        None if issuer.jwks.keys.len() == 1 => issuer.jwks.keys.first(),
-        None => None,
+        Some(kid) => usable.find(|jwk| jwk.common.key_id.as_deref() == Some(kid.as_str())),
+        None => usable.next().filter(|_| usable.next().is_none()),
     }
     .ok_or_else(|| AuthError::AccessToken("no trusted key".into()))?;
     let key = DecodingKey::from_jwk(jwk).map_err(invalid)?;
