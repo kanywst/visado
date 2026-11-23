@@ -21,8 +21,9 @@ pub const HEADER: &str = "Txn-Token";
 /// decoding.
 pub const MAX_TOKEN_LEN: usize = 16 * 1024;
 
-/// `RS256` (RFC 7518 §3.3), verified with keys added by
-/// [`KeySet::with_rsa_key`]. Minting is `Ed25519`, `EdDSA` or `ES256` only.
+/// `RS256` (RFC 7518 §3.3): verified with keys added by
+/// [`KeySet::with_rsa_key`], minted by [`mint_with`] with an RSA
+/// [`TxnSigningKey`].
 const RS256: &str = "RS256";
 
 #[derive(Serialize, Deserialize)]
