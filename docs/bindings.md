@@ -227,11 +227,11 @@ Every accepted proof is remembered for as long as it could be accepted, so a cop
 
 ## Reason codes
 
-A denial answers with the HTTP status below and `{"error": "<code>"}` (an RFC 9457 problem document for `httpsig.invalid`). The same code is the audit event's `reason`, the span's `visado.reason` and the chain view's `code`. Checks run in the order of the [design](design.md#request-pipeline) and stop at the first failure.
+A denial answers with the HTTP status below and `{"error": "<code>"}` (an RFC 9457 problem document for `httpsig.invalid`). The same code is the audit event's `reason`, the span's `visado.reason` and the chain view's `code`, except for `request.no_http_attributes`, `request.invalid_header` and `internal.clock`, which the gRPC service returns before the pipeline runs, with no audit event, span or chain view entry. Checks run in the order of the [design](design.md#request-pipeline) and stop at the first failure.
 
 | Status | Codes | From |
 | --- | --- | --- |
-| 400 | `request.no_http_attributes`, `request.no_scheme`, `request.unnormalized_path` | The request target |
+| 400 | `request.no_http_attributes`, `request.no_scheme`, `request.unnormalized_path`, `request.invalid_header` | The request target and header values |
 | 403 | `request.unknown_authority` | The request target |
 | 401 | `credential.missing`, `credential.ambiguous`, `credential.repeated_header`, `credential.too_large`, `credential.unbound_user_token` | Method selection |
 | 401 | `wit.invalid`, `wit.untrusted_domain`, `wpt.missing`, `wpt.invalid`, `wpt.replay` | WIT with WPT |
@@ -239,9 +239,9 @@ A denial answers with the HTTP status below and `{"error": "<code>"}` (an RFC 94
 | 400 | `httpsig.invalid` | HTTP message signatures |
 | 401 | `mtls.invalid`, `mtls.untrusted_domain` | mTLS |
 | 401 | `jwt_svid.invalid`, `jwt_svid.untrusted_domain` | JWT-SVID |
-| 401 | `token.invalid`, `token.expired`, `token.untrusted_issuer`, `token.no_client`, `token.sender_constrained`, `token.dpop_bound` | OAuth access tokens |
+| 401 | `token.invalid`, `token.expired`, `token.untrusted_issuer`, `token.no_client`, `token.sender_constrained`, `token.dpop_bound`, `token.delegation` | OAuth access tokens |
 | 401 | `dpop.invalid`, `dpop.replay`, `dpop.binding`, `dpop.nonce_missing`, `dpop.nonce_invalid`, `dpop.nonce_expired` | DPoP proofs, for an access token or an asor leaf |
-| 400 | `chain.ambiguous`, `chain.bad_invocation`, `chain.proof_conflict` | Chain selection |
+| 400 | `chain.ambiguous`, `chain.bad_invocation`, `chain.partial_body`, `chain.proof_conflict` | Chain selection |
 | 401 | `chain.missing_pop` | Chain selection |
 | 403 | `chain.required`, `chain.unsupported`, `chain.unbound_caller`, `chain.holder_mismatch` | Chain selection |
 | 403 | `aat.*`, `asor.*` (the outcome names of the draft's Table 2), `act.*` | The chain format |

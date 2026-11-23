@@ -10,7 +10,7 @@ visado is an enforcement point. For each request that reaches it over ext_authz,
 - admits a delegation chain only if every verified hop is signed and linked to its parent and no hop widens the authority, audience or lifetime it was given;
 - asks your AuthZEN PDP and admits the request only on a decision of exactly `true`;
 - removes the inbound credentials and replaces them with a short-lived Transaction Token that names the principal, the caller and the chain;
-- writes an audit event for every allow and deny under the `visado::audit` target, without tokens.
+- writes an audit event for every allow and for every deny the pipeline makes under the `visado::audit` target, without tokens. The three denials the gRPC service makes before the pipeline (`request.no_http_attributes`, `request.invalid_header` and `internal.clock`) have no event.
 
 Any failure along the way denies the request with a stable reason code. There is no configuration that turns a verification or PDP error into an allow.
 
@@ -57,7 +57,7 @@ Any failure along the way denies the request with a stable reason code. There is
 | Panics on untrusted input (CWE-248) | The credential, Transaction Token, AAT and AuthZEN response parsers are fuzzed in CI on every push and pull request | `fuzz/`, `.github/workflows/ci.yml` |
 | Spoofed Transaction Token (CWE-290) | An inbound `Txn-Token` from a caller not in `internal_callers` is denied (`txn.untrusted_hop`) | `crates/extauthz/src/gate.rs` |
 | Credential leakage to logs (CWE-532) | Audit events and the chain view never hold a token, proof, signature or header value | `crates/extauthz/src/lib.rs`, [design.md](design.md#chain-view) |
-| Credential passthrough (CWE-441) | `Authorization`, the WIT, HTTP signature and chain headers are removed before the request goes upstream | `STRIPPED_HEADERS` in `crates/extauthz/src/gate.rs` |
+| Credential passthrough (CWE-441) | `Authorization`, the WIT, HTTP signature and chain headers are removed before the request goes upstream | `STRIPPED_HEADERS` and `Gate::new` in `crates/extauthz/src/gate.rs` |
 | DNS rebinding against the chain view (CWE-350) | `Host` checked against `allowed_hosts`, 421 otherwise | [design.md](design.md#chain-view) |
 | Vulnerable dependencies (CWE-1395) | `cargo deny check` for RustSec advisories, licenses and sources on every push; Dependabot weekly | `deny.toml`, [dependencies.md](dependencies.md) |
 | Weak TLS | `rustls` only, which speaks TLS 1.2 and 1.3; certificate verification is never disabled | `Cargo.toml` |

@@ -131,7 +131,7 @@ Per draft-ietf-oauth-transaction-tokens-11:
 
 ### 6. Record
 
-- One JSON audit event per decision on stdout, target `visado::audit`: `txn`, `agent`, `principal`, `resource`, `action` (the HTTP method), `decision`, `reason`, `detail` and `depth_semantics`, with the log timestamp. It never contains a token.
+- One JSON audit event per decision of the pipeline on stdout, target `visado::audit` (the service's own denials, `request.no_http_attributes`, `request.invalid_header` and `internal.clock`, have none): `txn`, `agent`, `principal`, `resource`, `action` (the HTTP method), `decision`, `reason`, `detail` and `depth_semantics`, with the log timestamp. It never contains a token.
 - That covers five items of the AIMS §11 minimum (agent, delegated subject, resource, action and decision, timestamp and correlation id). Not yet: posture or risk input, remediation events, and tamper evidence (AIMS §11 asks for tamper-evident records; the events are not hash-chained).
 - OpenTelemetry: one `visado.authorize {target}` span with `http.request.method`, `url.full`, `visado.txn`, `visado.agent`, `visado.principal`, `visado.decision` and `visado.reason`. Not yet: per-hop span events and GenAI or MCP semantic-convention attributes.
 - Deny reasons are stable, language-neutral codes, listed in [bindings.md](bindings.md#reason-codes). The Transaction Token vectors share the `txn.*` codes. For example:
