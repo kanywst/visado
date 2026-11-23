@@ -813,8 +813,7 @@ fn chain_algebras(config: &GateConfig) -> Algebras {
     algebras
 }
 
-/// An AAT or asor chain must belong to the caller: its leaf holder key is
-/// the key the caller proved possession of with its WIT (or certificate).
+/// A chain-proof replay cache with the given capacity and per-key quota.
 fn replay_cache((capacity, key_quota): (usize, usize)) -> MemoryReplayCache {
     MemoryReplayCache::new(capacity).with_owner_quota(key_quota)
 }
