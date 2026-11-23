@@ -196,7 +196,7 @@ deploy/lab/     compose file for the end-to-end lab
 
 ## Reference lab (aims-lab)
 
-Not built as drawn. [deploy/lab](../deploy/lab/README.md) runs Keycloak as the Resource AS, redeeming ID-JAGs that Casdoor issues, since no Dex release issues them yet; there are no agents or MCP server. The plan:
+Not built as drawn. [deploy/lab](../deploy/lab/README.md) runs Keycloak as the Resource AS, redeeming ID-JAGs that Casdoor issues, since no Dex release issues them yet. The agents are `demo.sh` callers, not services, and there is no MCP server. The plan:
 
 ```text
 user --login--> Dex (ID-JAG issuance, master build)
