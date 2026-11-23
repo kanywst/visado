@@ -187,6 +187,43 @@ async fn user_scope_flows_into_the_transaction_token() {
     }
 }
 
+/// Forwarding headers a client sets are not read for the decision and do
+/// not reach the upstream, which could otherwise take them for the host or
+/// path that was authorized.
+#[tokio::test]
+async fn forwarding_headers_are_ignored_and_removed() {
+    let gate = gate(ScopePdp);
+    let mut call = wimse_call("agent-a", 1, "/tickets", "f1", None, None);
+    call.headers.extend(
+        [
+            ("x-forwarded-host", "admin.td.example"),
+            ("x-forwarded-prefix", "/admin/roles"),
+            ("x-original-url", "/admin/roles"),
+            ("forwarded", "host=admin.td.example"),
+        ]
+        .map(|(n, v)| (n.to_owned(), v.to_owned())),
+    );
+    let outcome = gate.check(&call, NOW, "txn-f").await;
+    let (_, claims) = minted(&outcome);
+    assert_eq!(claims.rctx.unwrap()["resource"], TICKETS);
+    let Outcome::Allow { remove, .. } = outcome else {
+        unreachable!()
+    };
+    for header in visado_extauthz::FORWARDED_HEADERS {
+        assert!(remove.contains(&header.to_owned()), "{header} is removed");
+    }
+    for header in [
+        "x-forwarded-host",
+        "x-forwarded-prefix",
+        "x-forwarded-port",
+        "x-forwarded-uri",
+        "x-original-url",
+        "forwarded",
+    ] {
+        assert!(remove.contains(&header.to_owned()), "{header} is removed");
+    }
+}
+
 #[tokio::test]
 async fn a_renamed_user_token_header_is_still_removed() {
     let gate = Gate::new(
@@ -341,6 +378,33 @@ async fn request_target_is_checked_first() {
         "/a//b",
         "/a/%2F/b",
         "/a/./b",
+        // Path parameters: Tomcat and Jetty read `..;` as `..` and drop
+        // `;jsessionid=x`.
+        "/public/..;/admin",
+        "/public/.;/admin",
+        "/admin;jsessionid=x",
+        "/admin%3bx",
+        // Double encoding, encoded unreserved characters, overlong UTF-8.
+        "/public/%252e%252e/admin",
+        "/%61dmin",
+        "/a%2Db",
+        "/public/%c0%ae%c0%ae/admin",
+        "/caf%C3",
+        "/a%zz",
+        "/a%2",
+        // Encoded and literal backslashes, NUL and control characters.
+        "/public/..%5cadmin",
+        "/public\\..\\admin",
+        "/a%00b",
+        "/a%0d%0ab",
+        "/a\u{0}b",
+        "/a\tb",
+        "/a b",
+        "/caf\u{e9}",
+        // A fragment reaches the PDP as the part before it.
+        "/public#/../admin",
+        "/public?x=1#frag",
+        "relative",
     ] {
         assert_eq!(
             denied(&gate.check(&input(path, &[]), NOW, "t").await),
@@ -348,6 +412,29 @@ async fn request_target_is_checked_first() {
             "{path}"
         );
     }
+    // Ordinary paths get past the target check to authentication.
+    for path in [
+        "/tickets",
+        "/tickets/",
+        "/a/b%20c",
+        "/files/caf%C3%A9",
+        "/a:b@c/!$&'()*+,=",
+        "/q?x=..;/%2e%25",
+    ] {
+        assert_eq!(
+            denied(&gate.check(&input(path, &[]), NOW, "t").await),
+            (401, "credential.missing"),
+            "{path}"
+        );
+    }
+    // The target is checked before any credential, so no consumer of the
+    // path (the resource id, the WPT `aud`, a DPoP `htu`, an HTTP signature
+    // `@path`, the bodiless AAT tool name) sees one that was refused.
+    let signed = wimse_call("agent-a", 1, "/public/..;/admin/roles", "t2", None, None);
+    assert_eq!(
+        denied(&gate.check(&signed, NOW, "t").await),
+        (400, "request.unnormalized_path")
+    );
 
     let mut no_scheme = input("/tickets", &[]);
     no_scheme.scheme = String::new();
@@ -486,4 +573,63 @@ async fn grpc_service_maps_outcomes() {
         matches!(empty.http_response, Some(HttpResponse::DeniedResponse(_))),
         "malformed requests are denied, not returned as gRPC errors"
     );
+}
+
+/// The status and body of the gRPC service's answer: 200 for an allow.
+async fn grpc_status(service: &ExtAuthz<ScopePdp>, request: CheckRequest) -> (i32, String) {
+    let response = service
+        .check(tonic::Request::new(request))
+        .await
+        .unwrap()
+        .into_inner();
+    match response.http_response {
+        Some(HttpResponse::DeniedResponse(denied)) => (denied.status.unwrap().code, denied.body),
+        Some(HttpResponse::OkResponse(_)) => (200, String::new()),
+        _ => panic!("no decision"),
+    }
+}
+
+/// A header value that is not UTF-8 is refused, not decoded lossily into
+/// U+FFFD text that other bytes would decode to as well.
+#[tokio::test]
+async fn header_values_that_are_not_utf8_are_refused() {
+    use envoy_types::pb::envoy::config::core::v3::{HeaderMap, HeaderValue};
+    let service = ExtAuthz::new(Gate::new(config(), authenticator(TICKETS), ScopePdp));
+    let at = access_token("alice", "client-1", "tickets.read", TICKETS, 4_000_000_000);
+    let raw = |key: &str, value: &[u8]| HeaderValue {
+        key: key.into(),
+        raw_value: value.to_vec(),
+        ..HeaderValue::default()
+    };
+    let with_raw = |value: &[u8]| {
+        let mut request = check_request(HashMap::new());
+        let http = request
+            .attributes
+            .as_mut()
+            .and_then(|a| a.request.as_mut())
+            .and_then(|r| r.http.as_mut())
+            .unwrap();
+        http.header_map = Some(HeaderMap {
+            headers: vec![
+                raw("authorization", format!("Bearer {at}").as_bytes()),
+                raw("x-note", value),
+            ],
+        });
+        request
+    };
+    assert_eq!(grpc_status(&service, with_raw(b"plain")).await.0, 200);
+    for value in [&b"caf\xe9"[..], b"\xff\xfe", b"\xc0\xae"] {
+        let (status, body) = grpc_status(&service, with_raw(value)).await;
+        assert_eq!(status, 400, "{value:?}");
+        assert!(body.contains("request.invalid_header"), "{body}");
+    }
+
+    // agentgateway sends `headers` already decoded lossily.
+    let lossy = check_request(HashMap::from([
+        ("authorization".to_owned(), format!("Bearer {at}")),
+        ("x-note".to_owned(), "caf\u{FFFD}".to_owned()),
+    ]));
+    let (status, body) = grpc_status(&service, lossy).await;
+    assert_eq!(status, 400);
+    assert!(body.contains("request.invalid_header"), "{body}");
 }

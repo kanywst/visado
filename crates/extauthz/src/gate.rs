@@ -46,6 +46,22 @@ pub const STRIPPED_HEADERS: [&str; 4] = [
     "signature",
 ];
 
+/// Forwarding headers a client can set to tell the upstream a different
+/// host, port, prefix or path from the one visado authorized. visado never
+/// reads them; it removes them so the upstream cannot either.
+/// `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Client-Cert` are
+/// left to the proxy, which sets or sanitizes them itself (Envoy:
+/// `use_remote_address`, `forward_client_cert_details`).
+pub const FORWARDED_HEADERS: [&str; 7] = [
+    "forwarded",
+    "x-forwarded-host",
+    "x-forwarded-port",
+    "x-forwarded-prefix",
+    "x-forwarded-uri",
+    "x-original-url",
+    "x-rewrite-url",
+];
+
 /// Settings for one trust domain.
 #[derive(Debug)]
 pub struct GateConfig {
@@ -181,6 +197,7 @@ impl<P: Pdp> Gate<P> {
             ]
             .map(str::to_owned),
         );
+        stripped.extend(FORWARDED_HEADERS.map(str::to_owned));
         stripped.push(authenticator.user_token_header().to_owned());
         let engine = Engine::new(chain_algebras(&config));
         Self {
@@ -463,8 +480,7 @@ impl<P: Pdp> Gate<P> {
         let pop = header(input, AAT_POP_HEADER)
             .ok_or_else(|| Denied::new(401, "chain.missing_pop", trail))?;
         let chain = split_chain(chain_header);
-        let (tool, args) =
-            invocation(input).ok_or_else(|| Denied::new(400, "chain.bad_invocation", trail))?;
+        let (tool, args) = invoked(input, trail)?;
         let now = i64::try_from(now).map_err(|_| Denied::new(500, "internal.clock", trail))?;
         verifier
             .verify(
@@ -505,8 +521,7 @@ impl<P: Pdp> Gate<P> {
         let proof = header(input, DPOP_HEADER)
             .ok_or_else(|| Denied::new(401, "chain.missing_pop", trail))?;
         let chain = split_chain(chain_header);
-        let (tool, args) =
-            invocation(input).ok_or_else(|| Denied::new(400, "chain.bad_invocation", trail))?;
+        let (tool, args) = invoked(input, trail)?;
         let uri = format!("{}://{}{}", input.scheme, input.authority, input.path);
         let now = i64::try_from(now).map_err(|_| Denied::new(500, "internal.clock", trail))?;
         verifier
@@ -894,21 +909,79 @@ impl Denied {
     }
 }
 
-/// Rejects paths an upstream might resolve differently from how they are
-/// authorized: dot segments, encoded dots or slashes, empty segments, and
-/// backslashes.
+/// Rejects request targets an upstream might resolve differently from how
+/// they are authorized. The PDP, the minted token, the DPoP `htu` and HTTP
+/// signature `@path` all see the path as received, so it must have one
+/// reading:
+///
+/// - a fragment (`#`), which never belongs in a request target;
+/// - in the path, any character outside RFC 3986 `pchar` and `/`
+///   (backslashes, control characters, spaces, non-ASCII);
+/// - `;`, which Tomcat, Jetty and others read as the start of path
+///   parameters (`/public/..;/admin`, `/admin;jsessionid=x`);
+/// - percent-encoding that is malformed, that encodes an unreserved
+///   character (RFC 3986 §2.3 says it should not be), `%`, `/`, `\`, `;`
+///   or a control character, or that decodes to bytes that are not UTF-8
+///   (overlong forms such as `%c0%ae` included);
+/// - dot segments and empty segments.
 fn is_normalized(path: &str) -> bool {
-    let path = path.split(['?', '#']).next().unwrap_or("");
-    if !path.starts_with('/') || path.contains('\\') || path.contains("//") {
+    if path.contains('#') {
         return false;
     }
-    let lower = path.to_ascii_lowercase();
-    if lower.contains("%2e") || lower.contains("%2f") || lower.contains("%5c") {
+    let path = path.split('?').next().unwrap_or("");
+    if !path.starts_with('/') || path.contains("//") {
+        return false;
+    }
+    let bytes = path.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b == b'%' {
+            let (Some(hi), Some(lo)) = (
+                bytes.get(i + 1).and_then(|c| hex(*c)),
+                bytes.get(i + 2).and_then(|c| hex(*c)),
+            ) else {
+                return false;
+            };
+            let byte = (hi << 4) | lo;
+            if is_unreserved(byte)
+                || matches!(byte, b'%' | b'/' | b'\\' | b';')
+                || byte.is_ascii_control()
+            {
+                return false;
+            }
+            decoded.push(byte);
+            i += 3;
+            continue;
+        }
+        // `pchar` and `/`, but not the sub-delim `;`.
+        if !(is_unreserved(b) || b"/:@!$&'()*+,=".contains(&b)) {
+            return false;
+        }
+        decoded.push(b);
+        i += 1;
+    }
+    if std::str::from_utf8(&decoded).is_err() {
         return false;
     }
     !path
         .split('/')
         .any(|segment| segment == "." || segment == "..")
+}
+
+/// RFC 3986 §2.3 `unreserved`.
+const fn is_unreserved(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~')
+}
+
+const fn hex(c: u8) -> Option<u8> {
+    match c {
+        b'0'..=b'9' => Some(c - b'0'),
+        b'a'..=b'f' => Some(c - b'a' + 10),
+        b'A'..=b'F' => Some(c - b'A' + 10),
+        _ => None,
+    }
 }
 
 /// `req_wl` for the token. Access token callers are OAuth clients, not
@@ -1047,6 +1120,39 @@ fn actor_json(hop: &Hop) -> Value {
         ActorId::Key(key) => json!({ "jkt": key.0 }),
         _ => Value::Null,
     }
+}
+
+/// The tool and its arguments the chain must authorize, read from a body
+/// that must be the whole body.
+fn invoked(input: &CheckInput, trail: &Trail) -> Result<Invoked, Denied> {
+    if body_incomplete(input) {
+        return Err(Denied::new(400, "chain.partial_body", trail));
+    }
+    invocation(input).ok_or_else(|| Denied::new(400, "chain.bad_invocation", trail))
+}
+
+/// The header Envoy sets on the check request when it sent only the first
+/// `max_request_bytes` of the body (`allow_partial_message`).
+const PARTIAL_BODY_HEADER: &str = "x-envoy-auth-partial-body";
+
+/// Whether the body the proxy sent may be cut short: a partial-body header
+/// that is not `false` (every one of them, in case a client sent its own),
+/// or a `Content-Length` that is not the body's length. A second JSON-RPC
+/// message could hide past the cut.
+fn body_incomplete(input: &CheckInput) -> bool {
+    if input
+        .headers
+        .iter()
+        .any(|(n, v)| n == PARTIAL_BODY_HEADER && !v.trim().eq_ignore_ascii_case("false"))
+    {
+        return true;
+    }
+    let received = input.body.as_ref().map_or(0, Vec::len);
+    input
+        .headers
+        .iter()
+        .filter(|(n, _)| n == "content-length")
+        .any(|(_, v)| v.trim().parse::<usize>().ok() != Some(received))
 }
 
 /// The tool and its arguments the chain must authorize.

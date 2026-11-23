@@ -75,6 +75,7 @@ Casdoor v4.26.0 is bob's identity provider. It issues ID-JAGs (draft-ietf-oauth-
 | --- | --- |
 | No credentials | 401 `credential.missing` |
 | Encoded `/` in the path | 400 from Envoy (`path_with_escaped_slashes_action: REJECT_REQUEST`) |
+| `..;` in the path, which Tomcat and Jetty read as `..` | 400 `request.unnormalized_path` from visado |
 | agent-a reads tickets for bob (`tickets.read`) | 200; the upstream sees `Txn-Token` and no user token |
 | agent-b forwards bob's transaction to the admin API | 403 `pdp.deny`: the token still carries `tickets.read` |
 | agent-b forwards bob's transaction to tickets | 200 with the same `Txn-Token` |
@@ -122,6 +123,7 @@ agentgateway's `extAuthz` policy (`agentgateway.yaml`) calls visado over gRPC wi
 | --- | --- |
 | No credentials | 401 `credential.missing` |
 | Encoded `/` in the path | 400 `request.unnormalized_path` from visado |
+| `..;` in the path | 400 `request.unnormalized_path` from visado |
 | agent-a reads tickets for bob | 200; the upstream sees `Txn-Token` and no user token |
 | A user token without `roles.write` on the admin API | 403 `pdp.deny` |
 | AAT: agent-b reads `/data/report.pdf`, which agent-a delegated to it | 200 |

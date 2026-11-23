@@ -175,6 +175,7 @@ none() { :; }
 
 call 401/credential.missing "no credentials" /tickets none
 call 400 "encoded slash in the path (rejected by Envoy)" /tickets/..%2Fadmin/roles none
+call 400/request.unnormalized_path "path parameter after a dot segment" "/tickets/..;/admin/roles" none
 call 200 "agent-a reads tickets for bob" /tickets headers agent-a /tickets --user bob tickets.read
 txn=$(jq -r '.headers["txn-token"]' "$tmp")
 [ "$txn" != "null" ] && echo "      upstream received Txn-Token, not the user token: $(jq -r '.headers | has("x-user-token") | not' "$tmp")"
@@ -303,6 +304,7 @@ done
 agw 401/credential.missing "agentgateway: no credentials" /tickets none
 # agentgateway does not normalize the path; visado rejects it instead.
 agw 400/request.unnormalized_path "agentgateway: encoded slash in the path" /tickets/..%2Fadmin/roles none
+agw 400/request.unnormalized_path "agentgateway: path parameter after a dot segment" "/tickets/..;/admin/roles" none
 agw 200 "agentgateway: agent-a reads tickets for bob" /tickets headers agent-a /tickets --user bob tickets.read
 if [ "$(jq -r '.headers | has("txn-token") and (has("x-user-token") | not)' "$tmp")" = true ]; then
   printf 'ok    %-58s %s\n' "agentgateway: upstream gets Txn-Token, not the user token" "yes"

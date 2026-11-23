@@ -34,35 +34,40 @@ impl<P> ExtAuthz<P> {
     }
 }
 
-fn input_from(request: &CheckRequest) -> Option<CheckInput> {
+/// The request as the gate sees it, or the reason code it is refused with.
+fn input_from(request: &CheckRequest) -> Result<CheckInput, &'static str> {
+    const NO_HTTP: &str = "request.no_http_attributes";
     let http = request
         .attributes
-        .as_ref()?
-        .request
-        .as_ref()?
-        .http
-        .as_ref()?;
+        .as_ref()
+        .and_then(|a| a.request.as_ref())
+        .and_then(|r| r.http.as_ref())
+        .ok_or(NO_HTTP)?;
     // With `encode_raw_headers`, Envoy sends `header_map` and leaves `headers`
     // empty. `header_map` also keeps repeated headers apart instead of joining
     // them with commas, so prefer it when present.
-    let mut headers: Vec<(String, String)> = match &http.header_map {
+    let mut headers = match &http.header_map {
         Some(map) if !map.headers.is_empty() => map
             .headers
             .iter()
             .map(|h| {
                 let value = if h.raw_value.is_empty() {
-                    h.value.clone()
+                    text_value(&h.value)?
                 } else {
-                    String::from_utf8_lossy(&h.raw_value).into_owned()
+                    // A value that is not UTF-8 is refused: decoding it
+                    // lossily would turn different bytes into the same
+                    // U+FFFD text, which a signature over the text could
+                    // not tell apart.
+                    String::from_utf8(h.raw_value.clone()).map_err(|_| INVALID_HEADER)?
                 };
-                (h.key.to_ascii_lowercase(), value)
+                Ok((h.key.to_ascii_lowercase(), value))
             })
-            .collect(),
+            .collect::<Result<Vec<_>, &'static str>>()?,
         _ => http
             .headers
             .iter()
-            .map(|(k, v)| (k.to_ascii_lowercase(), v.clone()))
-            .collect(),
+            .map(|(k, v)| Ok((k.to_ascii_lowercase(), text_value(v)?)))
+            .collect::<Result<Vec<_>, &'static str>>()?,
     };
     // Group by name, keeping repeated fields in the order received: an HTTP
     // signature covers their values joined in that order.
@@ -82,7 +87,7 @@ fn input_from(request: &CheckRequest) -> Option<CheckInput> {
         .map(|source| source.certificate.as_str())
         .filter(|c| !c.is_empty())
         .map(ToOwned::to_owned);
-    Some(CheckInput {
+    Ok(CheckInput {
         method: http.method.clone(),
         scheme: http.scheme.clone(),
         authority: http.host.clone(),
@@ -91,6 +96,19 @@ fn input_from(request: &CheckRequest) -> Option<CheckInput> {
         body: (!body.is_empty()).then_some(body),
         peer_certificate,
     })
+}
+
+/// The reason code for a header value that is not UTF-8.
+const INVALID_HEADER: &str = "request.invalid_header";
+
+/// A header value the proxy sent as text. A proxy that decodes values
+/// lossily itself (agentgateway does) leaves U+FFFD in place of the bytes it
+/// could not decode, so such a value is refused like one that is not UTF-8.
+fn text_value(value: &str) -> Result<String, &'static str> {
+    if value.contains('\u{FFFD}') {
+        return Err(INVALID_HEADER);
+    }
+    Ok(value.to_owned())
 }
 
 fn denied_response(
@@ -154,15 +172,16 @@ impl<P: Pdp + 'static> Authorization for ExtAuthz<P> {
         &self,
         request: Request<CheckRequest>,
     ) -> Result<Response<CheckResponse>, Status> {
-        // Malformed requests are denied in the response, not as gRPC errors,
-        // so Envoy's failure_mode_allow cannot turn them into an allow.
-        let Some(input) = input_from(request.get_ref()) else {
-            return Ok(Response::new(denied_response(
-                400,
-                "request.no_http_attributes",
-                None,
-                &[],
-            )));
+        // A request visado can decode but refuses is denied in the response,
+        // not as a gRPC error, so failure_mode_allow cannot turn it into an
+        // allow. That does not cover a CheckRequest that fails to decode (a
+        // string field that is not UTF-8, or a message over the 4 MiB gRPC
+        // limit): tonic rejects it before this handler runs and the proxy
+        // applies its failure mode, which must therefore deny. See "Proxy
+        // settings" in docs/bindings.md.
+        let input = match input_from(request.get_ref()) {
+            Ok(input) => input,
+            Err(code) => return Ok(Response::new(denied_response(400, code, None, &[]))),
         };
         let Ok(elapsed) = SystemTime::now().duration_since(UNIX_EPOCH) else {
             return Ok(Response::new(denied_response(

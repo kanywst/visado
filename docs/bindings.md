@@ -16,6 +16,41 @@ A credential header longer than 16 KiB is denied (`credential.too_large`) before
 
 An inbound `Txn-Token` is accepted only from a workload in `internal_callers` that proved possession of a key for the request: WIT with WPT (`tth`), WIT with a signature that covers it, or mTLS. A bearer caller or an OAuth client cannot forward one (`txn.untrusted_hop`). When the request also carries a delegation chain that names its principal (asor `sub`, the `sub` of a token with an RFC 8693 `act` claim), that principal must be the forwarded token's `sub`, or the request is denied (`chain.principal_mismatch`); an AAT chain names no principal and is not compared.
 
+## Request target
+
+Before any credential is read, the request target must have one reading, since the PDP's resource, the WPT and HTTP signature audience, the DPoP `htu`, the `@path` of a signature and the tool of a bodiless AAT or asor call all take the path as received. Anything else is a 400 `request.unnormalized_path`:
+
+- a `#` anywhere in the target;
+- in the path (before `?`), a character outside RFC 3986 `pchar` and `/`: a backslash, a space, a control character or NUL, or a byte that is not ASCII;
+- `;`, which Tomcat, Jetty and other servers read as the start of path parameters, so `/public/..;/admin` reaches them as `/admin` and `/admin;jsessionid=x` as `/admin`;
+- a malformed percent-encoding, or one of an unreserved character (`%61`, `%2e`: RFC 3986 §2.3 says these should not be encoded), of `%` (double encoding such as `%252e`), `/`, `\`, `;` or a control character;
+- percent-encoded bytes that do not decode to UTF-8, overlong forms such as `%c0%ae` included;
+- dot segments (`.`, `..`) and empty segments (`//`).
+
+The query string is not checked.
+
+## Forwarding headers
+
+visado never reads `Forwarded` or `X-Forwarded-*`: the authority, scheme and path come from the check request, and the client certificate from the TLS handshake. On an allow it removes the forwarding headers a client could use to name another host or path to the upstream: `Forwarded`, `X-Forwarded-Host`, `X-Forwarded-Port`, `X-Forwarded-Prefix`, `X-Forwarded-Uri`, `X-Original-URL` and `X-Rewrite-URL`. `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Client-Cert` are the proxy's to set: at the edge, Envoy needs `use_remote_address: true` to overwrite the first two and `forward_client_cert_details` left at `SANITIZE` or set to `SANITIZE_SET` for the third.
+
+## Header values
+
+A header value that is not valid UTF-8 is a 400 `request.invalid_header`, and so is a value with U+FFFD in it, which is what a proxy that decodes values lossily (agentgateway does) leaves in place of the bytes it could not decode. Decoding lossily would map different bytes to the same text, which a signature over that text could not tell apart. With Envoy, set `encode_raw_headers: true` so visado gets the bytes as received (see [Proxy settings](#proxy-settings)).
+
+## Proxy settings
+
+visado decides only on check requests it can decode. A check request that fails to decode never reaches its handler: a protobuf string field (a header value, the path, the body) that is not UTF-8, or a message over gRPC's 4 MiB limit, is a gRPC error, and the proxy then applies its failure mode. These settings are required:
+
+| Setting | Envoy `ext_authz` | agentgateway `extAuthz` |
+| --- | --- | --- |
+| Deny when visado errs or cannot decode the request | `failure_mode_allow: false` | `failureMode: deny` |
+| Header values as bytes, repeated fields kept apart | `encode_raw_headers: true` | No equivalent: agentgateway decodes values lossily itself, and visado denies a value with U+FFFD (`request.invalid_header`) |
+| The body as bytes | `with_request_body.pack_as_bytes: true` | `includeRequestBody.packAsBytes: true` |
+| The whole body or none | `with_request_body.allow_partial_message: false` | `includeRequestBody.allowPartialMessage: false` |
+| Room in the 4 MiB message | `max_request_bytes` plus the largest headers the listener accepts (`max_request_headers_kb`) well under 4 MiB | `maxRequestBytes` likewise |
+
+visado denies a partial body (`x-envoy-auth-partial-body`) wherever it reads the body, but with `allow_partial_message: false` the proxy itself refuses a body over the limit. `deploy/lab/envoy.yaml` and `deploy/lab/agentgateway.yaml` use these settings.
+
 ## WIMSE
 
 ### WPT
@@ -130,7 +165,7 @@ Rules:
 - `[aat]` must set `required` explicitly. With `required = false` a request without `AAT-Chain` skips every chain check, and the server logs a warning at startup; with `required = true` such a request is denied.
 - What a verified chain does: the gate denies the call unless the chain permits this tool with these arguments. It does not narrow the minted Transaction Token's `scope`, which comes from the user token or `default_scope`, because AAT tool grants and OAuth scopes are different vocabularies. The chain goes to the PDP as `context.chain` and into the token: as `tctx.chain` when the gate mints a new token, or, when the caller forwards a Transaction Token, as a new member `tctx.chain:<caller>` in a replacement token (scope, `txn`, `sub` and `aud` unchanged, lifetime not extended). A downstream service that needs the delegated limits must read these members. Within one transaction a caller can record one chain: forwarding the same transaction again with a different chain is denied, since `tctx` members never change.
 - By default the chain must name this enforcement point in `aud` and the proof must carry `aat_aud`.
-- Reading MCP arguments needs the request body. In Envoy, set `with_request_body` on the ext_authz filter.
+- Reading MCP arguments needs the request body. In Envoy, set `with_request_body` on the ext_authz filter. The body must be whole: a partial-body header (`x-envoy-auth-partial-body`) with any value but `false`, or a `Content-Length` that is not the length of the body received, is denied (`chain.partial_body`), since padding could push a second JSON-RPC message past the cut. This holds whether or not a chain is required, and for asor too.
 
 ## asor
 
