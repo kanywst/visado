@@ -28,16 +28,21 @@ if [ -n "${LAB_IN_COMPOSE:-}" ]; then
   spire_as() { local u=$1; shift; runuser -u "$u" -- spire-agent "$@"; }
   # in_lab <command...>: runs it from a container that is not a proxy.
   in_lab() { sh -c "$*"; }
-  docker_api() { curl -s --unix-socket /var/run/docker.sock "http://docker$1"; }
+  # The Docker API through docker-proxy (compose.yaml), which refuses
+  # anything but reading containers.
+  DOCKER_API=http://docker-proxy:2375
+  docker_api() { curl -s "$DOCKER_API$1"; }
   project=$(docker_api "/containers/$(hostname)/json" | jq -r '.Config.Labels["com.docker.compose.project"]')
+  # service_id <service>: the id of the service's container.
+  service_id() {
+    docker_api "/containers/json?filters=$(jq -rn --arg p "$project" --arg s "$1" \
+      '{label: ["com.docker.compose.project=\($p)", "com.docker.compose.service=\($s)"]} | @json | @uri')" |
+      jq -r '.[0].Id'
+  }
   # service_logs <service>: the service's log lines.
   service_logs() {
-    local id
-    id=$(docker_api "/containers/json?filters=$(jq -rn --arg p "$project" --arg s "$1" \
-      '{label: ["com.docker.compose.project=\($p)", "com.docker.compose.service=\($s)"]} | @json | @uri')" |
-      jq -r '.[0].Id')
     # The Docker API frames each line with an 8-byte header; keep the JSON.
-    docker_api "/containers/$id/logs?stdout=1&stderr=1&since=$started" | tr -d '\000' | grep -a -o '{".*'
+    docker_api "/containers/$(service_id "$1")/logs?stdout=1&stderr=1&since=$started" | tr -d '\000' | grep -a -o '{".*'
   }
 else
   cargo build -q -p visado-testkit --examples
@@ -524,6 +529,21 @@ for attack in deploy/lab/attacks/[0-9]-*.sh; do
   # shellcheck source=/dev/null
   . "$attack"
 done
+
+# The demo container has no Docker socket, and the proxy in its place reads
+# containers' logs but refuses to create a container or list images.
+if [ -n "${LAB_IN_COMPOSE:-}" ]; then
+  docker_status() { curl -s -o /dev/null -w '%{http_code}' "$@" || true; }
+  expect "Docker API: no Docker socket in the demo container" \
+    "$([ -e /var/run/docker.sock ] && echo present || echo absent)" absent
+  expect "Docker API: the proxy serves a container's logs" \
+    "$(docker_status "$DOCKER_API/containers/$(service_id visado)/logs?stdout=1&tail=1")" 200
+  expect "Docker API: the proxy refuses to create a container" \
+    "$(docker_status -X POST -H 'Content-Type: application/json' -d '{"Image":"busybox"}' \
+      "$DOCKER_API/containers/create")" 403
+  expect "Docker API: the proxy refuses to list images" \
+    "$(docker_status "$DOCKER_API/images/json")" 403
+fi
 
 # Only the gateways can reach visado's gRPC port: another container on the
 # lab network cannot connect to it, by name or by its authz address. The
