@@ -49,4 +49,4 @@ pub use status::{
     StatusListVerifier, StatusLists,
 };
 pub use verify::{Action, Alg, Authorized, Limits, Presentation, TYPS, TrustAnchor, Verifier};
-pub use visado_chain::replay::{MemoryReplayCache, ReplayCache};
+pub use visado_chain::replay::{MemoryReplayCache, Recorded, ReplayCache};

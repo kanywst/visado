@@ -10,7 +10,7 @@ use wimsey_jose::VerifyingKey;
 
 use visado_chain::jose::{self as jose, Compact, HolderKey, THUMBPRINT_URI_PREFIX};
 use visado_chain::json::{self, Value};
-use visado_chain::replay::ReplayCache;
+use visado_chain::replay::{Recorded, ReplayCache};
 
 use crate::constraint::ToolMap;
 use crate::error::{AatError, Step};
@@ -625,8 +625,15 @@ impl Verifier {
         }
         if let Some(cache) = replay {
             let until = iat.saturating_add(self.limits.pop_window);
-            if !cache.check_and_record(&jti, until, now) {
-                return Err(deny(Step::S7i, "PoP jti already accepted"));
+            match cache.check_and_record(&leaf.holder.thumbprint, &jti, until, now) {
+                Recorded::Fresh => {}
+                Recorded::Replayed => return Err(deny(Step::S7i, "PoP jti already accepted")),
+                Recorded::OverQuota => {
+                    return Err(deny(Step::S7i, "PoP jti not recorded: holder over quota"));
+                }
+                Recorded::Full => {
+                    return Err(deny(Step::S7i, "PoP jti not recorded: replay cache full"));
+                }
             }
         }
         Ok(jti)

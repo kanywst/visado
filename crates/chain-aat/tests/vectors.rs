@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use visado_chain::algebra::{Action, Algebras};
 use visado_chain::invariants::{Engine, Invariant};
-use visado_chain::{Assurance, ChainDecoder, Link, SignerBinding};
+use visado_chain::{Assurance, ChainDecoder, Link, SignerBinding, jose, json};
 use visado_chain_aat::{
     Invocation, Limits, MemoryReplayCache, Policy, Presentation, ReplayCache, TrustAnchor, Verifier,
 };
@@ -86,6 +86,15 @@ fn strings(value: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// The thumbprint of the leaf's `cnf` key: the owner the verifier records a
+/// PoP `jti` under.
+fn leaf_holder(chain: &[String]) -> Option<String> {
+    let claims = jose::split(chain.last()?)
+        .and_then(|jws| jose::b64(jws.payload))
+        .and_then(|payload| json::parse(&payload).ok())?;
+    jose::holder_key(claims.get("cnf")).map(|key| key.thumbprint)
+}
+
 /// Runs one vector and returns a description of any disagreement.
 fn run(vector: &Value, suite: &Value) -> Option<String> {
     let id = vector["id"].as_str().expect("id");
@@ -107,8 +116,16 @@ fn run(vector: &Value, suite: &Value) -> Option<String> {
 
     let tracked = vector["policy"]["track_pop_jti"].as_bool().unwrap_or(false);
     let cache = MemoryReplayCache::new(1024);
-    for jti in strings(&vector["replay_state"]["before"]) {
-        assert!(cache.check_and_record(&jti, now + 60, now));
+    let seen = strings(&vector["replay_state"]["before"]);
+    if !seen.is_empty() {
+        let holder = leaf_holder(&chain).expect("a leaf holder to pre-seed under");
+        for jti in seen {
+            assert!(
+                cache
+                    .check_and_record(&holder, &jti, now + 60, now)
+                    .is_fresh()
+            );
+        }
     }
     let replay: Option<&dyn ReplayCache> = if tracked { Some(&cache) } else { None };
 
@@ -140,7 +157,9 @@ fn run(vector: &Value, suite: &Value) -> Option<String> {
     if tracked {
         let pop_jti = vector["pop"]["payload"]["jti"].as_str().unwrap_or_default();
         let after = strings(&vector["replay_state"]["after"]);
-        if cache.contains(pop_jti, now) != after.iter().any(|j| j == pop_jti) {
+        let recorded =
+            leaf_holder(&chain).is_some_and(|holder| cache.contains(&holder, pop_jti, now));
+        if recorded != after.iter().any(|j| j == pop_jti) {
             return Some(format!("{id}: replay state after verification differs"));
         }
     }
