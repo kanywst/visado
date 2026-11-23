@@ -2,7 +2,7 @@
 import { Icon } from '@astrojs/starlight/components';
 import { url } from './url';
 
-// The scenarios in deploy/lab/demo.sh, in the order the script runs them.
+// The first scenarios in deploy/lab/demo.sh, in the order the script runs them.
 // Keep in sync with deploy/lab/README.md.
 const scenarios = [
   { what: 'No credentials', code: 401, verdict: 'denied' },
@@ -22,7 +22,7 @@ const scenarios = [
 
 <div class="status" role="note">
   <p>
-    <strong>Pre-alpha (v0.2.0).</strong> Not for production. Wire formats will change.{' '}
+    <strong>Pre-alpha (v0.3.0).</strong> Not for production. Wire formats will change.{' '}
     <a href={url('/roadmap/')}>See the roadmap</a>
   </p>
 </div>

@@ -20,7 +20,7 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 
 - `tonic` ext_authz server. Credential verifiers for WIT+WPT, WIT+HTTP-sig and mTLS (via `wimsey`), JWT-SVID, and OAuth access tokens (RS256/ES256, DPoP).
 - **Gate:** Envoy integration test admits valid callers, rejects each negative case with its reason code, and injects a Txn-Token.
-- **Status:** met. The ext_authz service and caller authentication by WIT+WPT, WIT+HTTP signature, mTLS with an X.509-SVID, JWT-SVID and OAuth access tokens (EdDSA, RS256 and ES256), bearer or DPoP-bound (RFC 9449, with optional resource server nonces), are in, with tests against the gate and the gRPC handler. `deploy/lab` runs them behind a real Envoy in CI: it admits a caller of every method (WIT+WPT, WIT+HTTP signature, mTLS and JWT-SVIDs issued by SPIRE, a bearer access token, and a DPoP-bound one after the `use_dpop_nonce` retry), checks visado's reason code on every denial visado decides, and checks that the upstream receives the minted Txn-Token, which the next hop forwards.
+- **Status:** met. The ext_authz service and caller authentication by WIT+WPT, WIT+HTTP signature, mTLS with an X.509-SVID, JWT-SVID and OAuth access tokens (RS256, PS256, ES256 and EdDSA), bearer or DPoP-bound (RFC 9449, with optional resource server nonces), are in, with tests against the gate and the gRPC handler. `deploy/lab` runs them behind a real Envoy in CI: it admits a caller of every method (WIT+WPT, WIT+HTTP signature, mTLS and JWT-SVIDs issued by SPIRE, a bearer access token, and a DPoP-bound one after the `use_dpop_nonce` retry), checks visado's reason code on every denial visado decides, and checks that the upstream receives the minted Txn-Token, which the next hop forwards.
 
 ## Phase 3: Delegation chains
 
@@ -54,4 +54,4 @@ Dates target IETF 128 (Kuala Lumpur, 2027-03-06 to 03-12; hackathon dates not ye
 
 - A maintainer from a second organization, adopters listed, OpenSSF Best Practices badge, Security Insights file. Then apply.
 - **Gate:** CLOMonitor checks pass, and the maintainer list spans more than one organization.
-- **Status:** not started.
+- **Status:** started. The OpenSSF Best Practices badge (project 16930), `SECURITY-INSIGHTS.yml`, `.clomonitor.yml` and `ADOPTERS.md` are in. Not yet: a maintainer from a second organization, any adopter, and the application.

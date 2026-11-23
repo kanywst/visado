@@ -3,6 +3,7 @@
   "verified_by": "attenu-guard 0.22.0",
   "cases": 9,
   "differ": 0,
+  "unexpected": 0,
   "results": [
     {
       "id": "V.1",

@@ -1,6 +1,6 @@
 # Spec map
 
-Pinned revisions and where the code departs from them. Checked 2026-11-20.
+Pinned revisions and where the code departs from them. Checked 2026-11-22.
 
 ## Pinned revisions
 
@@ -14,9 +14,9 @@ Pinned revisions and where the code departs from them. Checked 2026-11-20.
 | [draft-ietf-oauth-status-list](https://datatracker.ietf.org/doc/draft-ietf-oauth-status-list/21/) | -21 | `visado-chain-asor`, `visado` | Status List Tokens in JWT format (§5.1) and their validation (§8.3), for asor step 7; HTTP fetch (§8.1, §8.2). No CWT, no aggregation (§9), no historical resolution (§8.4) |
 | [RFC 8693](https://www.rfc-editor.org/rfc/rfc8693) OAuth 2.0 Token Exchange | RFC | `visado-chain-act` | §4.1 `act` claim of an access token read as a chain; 20 own vectors (two from the RFC's figures). Enforced by the gate (`docs/bindings.md`). No token endpoint, no `may_act` |
 | [RFC 9449](https://www.rfc-editor.org/rfc/rfc9449.html) (DPoP) | RFC | `visado-chain` (`dpop`), `visado-credentials` | Proof checks of §4.3, the §7.1 resource server rules for DPoP-bound access tokens and resource server nonces (§9, with §8 and §8.2); also the asor leaf proof. No authorization server side (§5, §10) |
-| [OpenID AuthZEN Authorization API](https://openid.net/specs/authorization-api-1_0.html) | 1.0 Final | `visado-authzen` | Single evaluation and metadata discovery |
+| [OpenID AuthZEN Authorization API](https://openid.net/specs/authorization-api-1_0.html) | 1.0 Final | `visado-authzen` | Single evaluation and metadata discovery; the server uses a configured endpoint |
 
-WIMSE credentials (WIT, WPT, HTTP signatures per draft-ietf-wimse-http-signature-08, mTLS per draft-ietf-wimse-mutual-tls) come from [wimsey](https://github.com/kanywst/wimsey) 0.10.1, which keeps its own spec map. JWT-SVIDs follow the SPIFFE JWT-SVID and trust bundle specifications.
+WIMSE credentials (WIT, WPT, HTTP signatures per draft-ietf-wimse-http-signature-08, mTLS per draft-ietf-wimse-mutual-tls) come from [wimsey](https://github.com/kanywst/wimsey) 0.10.1, which keeps its own spec map. draft-ietf-wimse-http-signature-09 (2026-11-20) is a newer revision, not yet tracked (checked 2026-11-22). JWT-SVIDs follow the SPIFFE JWT-SVID and trust bundle specifications.
 
 ## Transaction Tokens: known divergences and choices
 
@@ -52,7 +52,7 @@ No divergences: all 229 vectors in [conformance/aat](conformance/aat/) give the 
 | Requests that are not one tool call | Not defined | Only two forms are accepted: a JSON-RPC `tools/call` object, and a GET, HEAD, DELETE or OPTIONS request with no body and no query string (tool `<METHOD> <path>`, arguments `{}`). Everything else is denied (`chain.bad_invocation`): batches, other JSON-RPC methods, non-JSON or unreadable bodies, malformed `tools/call`, query strings, and a missing body on POST, PUT or PATCH. A body the proxy cut short (`x-envoy-auth-partial-body` not `false`, or a `Content-Length` other than the body's length) is `chain.partial_body` |
 | Requests without a chain | Not defined | `[aat]` must set `required` explicitly; with `false`, a request without `AAT-Chain` skips the chain checks and the server warns at startup |
 | Chain and Txn-Token scope | Not defined | The chain gates the call (tool and arguments); the minted `scope` is not narrowed by it. The chain is carried as `tctx.chain` on a minted token, or `tctx.chain:<caller>` on a replacement of a forwarded token |
-| Who may present a chain | Holder proves possession with the PoP | Only a WIT caller, and the leaf `cnf` must be the WIT key; bearer-only callers are denied (`chain.unbound_caller`) |
+| Who may present a chain | Holder proves possession with the PoP | Only a caller that proved possession of a key for the request (WIT, mTLS with an Ed25519 or P-256 certificate key, or a DPoP client), and the leaf `cnf` must be that key; bearer-only callers are denied (`chain.unbound_caller`) |
 | Audience (§9.5) | `aud` and `aat_aud` optional | The server requires both by default (`require_chain_aud`, `require_pop_aud`), so a chain cannot be replayed at another enforcement point |
 | PoP replay | Shared state across replicas (§7.3) | In-memory cache per process of `replay_capacity` entries (default 100 000), at most `replay_key_quota` of them per holder key once the cache is half full (default 1562) |
 | `aud` type | Checked at step 6c | Checked right after step 5 and reported as 6c, so `decode()` also rejects an `aud` that is not a string or an array of strings |
@@ -80,11 +80,11 @@ No divergences on the vectors: all 36 in [conformance/asor](conformance/asor/) g
 | Cumulative constraints | Checked where the running total is held (step 8) | The library takes a `RunningTotals` source; the gate holds none, so a leaf with `max_lifetime` or `max_subtree` denies every call (`ceiling_exceeded`) |
 | Per-action constraint with no matching parameter | Not defined | Denied (`ceiling_exceeded`), so an upstream default for an omitted argument cannot pass a ceiling. attenu-guard leaves it unbounded. A parameter of the wrong type is also `ceiling_exceeded` |
 | Step 8 order | Audience, then the action against the leaf authority | Audience, scope, then each constraint in the token's order; the first failure is reported (attenu-guard collects every failing constraint) |
-| DPoP proof | RFC 9449 | `typ` `dpop+jwt`, `Ed25519` or `ES256` with a public `jwk` whose thumbprint is the leaf `cnf.jkt`; `htm` and `htu` (without query or fragment, normalized as in the DPoP section below) match the request; `iat` at most 60 s behind now and `max_proof_skew` (default 5 s) ahead; `ath` required, over the leaf token; `jti` at most 256 bytes and accepted once per process. With `[dpop] require_nonce`, a `nonce` visado issued is required as well (RFC 9449 §4.3 item 10, §11.3); a proof refused only for it is reported as `dpop.nonce_*` with a 401 and a fresh nonce rather than `holder_binding_failed` |
+| DPoP proof | RFC 9449 | `typ` `dpop+jwt`, `Ed25519` or `ES256` with a public `jwk` whose thumbprint is the leaf `cnf.jkt`; `htm` and `htu` (without query or fragment, normalized as in the DPoP section below) match the request; `iat` at most 60 s behind now and `max_proof_skew` (default 5 s) ahead; `ath` required, over the leaf token; `jti` at most 256 bytes and accepted once per leaf key in each process. With `[dpop] require_nonce`, a `nonce` visado issued is required as well (RFC 9449 §4.3 item 10, §11.3); a proof refused only for it is reported as `dpop.nonce_*` with a 401 and a fresh nonce rather than `holder_binding_failed` |
 | Size bounds | Not defined | At most 32 tokens, 64 KiB per token, 256 KiB per chain, 8 KiB per proof and 64 KiB of action parameters, checked before decoding |
 | `check()` and `decode()` | Steps 1 to 5 and, if a status list is available, step 7 without a request (§6.1) | `decode()` runs the parse rules and steps 1 to 5; `check()` adds step 7 (a `status` claim with no lists configured is `status_unknown`) and the leaf audience, which is what the vectors test. Both return `holder_proof: false` |
 | HTTP binding | Not defined | `Agent-Delegation-Chain` and `DPoP` headers; the format is chosen by the header, not by `typ`. The MCP tool name is the action's scope and its arguments the parameters (see `docs/bindings.md`) |
-| Who may present a chain | The DPoP key holder | Only a WIT caller, and the leaf `cnf.jkt` must be the WIT key; bearer-only callers are denied (`chain.unbound_caller`) |
+| Who may present a chain | The DPoP key holder | Only a WIT caller or an mTLS caller with an Ed25519 or P-256 certificate key, and the leaf `cnf.jkt` must be that key; bearer-only callers are denied (`chain.unbound_caller`) and a DPoP client is `chain.proof_conflict` |
 | Principal and a forwarded Txn-Token | Not defined | The chain's `sub` must be the forwarded Transaction Token's `sub` (`chain.principal_mismatch`) |
 | -01 vectors | Do not conform to -03 | Not run: every one lacks `cnf` and `client_id` |
 
@@ -128,7 +128,7 @@ Every chain goes through the format-neutral invariant engine after its format's 
 
 | Topic | Spec | visado |
 | --- | --- | --- |
-| Agent acting for a user | Not defined | `subject` is the agent (`type: agent`); the user is `context.principal` |
+| Agent acting for a user | Not defined | `subject` is the agent (`type: agent`, or `client` for an OAuth client); the user is `context.principal` |
 | `X-Request-ID` echo | PDP MUST echo it | A different echo is an error; a missing echo is tolerated |
 | Non-boolean `decision` | Must be boolean | Treated as an error, so the request is denied |
 | Batch and search APIs | Defined | Not used |
@@ -138,13 +138,13 @@ Every chain goes through the format-neutral invariant engine after its format's 
 | Topic | Draft | visado |
 | --- | --- | --- |
 | User token next to a WPT | Bound through `oth` | Read from `x-user-token` (configurable) and used only when `oth` binds it |
-| WPT replay | `jti` | In-memory cache per process; when full, new proofs are rejected |
+| WPT replay | `jti` | In-memory cache per process; when full, new proofs are rejected (503), and past its quota a workload is refused while others still record (429) |
 | Key selection | Not specified | The unverified `sub` trust domain and `kid` select a configured key; the signature is then checked |
 | Proof `jti` length | Not limited | At most 256 bytes |
 | Method selection | One method per request | Fixed order by headers (`docs/bindings.md`); a WIT with both `Authorization` and `Signature-Input` is a WPT if the scheme is `WPT`, otherwise denied |
 | HTTP signature audience | `wimse-aud` against the recipient's configured audiences | Compared with the request's scheme, authority and path, like WPT `aud`; the authority must be in `allowed_authorities`, which visado refuses to start without |
 | HTTP signature window | Tight `expires` (minutes) | `expires` minus `created` at most `max_signature_lifetime` (default 60 s, at most 300); the age of `created` at most that plus the clock leeway; `created` at most `max_proof_skew` (default 5 s) ahead of the clock |
-| HTTP signature nonce | Replay defense is the recipient's | Recorded per workload until `expires` in the WPT replay cache; at most 256 bytes |
+| HTTP signature nonce | Replay defense is the recipient's | Recorded per workload until `expires` plus the leeway, in a replay cache of its own; at most 256 bytes |
 | HTTP signature body | `Content-Digest` covered when present | The digest is recomputed over the body Envoy sends (`with_request_body`); `sha-256` only; a missing body counts as empty and a partial body is denied; unless the request has exactly one `Content-Length: 0`, a body is assumed and `content-digest` must be covered |
 | HTTP signature failures | 400, one problem type, no detail | `httpsig.invalid`, 400, `application/problem+json`; the detail goes to the audit record only |
 | User token with an HTTP signature | Not defined | Read from `x-user-token` (configurable) and used only when the signature covers it; `Authorization` next to a signature is denied |
@@ -186,7 +186,7 @@ Every chain goes through the format-neutral invariant engine after its format's 
 | `typ`, `alg`, `jwk` (§4.3 items 4 to 7) | `dpop+jwt`, asymmetric, public key only | `ES256`, `EdDSA` or `Ed25519` with a matching P-256 or Ed25519 JWK; private or symmetric members, `crit`, and every other `alg` are refused |
 | `htm`, `htu` (items 8, 9) | Method; URI without query and fragment, normalized per RFC 3986 §6.2.2 and §6.2.3 | `htu` and `scheme://authority/path` of the request, each with scheme and host lowercased, the default port dropped and an empty path made `/`. Percent-encodings are compared as sent |
 | `iat` (item 11) | Within an acceptable window | At most `dpop_iat_window` (default 60 s, at most 300 s) behind now and at most `max_proof_skew` (default 5 s, at most 60 s) ahead, so a proof's `jti` is remembered at most that much past now |
-| `jti` (§11.1) | Not reused within the window | At most 256 bytes; recorded per proof key in the same bounded in-memory replay cache as WPT `jti` values, until `iat` plus the window. Not shared across replicas |
+| `jti` (§11.1) | Not reused within the window | At most 256 bytes; recorded per proof key in a bounded in-memory replay cache for access token proofs, until `iat` plus the window, with a per-key and a per-client quota (`docs/bindings.md`). Not shared across replicas |
 | `ath` (item 12) | Required with an access token | Required; base64url SHA-256 of the token as sent |
 | Key binding (§6, §7.1) | `cnf.jkt` equals the proof key's RFC 7638 thumbprint | Same. A token without `cnf.jkt`, or a proof by another key, is `dpop.binding` (`invalid_token`) |
 | Downgrade (§7.1) | A bound token must not be accepted as a bearer token | Denied as `Bearer` and as a user token next to a WPT or signature (`token.dpop_bound`) |

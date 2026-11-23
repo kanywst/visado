@@ -63,13 +63,13 @@ const steps = [
 ];
 
 const specs = [
-  { name: 'OAuth Transaction Tokens', href: 'https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/11/', rev: 'draft-ietf-oauth-transaction-tokens-11', state: 'done', status: 'Mint, verify, replace, request parsing. 5 valid and 22 negative conformance vectors.' },
+  { name: 'OAuth Transaction Tokens', href: 'https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/11/', rev: 'draft-ietf-oauth-transaction-tokens-11', state: 'done', status: 'Mint, verify, replace, request parsing. 7 valid and 27 negative conformance vectors.' },
   { name: 'OpenID AuthZEN Authorization API', href: 'https://openid.net/specs/authorization-api-1_0.html', rev: '1.0 Final', state: 'done', status: 'Single evaluation and metadata discovery. Batch and search are not used.' },
   { name: 'WIMSE workload credentials (WIT, WPT)', href: 'https://github.com/kanywst/wimsey', rev: 'pinned in wimsey', state: 'done', status: 'WIT with WPT; HTTP signatures (draft-ietf-wimse-http-signature-08) and mTLS since v0.3.0.' },
   { name: 'JWT access tokens', href: 'https://www.rfc-editor.org/rfc/rfc9068', rev: 'RFC 9068', state: 'done', status: 'Accepted alone, bound to a WPT or HTTP signature, or DPoP-bound (RFC 9449, since v0.3.0).' },
   { name: 'Envoy external authorization', href: 'https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/auth/v3/external_auth.proto', rev: 'ext_authz v3', state: 'done', status: 'gRPC service. Runs behind Envoy and agentgateway in the lab.' },
   { name: 'Attenuating Agent Tokens (AAT)', href: 'https://datatracker.ietf.org/doc/draft-niyikiza-oauth-attenuating-agent-tokens/02/', rev: 'draft-niyikiza-oauth-attenuating-agent-tokens-02', state: 'done', status: '§8 verification, 229/229 published vectors, enforced by the gate. Since v0.2.0.' },
-  { name: 'Agent delegation chain (asor)', href: 'https://datatracker.ietf.org/doc/draft-asor-wimse-agent-delegation-chain/03/', rev: 'draft-asor-wimse-agent-delegation-chain-03', state: 'done', status: '§6 verification with DPoP, 36/36 published vectors, enforced by the gate. Since v0.3.0.' },
+  { name: 'Agent delegation chain (asor)', href: 'https://datatracker.ietf.org/doc/draft-asor-wimse-agent-delegation-chain/03/', rev: 'draft-asor-wimse-agent-delegation-chain-03', state: 'done', status: '§6 verification with DPoP, 36/36 published vectors, enforced by the gate. Since v0.3.0; Token Status Lists (step 7) unreleased.' },
   { name: 'Token Exchange actor claim (act)', href: 'https://www.rfc-editor.org/rfc/rfc8693#section-4.1', rev: 'RFC 8693 §4.1', state: 'done', status: 'The current actor is bound to the caller; prior actors are recorded, not used for decisions. Since v0.3.0.' },
   { name: 'Identity Assertion Authorization Grant (ID-JAG)', href: 'https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/06/', rev: 'draft-ietf-oauth-identity-assertion-authz-grant-06', state: 'todo', status: '' },
   { name: 'WIMSE AI agent identity (AIMS)', href: 'https://datatracker.ietf.org/doc/draft-ietf-wimse-aims/01/', rev: 'draft-ietf-wimse-aims-01', state: 'ref', status: 'The composition visado follows. Not implemented as such yet.' },
@@ -90,15 +90,16 @@ const elsewhere = [
 const phases = [
   { n: 0, name: 'Foundation', state: 'done', status: 'Met' },
   { n: 1, name: 'Transaction Tokens', state: 'done', status: 'Met' },
-  { n: 2, name: 'ext_authz and caller authentication', state: 'wip', status: 'Partly met' },
-  { n: 3, name: 'Delegation chains', state: 'wip', status: 'Partly met' },
+  { n: 2, name: 'ext_authz and caller authentication', state: 'done', status: 'Met' },
+  { n: 3, name: 'Delegation chains', state: 'done', status: 'Met' },
   { n: 4, name: 'AuthZEN', state: 'done', status: 'Met' },
   { n: 5, name: 'Lab, visibility and demos', state: 'wip', status: 'Started' },
-  { n: 6, name: 'Interop and launch', state: 'todo', status: 'Not started' },
+  { n: 6, name: 'Interop and launch', state: 'wip', status: 'In progress' },
+  { n: 7, name: 'CNCF Sandbox', state: 'wip', status: 'Started' },
 ];
 
 const help = [
-  'Dex, Keycloak and agentgateway in the lab',
+  'Dex issuing ID-JAGs and an agentgateway MCP backend route in the lab',
   'Transaction Token interop with other implementations, using the conformance vectors',
 ];
 ---
@@ -107,7 +108,7 @@ const help = [
   <section aria-labelledby="quick">
     <h2 id="quick">Quick start</h2>
     <p class="lead">
-      The lab puts visado behind Envoy with OPA as the policy decision point and runs the
+      The lab puts visado behind Envoy and agentgateway with OPA as the policy decision point and runs the
       scenarios above. The same scenarios run with Cerbos as the PDP. You need Docker with Compose.
     </p>
     <div class="code"><Code code={quickstart} lang="sh" frame="terminal" title="Terminal" /></div>
@@ -236,7 +237,7 @@ const help = [
             <Logo name="istio" href={site.istio} />
             <Logo name="agentgateway" href={site.agentgateway} />
           </dd>
-          <dd class="fine">Envoy runs in the lab. Istio and agentgateway use the same ext_authz v3 API and are not in the lab yet.</dd>
+          <dd class="fine">Envoy and agentgateway run in the lab. Istio uses the same ext_authz v3 API and is not in the lab yet.</dd>
         </div>
         <div>
           <dt>Issues the identities visado verifies</dt>
@@ -244,7 +245,7 @@ const help = [
             <Logo name="spiffe" href={site.spiffe} />
             <Logo name="spire" href={site.spire} />
           </dd>
-          <dd class="fine">WIT verification since v0.1.0; X.509-SVID and JWT-SVID verification since v0.3.0. SPIRE issues the WIT-SVIDs in the lab.</dd>
+          <dd class="fine">WIT verification since v0.1.0; X.509-SVID and JWT-SVID verification since v0.3.0. SPIRE issues the WIT-SVIDs, X.509-SVIDs and JWT-SVIDs in the lab.</dd>
         </div>
         <div>
           <dt>Decides, behind an AuthZEN 1.0 API</dt>

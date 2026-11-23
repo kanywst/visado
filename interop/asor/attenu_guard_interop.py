@@ -174,19 +174,20 @@ def package_version() -> str:
 
 def compare(minted: dict, visado: dict) -> dict:
     by_id = {r["id"]: r for r in visado["results"]}
-    rows, differ = [], 0
+    rows, differ, unexpected = [], 0, 0
     for case in minted["cases"]:
         v = {k: by_id[case["id"]][k] for k in ("verdict", "reason") if k in by_id[case["id"]]}
         same = v["verdict"] == case["attenu_guard"]["verdict"]
         known = case.get("known_divergence")
-        differ += not same and not known
+        differ += not same
+        unexpected += not same and not known
         row = {"id": case["id"], "note": case["note"], "attenu_guard": case["attenu_guard"],
                "visado": v, "agree": same}
         if known:
             row["known_divergence"] = known
         rows.append(row)
     return {"minted_by": minted["minted_by"], "verified_by": "visado-chain-asor",
-            "cases": len(rows), "differ": differ, "results": rows}
+            "cases": len(rows), "differ": differ, "unexpected": unexpected, "results": rows}
 
 
 def verify(minted: dict) -> dict:
@@ -200,7 +201,7 @@ def verify(minted: dict) -> dict:
         rows.append({"id": case["id"], "note": case["note"], "visado": case["visado"],
                      "attenu_guard": got, "agree": same})
     return {"minted_by": minted["minted_by"], "verified_by": "attenu-guard " + package_version(),
-            "cases": len(rows), "differ": differ, "results": rows}
+            "cases": len(rows), "differ": differ, "unexpected": differ, "results": rows}
 
 
 def main() -> int:
@@ -215,7 +216,7 @@ def main() -> int:
         print(__doc__, file=sys.stderr)
         return 2
     print(json.dumps(result, indent=2))
-    return 1 if result.get("differ") else 0
+    return 1 if result.get("unexpected") else 0
 
 
 if __name__ == "__main__":
