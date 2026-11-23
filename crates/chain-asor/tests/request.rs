@@ -520,3 +520,42 @@ fn an_untrusted_or_wrong_issuer_signature_is_invalid() {
     let forged = format!("{input}.{}", "A".repeat(86));
     assert_eq!(check(&[forged]), Some(Outcome::SignatureInvalid));
 }
+
+/// A leaf proof's `iat` may be ahead of the clock by the proof skew (5 s by
+/// default), not by the whole window, and is configurable.
+#[test]
+fn a_leaf_proof_from_the_future_is_refused() {
+    let chain = chain();
+    let ahead = |secs: u64, jti: &str| {
+        dpop_proof(
+            &pop_key(2),
+            "POST",
+            URI,
+            chain.last().unwrap(),
+            jti,
+            NOW + secs,
+        )
+    };
+    assert_eq!(
+        run(
+            &chain,
+            &ahead(5, "p1"),
+            "crm.read",
+            r#"{"rows":1}"#,
+            None,
+            None
+        ),
+        Ok(())
+    );
+    let err = run(
+        &chain,
+        &ahead(6, "p2"),
+        "crm.read",
+        r#"{"rows":1}"#,
+        None,
+        None,
+    )
+    .unwrap_err();
+    assert_eq!(err.outcome(), Outcome::HolderBindingFailed);
+    assert_eq!(err.reason(), "DPoP iat in the future");
+}

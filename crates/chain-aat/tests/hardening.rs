@@ -3,7 +3,10 @@
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use visado_chain_aat::{AatError, Invocation, Presentation, Step, TrustAnchor, Verifier};
+use visado_chain_aat::{
+    AatError, Invocation, Limits, MemoryReplayCache, Presentation, ReplayCache, Step, TrustAnchor,
+    Verifier,
+};
 use wimsey_jose::{Jwk, SigningKey};
 
 const NOW: i64 = 1_800_000_000;
@@ -56,8 +59,12 @@ fn wildcard_tools() -> Value {
 }
 
 fn pop(leaf: &str, leaf_jti: &str, args: &Value, key: &SigningKey) -> String {
+    pop_at(leaf, leaf_jti, args, key, NOW)
+}
+
+fn pop_at(leaf: &str, leaf_jti: &str, args: &Value, key: &SigningKey, iat: i64) -> String {
     let claims = json!({
-        "jti": "pop-1", "iat": NOW, "aat_id": leaf_jti, "aat_hash": signing_input_hash(leaf),
+        "jti": "pop-1", "iat": iat, "aat_id": leaf_jti, "aat_hash": signing_input_hash(leaf),
         "aat_tool": TOOL, "hta": args, "aat_aud": AUDIENCE,
     });
     sign("aat-pop+jwt", &claims, key)
@@ -191,4 +198,66 @@ fn constraint_nodes_are_capped() {
     let args = r#"{"path":"v1022"}"#;
     let proof = pop(&token, "root-1", &json!({ "path": "v1022" }), &holder_key());
     assert_eq!(verify(&verifier, &chain, &proof, args), Ok(()));
+}
+
+/// A PoP `iat` may be ahead of the clock by the proof skew (5 s by default),
+/// not by the whole window: the `jti` is remembered until `iat` plus the
+/// window, so a proof from the future would hold its entry that much longer.
+#[test]
+fn a_pop_from_the_future_is_refused() {
+    let token = root(&root_claims(&wildcard_tools()));
+    let args = json!({ "path": "/a" });
+    let chain = vec![token.clone()];
+    let verifier = Verifier::new(vec![anchor(ISSUER)], vec![AUDIENCE.to_owned()]);
+    let ahead = |secs| pop_at(&token, "root-1", &args, &holder_key(), NOW + secs);
+    assert_eq!(verify(&verifier, &chain, &ahead(5), ARGS), Ok(()));
+    let err = verify(&verifier, &chain, &ahead(6), ARGS).unwrap_err();
+    assert_eq!(err.step(), Step::S7g);
+    assert!(err.to_string().contains("PoP iat in the future"), "{err}");
+    // The past keeps the whole window.
+    assert_eq!(verify(&verifier, &chain, &ahead(-30), ARGS), Ok(()));
+
+    // Configurable up to the window.
+    let lenient = verifier.with_limits(Limits {
+        pop_max_future: 30,
+        ..Limits::default()
+    });
+    assert_eq!(verify(&lenient, &chain, &ahead(30), ARGS), Ok(()));
+}
+
+/// A recorded PoP `jti` lives until `iat` plus the window, the last second
+/// the proof is accepted in, and is gone after.
+#[test]
+fn a_pop_jti_is_remembered_while_the_pop_is_accepted() {
+    let token = root(&root_claims(&wildcard_tools()));
+    let proof = pop_at(
+        &token,
+        "root-1",
+        &json!({ "path": "/a" }),
+        &holder_key(),
+        NOW + 5,
+    );
+    let chain = vec![token];
+    let verifier = Verifier::new(vec![anchor(ISSUER)], vec![AUDIENCE.to_owned()]);
+    let cache = MemoryReplayCache::new(4);
+    let at = |now| {
+        verifier
+            .verify(
+                &Presentation {
+                    chain: &chain,
+                    pop: &proof,
+                },
+                &Invocation {
+                    tool: TOOL,
+                    args_json: ARGS,
+                },
+                now,
+                Some(&cache as &dyn ReplayCache),
+            )
+            .map(drop)
+    };
+    assert_eq!(at(NOW), Ok(()));
+    let replay = at(NOW + 35).unwrap_err();
+    assert_eq!(replay.step(), Step::S7i, "iat + window is still accepted");
+    assert_eq!(at(NOW + 36).unwrap_err().step(), Step::S7g);
 }

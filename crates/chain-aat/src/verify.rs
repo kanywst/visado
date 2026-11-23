@@ -10,7 +10,7 @@ use wimsey_jose::VerifyingKey;
 
 use visado_chain::jose::{self as jose, Compact, HolderKey, THUMBPRINT_URI_PREFIX};
 use visado_chain::json::{self, Value};
-use visado_chain::replay::{Recorded, ReplayCache};
+use visado_chain::replay::{DEFAULT_PROOF_SKEW, Recorded, ReplayCache};
 
 use crate::constraint::ToolMap;
 use crate::error::{AatError, Step};
@@ -77,6 +77,10 @@ pub struct Limits {
     pub max_chain_size: usize,
     /// The PoP `iat` window, in seconds either side of now.
     pub pop_window: i64,
+    /// How far ahead of now a PoP `iat` may be, in seconds; the smaller of
+    /// this and `pop_window` applies. A PoP `jti` is remembered until `iat`
+    /// plus `pop_window`.
+    pub pop_max_future: i64,
 }
 
 impl Default for Limits {
@@ -90,6 +94,7 @@ impl Default for Limits {
             max_token_size: 64 * 1024,
             max_chain_size: 256 * 1024,
             pop_window: 30,
+            pop_max_future: DEFAULT_PROOF_SKEW,
         }
     }
 }
@@ -192,6 +197,12 @@ impl Verifier {
     pub fn with_limits(mut self, limits: Limits) -> Self {
         self.limits = limits;
         self
+    }
+
+    /// The limits in force.
+    #[must_use]
+    pub const fn limits(&self) -> Limits {
+        self.limits
     }
 
     /// Replaces the policy.
@@ -616,6 +627,10 @@ impl Verifier {
         }
         if iat.abs_diff(now) > self.limits.pop_window.unsigned_abs() {
             return Err(deny(Step::S7g, "PoP iat outside the window"));
+        }
+        let future = self.limits.pop_max_future.clamp(0, self.limits.pop_window);
+        if iat > now.saturating_add(future) {
+            return Err(deny(Step::S7g, "PoP iat in the future"));
         }
         if let Some(nonces) = &self.policy.nonces {
             let nonce = claims.get("nonce").and_then(Value::as_str);

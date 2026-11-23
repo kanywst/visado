@@ -49,14 +49,25 @@ fn token(holder: &SigningKey) -> String {
     )
 }
 
-/// A DPoP request by `holder` with proof `jti` issued at `iat`.
+/// A DPoP request by `holder` with proof `jti` issued at `iat`, at `NOW`.
 fn dpop(auth: &Authenticator, holder: &SigningKey, jti: &str, iat: u64) -> Result<(), String> {
+    dpop_at(auth, holder, jti, iat, NOW)
+}
+
+/// The same, received at `now`.
+fn dpop_at(
+    auth: &Authenticator,
+    holder: &SigningKey,
+    jti: &str,
+    iat: u64,
+    now: u64,
+) -> Result<(), String> {
     let at = token(holder);
     let proof = dpop_proof(holder, "POST", HTU, &at, jti, iat);
     run(
         auth,
         &[("authorization", &format!("DPoP {at}")), ("dpop", &proof)],
-        NOW,
+        now,
     )
     .map(|_| ())
 }
@@ -140,4 +151,54 @@ fn one_workload_holds_at_most_its_quota() {
         "credential.replay_quota"
     );
     assert_eq!(workload(&auth, "agent-b", "d"), Ok(()));
+}
+
+/// A DPoP `iat` may be ahead of the clock by the proof skew (5 s by
+/// default), not by the whole `dpop_iat_window`.
+#[test]
+fn a_dpop_proof_from_the_future_is_refused() {
+    let auth = authenticator();
+    let holder = pop_key(7);
+    assert_eq!(dpop(&auth, &holder, "p-1", NOW + 5), Ok(()));
+    assert_eq!(
+        dpop(&auth, &holder, "p-2", NOW + 6).unwrap_err(),
+        "dpop.invalid"
+    );
+    assert_eq!(
+        dpop(&auth, &holder, "p-3", NOW + 60).unwrap_err(),
+        "dpop.invalid"
+    );
+    // The past keeps the whole window.
+    assert_eq!(dpop(&auth, &holder, "p-4", NOW - 60), Ok(()));
+
+    let strict = authenticator().with_proof_skew(0);
+    assert_eq!(
+        dpop(&strict, &holder, "p-5", NOW + 1).unwrap_err(),
+        "dpop.invalid"
+    );
+    assert_eq!(dpop(&strict, &holder, "p-6", NOW), Ok(()));
+}
+
+/// A DPoP `jti` is remembered while its proof is accepted (until `iat` plus
+/// the window), and no longer, so the space comes back as soon as it can.
+#[test]
+fn a_dpop_jti_lives_exactly_as_long_as_its_proof() {
+    let auth = authenticator().with_replay_key_quota(1);
+    let holder = pop_key(7);
+    assert_eq!(dpop(&auth, &holder, "p-1", NOW + 5), Ok(()));
+    // NOW + 65 is the last second `iat` NOW + 5 is within the window.
+    assert_eq!(
+        dpop_at(&auth, &holder, "p-1", NOW + 5, NOW + 65).unwrap_err(),
+        "dpop.replay"
+    );
+    assert_eq!(
+        dpop_at(&auth, &holder, "p-2", NOW + 65, NOW + 65).unwrap_err(),
+        "credential.replay_quota"
+    );
+    // A second later the entry is gone and the key's quota is free.
+    assert_eq!(
+        dpop_at(&auth, &holder, "p-1", NOW + 5, NOW + 66).unwrap_err(),
+        "dpop.invalid"
+    );
+    assert_eq!(dpop_at(&auth, &holder, "p-2", NOW + 66, NOW + 66), Ok(()));
 }

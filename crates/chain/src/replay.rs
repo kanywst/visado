@@ -12,6 +12,12 @@ use std::sync::Mutex;
 
 use sha2::{Digest, Sha256};
 
+/// How far ahead of the clock, in seconds, a proof's issue time (DPoP and
+/// AAT PoP `iat`, HTTP signature `created`) may be by default. A proof is
+/// remembered for its acceptance window counted from that time, so a
+/// proof issued far ahead would hold its cache entry that much longer.
+pub const DEFAULT_PROOF_SKEW: i64 = 5;
+
 /// Accepted proof `jti` values.
 ///
 /// Replicas of one enforcement point must share this state, so a deployment

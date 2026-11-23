@@ -35,6 +35,7 @@ fn check(proof: &str, nonces: Option<&Nonces>) -> Result<(), Rejection> {
         algs: &["Ed25519"],
         max_size: 8192,
         iat_window: 60,
+        max_future: 5,
         nonces,
     };
     let request = HttpRequest {

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde::Deserialize;
-use visado_chain_aat::{Policy, TrustAnchor, Verifier};
+use visado_chain_aat::{Limits, Policy, TrustAnchor, Verifier};
 use visado_credentials::{Authenticator, JwtBundle, Nonces, OAuthIssuer, WitIssuer, X509Bundle};
 use visado_extauthz::GateConfig;
 use visado_txn_token::{Scope, TxnSigningKey};
@@ -58,9 +58,13 @@ pub struct Config {
     /// `created`), and the oldest `created` accepted, in seconds.
     #[serde(default = "default_max_wpt_lifetime")]
     pub max_signature_lifetime: u64,
-    /// How far a DPoP proof's `iat` may be from now, either way, in seconds.
+    /// How far a DPoP proof's `iat` may be behind now, in seconds.
     #[serde(default = "default_dpop_iat_window")]
     pub dpop_iat_window: u64,
+    /// How far ahead of now, in seconds, a proof's issue time may be: DPoP
+    /// and AAT PoP `iat`, HTTP signature `created`.
+    #[serde(default = "default_max_proof_skew")]
+    pub max_proof_skew: u64,
     #[serde(default)]
     pub dpop: DpopConfig,
     pub signing_key: KeyFile,
@@ -463,6 +467,14 @@ const fn default_dpop_iat_window() -> u64 {
     60
 }
 
+const fn default_max_proof_skew() -> u64 {
+    visado_credentials::DEFAULT_PROOF_SKEW
+}
+
+/// The most a proof's issue time may be ahead of the clock in configuration,
+/// in seconds: the clock leeway's ceiling.
+pub const MAX_PROOF_SKEW: u64 = 60;
+
 /// The widest DPoP `iat` window accepted in configuration, in seconds.
 /// RFC 9449 §11.1 expects seconds or minutes, and every proof is remembered
 /// for this long.
@@ -559,6 +571,11 @@ impl Config {
         if !(1..=MAX_DPOP_IAT_WINDOW).contains(&self.dpop_iat_window) {
             return Err(format!(
                 "dpop_iat_window must be 1..={MAX_DPOP_IAT_WINDOW} seconds"
+            ));
+        }
+        if self.max_proof_skew > MAX_PROOF_SKEW {
+            return Err(format!(
+                "max_proof_skew must be 0..={MAX_PROOF_SKEW} seconds"
             ));
         }
         if !(1..=MAX_DPOP_NONCE_LIFETIME).contains(&self.dpop.nonce_lifetime) {
@@ -725,7 +742,8 @@ impl Config {
         let authenticator = authenticator
             .with_replay_limits(self.replay_capacity, self.max_wpt_lifetime)
             .with_signature_lifetime(self.max_signature_lifetime)
-            .with_dpop_iat_window(self.dpop_iat_window);
+            .with_dpop_iat_window(self.dpop_iat_window)
+            .with_proof_skew(self.max_proof_skew);
         match self.replay_key_quota {
             Some(quota) => authenticator.with_replay_key_quota(quota),
             None => authenticator,
@@ -779,10 +797,11 @@ impl Config {
             || self.asor.as_ref().is_some_and(|a| a.required)
             || self.act.as_ref().is_some_and(|a| a.required);
         let act = self.act.map(ActConfig::verifier);
-        let aat = self.aat.map(|c| c.verifier(base)).transpose()?;
+        let skew = i64::try_from(self.max_proof_skew).map_err(|e| e.to_string())?;
+        let aat = self.aat.map(|c| c.verifier(base, skew)).transpose()?;
         let (asor, asor_status) = match self.asor {
             Some(c) => {
-                let (verifier, status) = c.verifier(base)?;
+                let (verifier, status) = c.verifier(base, skew)?;
                 (Some(verifier), status)
             }
             None => (None, None),
@@ -1004,7 +1023,7 @@ fn check_trust_domains<'a>(
 }
 
 impl AatConfig {
-    fn verifier(self, base: &Path) -> Result<Verifier, String> {
+    fn verifier(self, base: &Path, skew: i64) -> Result<Verifier, String> {
         let mut anchors = Vec::new();
         for anchor in &self.trust_anchors {
             let mut trusted = TrustAnchor::new(anchor.issuer.clone(), anchor_key(base, anchor)?);
@@ -1016,11 +1035,16 @@ impl AatConfig {
         if anchors.is_empty() || self.audiences.is_empty() {
             return Err("aat needs at least one trust anchor and one audience".into());
         }
-        Ok(Verifier::new(anchors, self.audiences).with_policy(Policy {
-            require_chain_aud: self.require_chain_aud,
-            require_pop_aud: self.require_pop_aud,
-            nonces: None,
-        }))
+        Ok(Verifier::new(anchors, self.audiences)
+            .with_policy(Policy {
+                require_chain_aud: self.require_chain_aud,
+                require_pop_aud: self.require_pop_aud,
+                nonces: None,
+            })
+            .with_limits(Limits {
+                pop_max_future: skew,
+                ..Limits::default()
+            }))
     }
 }
 
@@ -1038,12 +1062,18 @@ impl AsorConfig {
     fn verifier(
         self,
         base: &Path,
+        skew: i64,
     ) -> Result<(visado_chain_asor::Verifier, Option<StatusRefresh>), String> {
         let anchors = asor_anchors(base, &self.trust_anchors)?;
         if anchors.is_empty() || self.audiences.is_empty() {
             return Err("asor needs at least one trust anchor and one audience".into());
         }
-        let verifier = visado_chain_asor::Verifier::new(anchors, self.audiences);
+        let verifier = visado_chain_asor::Verifier::new(anchors, self.audiences).with_limits(
+            visado_chain_asor::Limits {
+                proof_max_future: skew,
+                ..visado_chain_asor::Limits::default()
+            },
+        );
         let Some(status) = self.status else {
             return Ok((verifier, None));
         };
@@ -1371,6 +1401,8 @@ endpoint = "http://127.0.0.1:8181/access/v1/evaluation"
         assert!(parse("max_signature_lifetime = 0").is_err());
         assert!(parse("max_signature_lifetime = 3600").is_err());
         assert!(parse("max_signature_lifetime = 120").is_ok());
+        assert!(parse("max_proof_skew = 61").is_err());
+        assert!(parse("max_proof_skew = 0").is_ok());
         assert!(parse("dpop_iat_window = 0").is_err());
         assert!(parse("dpop_iat_window = 3600").is_err());
         assert!(parse("dpop_iat_window = 10").is_ok());
@@ -1850,6 +1882,41 @@ jwks_file = "j"
         assert!(missing.is_some_and(|e| e.contains("could not be fetched")));
         assert_eq!(loaded, Ok(true));
         assert!(other.is_some_and(|e| e.contains("sub is not the uri")));
+    }
+
+    /// `max_proof_skew` reaches every proof check: the authenticator's, the
+    /// AAT PoP and the asor leaf proof.
+    #[test]
+    fn the_proof_skew_reaches_the_chain_verifiers() {
+        use visado_testkit::{AAT_ISSUER, ASOR_ISSUER, aat_anchor_key, asor_anchor_key};
+        use wimsey_jose::Jwk;
+        let dir = std::env::temp_dir().join(format!("visado-skew-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let key = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../deploy/local/keys/txn-signing.private.jwk.json");
+        std::fs::copy(key, dir.join("k.json")).unwrap();
+        let jwk = |key: &wimsey_jose::SigningKey| {
+            serde_json::to_string(&Jwk::from_verifying_key(&key.verifying_key())).unwrap()
+        };
+        std::fs::write(dir.join("aat.json"), jwk(&aat_anchor_key())).unwrap();
+        std::fs::write(dir.join("asor.json"), jwk(&asor_anchor_key())).unwrap();
+        let path = dir.join("visado.toml");
+        let base = format!("max_proof_skew = 2\n{BASE}");
+        std::fs::write(
+            &path,
+            format!(
+                "{base}[aat]\naudiences = [\"a\"]\nrequired = false\n\
+                 trust_anchors = [{{ issuer = \"{AAT_ISSUER}\", jwk_file = \"aat.json\" }}]\n\
+                 [asor]\naudiences = [\"a\"]\nrequired = false\n\
+                 trust_anchors = [{{ issuer = \"{ASOR_ISSUER}\", jwk_file = \"asor.json\" }}]\n"
+            ),
+        )
+        .unwrap();
+        let loaded = Config::load(&path);
+        std::fs::remove_dir_all(&dir).unwrap();
+        let loaded = loaded.unwrap();
+        assert_eq!(loaded.gate.aat.unwrap().limits().pop_max_future, 2);
+        assert_eq!(loaded.gate.asor.unwrap().limits().proof_max_future, 2);
     }
 
     #[test]

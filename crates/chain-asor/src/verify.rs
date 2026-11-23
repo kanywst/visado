@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use visado_chain::dpop::{Nonces, Rejection};
 use visado_chain::jose::{self, Compact};
 use visado_chain::json::{self, ParseError, Value};
-use visado_chain::replay::ReplayCache;
+use visado_chain::replay::{DEFAULT_PROOF_SKEW, ReplayCache};
 use visado_chain::{
     ActorId, Assurance, Authority as NormalizedAuthority, ChainDecoder, Cnf, Hop, KeyThumbprint,
     Link, NormalizedChain, Principal, Profile, SignerBinding, StatusCheck, TrustRef, Validity,
@@ -201,6 +201,10 @@ pub struct Limits {
     pub max_params_size: usize,
     /// The DPoP `iat` window, in seconds either side of now.
     pub proof_window: i64,
+    /// How far ahead of now a DPoP `iat` may be, in seconds; the smaller of
+    /// this and `proof_window` applies. A proof `jti` is remembered until
+    /// `iat` plus `proof_window`.
+    pub proof_max_future: i64,
 }
 
 impl Default for Limits {
@@ -212,6 +216,7 @@ impl Default for Limits {
             max_proof_size: 8 * 1024,
             max_params_size: 64 * 1024,
             proof_window: 60,
+            proof_max_future: DEFAULT_PROOF_SKEW,
         }
     }
 }
@@ -386,6 +391,12 @@ impl Verifier {
         self
     }
 
+    /// The limits in force.
+    #[must_use]
+    pub const fn limits(&self) -> Limits {
+        self.limits
+    }
+
     /// Runs the whole algorithm for one request at `now`: the parse rules,
     /// steps 1 to 5, the DPoP proof (6), status (7), and the audience and
     /// action (8). Pass `replay` to reject a DPoP `jti` seen before.
@@ -413,6 +424,7 @@ impl Verifier {
         let window = ProofChecks {
             max_size: self.limits.max_proof_size,
             iat_window: self.limits.proof_window,
+            max_future: self.limits.proof_max_future,
             nonces: self.dpop_nonces.as_ref(),
         };
         let proof = dpop::verify(

@@ -19,6 +19,8 @@ pub(crate) struct ProofChecks<'a> {
     pub(crate) max_size: usize,
     /// Seconds either side of now within which `iat` must fall.
     pub(crate) iat_window: i64,
+    /// Seconds `iat` may be ahead of now.
+    pub(crate) max_future: i64,
     /// The server nonces a proof must carry, when required.
     pub(crate) nonces: Option<&'a Nonces>,
 }
@@ -42,6 +44,7 @@ pub(crate) fn verify(
         algs: DPOP_ALGS,
         max_size: window.max_size,
         iat_window: window.iat_window,
+        max_future: window.max_future,
         nonces: window.nonces,
     };
     let proof = dpop::verify(proof, &expected, request, now)?;

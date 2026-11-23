@@ -47,6 +47,10 @@ pub use wimse::WitIssuer;
 use visado_chain::dpop::{self as dpop_proof, Expected, HttpRequest, Rejection};
 use visado_chain::replay::{MemoryReplayCache, Recorded, ReplayCache};
 
+/// How far ahead of the clock, in seconds, a proof's `iat` or a signature's
+/// `created` may be by default.
+pub const DEFAULT_PROOF_SKEW: u64 = visado_chain::replay::DEFAULT_PROOF_SKEW.unsigned_abs();
+
 /// The default number of live proofs each replay cache holds.
 pub const DEFAULT_REPLAY_CAPACITY: usize = 100_000;
 
@@ -120,6 +124,7 @@ pub struct Authenticator {
     max_wpt_lifetime: u64,
     max_signature_lifetime: u64,
     dpop_iat_window: u64,
+    proof_skew: u64,
     dpop_nonces: Option<Nonces>,
     replay_capacity: usize,
     replay_key_quota: Option<usize>,
@@ -171,6 +176,7 @@ impl Authenticator {
             max_wpt_lifetime: 60,
             max_signature_lifetime: 60,
             dpop_iat_window: 60,
+            proof_skew: DEFAULT_PROOF_SKEW,
             dpop_nonces: None,
             replay_capacity: DEFAULT_REPLAY_CAPACITY,
             replay_key_quota: None,
@@ -272,12 +278,23 @@ impl Authenticator {
         self
     }
 
-    /// How far a DPoP proof's `iat` may be from now, either way, in seconds.
-    /// A proof's `jti` is remembered for that long after its `iat`. Default
-    /// 60.
+    /// How far a DPoP proof's `iat` may be behind now, in seconds. A proof's
+    /// `jti` is remembered for that long after its `iat`. Default 60. How far
+    /// ahead it may be is [`Authenticator::with_proof_skew`].
     #[must_use]
     pub const fn with_dpop_iat_window(mut self, seconds: u64) -> Self {
         self.dpop_iat_window = seconds;
+        self
+    }
+
+    /// How far ahead of now, in seconds, a DPoP proof's `iat` and an HTTP
+    /// signature's `created` may be, for clock skew. At most 60; default
+    /// [`DEFAULT_PROOF_SKEW`]. A proof is remembered from that time for as
+    /// long as it can be accepted, so a proof issued ahead of the clock
+    /// holds its replay cache entry that much longer.
+    #[must_use]
+    pub fn with_proof_skew(mut self, seconds: u64) -> Self {
+        self.proof_skew = seconds.min(60);
         self
     }
 
@@ -439,6 +456,15 @@ impl Authenticator {
         if nonce.len() > MAX_JTI_LEN {
             return Err(AuthError::HttpSig("nonce too long".into()));
         }
+        // The library allows `created` up to the leeway ahead; a nonce is
+        // remembered until `expires`, so hold the future to the proof skew.
+        if signed
+            .params
+            .created
+            .is_none_or(|created| created > now.saturating_add(self.proof_skew))
+        {
+            return Err(AuthError::HttpSig("created in the future".into()));
+        }
 
         let caller = verified.claims.sub.as_str();
         record(
@@ -564,6 +590,7 @@ impl Authenticator {
             algs: DPOP_ALGS,
             max_size: MAX_CREDENTIAL_LEN,
             iat_window: window,
+            max_future: i64::try_from(self.proof_skew).unwrap_or(0),
             nonces: self.dpop_nonces.as_ref(),
         };
         let uri = request.audience();
@@ -577,15 +604,10 @@ impl Authenticator {
             Rejection::Nonce(nonce) => AuthError::DpopNonce(nonce),
         })?;
         let caller = token_claims.client_id.clone().ok_or(AuthError::NoClient)?;
-        let expires = u64::try_from(proof.iat.saturating_add(window)).unwrap_or(0);
-        record(
-            &self.replay.dpop,
-            &jkt,
-            &proof.jti,
-            expires.saturating_add(self.leeway),
-            now,
-        )
-        .map_err(|e| match e {
+        // Accepted until `iat` falls out of the window behind now; `iat` is
+        // at most the proof skew ahead.
+        let until = u64::try_from(proof.iat.saturating_add(window)).unwrap_or(0);
+        record(&self.replay.dpop, &jkt, &proof.jti, until, now).map_err(|e| match e {
             AuthError::Replay => AuthError::DpopReplay,
             other => other,
         })?;

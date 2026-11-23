@@ -62,6 +62,9 @@ fn limits(vector: &Value, suite: &Value) -> Limits {
         max_token_size: size("max_token_size"),
         max_chain_size: size("max_chain_size"),
         pop_window: p("pop_window"),
+        // The draft's window is symmetric; visado's default is stricter
+        // about the future (`pop_max_future`). The vectors test the draft.
+        pop_max_future: p("pop_window"),
     }
 }
 
