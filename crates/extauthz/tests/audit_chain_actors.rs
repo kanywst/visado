@@ -40,7 +40,7 @@ fn gate() -> Gate<AllowPdp> {
     Gate::new(
         GateConfig {
             trust_domain: TRUST_DOMAIN.into(),
-            signing_key: SigningKey::from_ed25519_seed(&[0x51; 32]),
+            signing_key: SigningKey::from_ed25519_seed(&[0x51; 32]).into(),
             kid: "txn-1".into(),
             txn_lifetime: 60,
             default_scope: Scope::parse("tools.call"),
