@@ -109,6 +109,14 @@ fn unusable_rsa_jwks_are_refused() {
         TxnSigningKey::from_rsa_jwk(&mismatched),
         Err(TxnTokenError::InvalidKey(_))
     ));
+    // Private members of one key under another key's `n`: refused at load,
+    // not when the first minted token fails to verify.
+    let mut foreign_n = full.clone();
+    foreign_n["n"] = jwk("rsa-2048-other.public.jwk.json")["n"].clone();
+    assert!(matches!(
+        TxnSigningKey::from_rsa_jwk(&foreign_n),
+        Err(TxnTokenError::InvalidKey(_))
+    ));
     let mut weak = full;
     weak["n"] = jwk("rsa-1024.public.jwk.json")["n"].clone();
     assert!(matches!(

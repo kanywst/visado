@@ -82,9 +82,26 @@ impl TxnSigningKey {
             &member("qi")?,
         ];
         let key = EncodingKey::from_rsa_der(&pkcs1(&parts));
-        // A key whose members do not fit together fails here, not at mint.
-        jsonwebtoken::crypto::sign(b"probe", &key, jsonwebtoken::Algorithm::RS256)
+        // A key whose members do not fit together fails here, not at mint:
+        // it must sign, and its signature must verify under the published
+        // `n` and `e`, or the gate would mint with one key and serve another.
+        // The signer is built from the same `n` and `e`, and the backend
+        // checks the private members against them, so the verification is a
+        // second line that holds if that backend check ever changes.
+        let probe = jsonwebtoken::crypto::sign(b"probe", &key, jsonwebtoken::Algorithm::RS256)
             .map_err(|_| TxnTokenError::InvalidKey("RSA key does not sign"))?;
+        let verifies = jsonwebtoken::crypto::verify(
+            &probe,
+            b"probe",
+            &public.key,
+            jsonwebtoken::Algorithm::RS256,
+        )
+        .unwrap_or(false);
+        if !verifies {
+            return Err(TxnTokenError::InvalidKey(
+                "RSA private members do not match n and e",
+            ));
+        }
         Ok(Self(Inner::Rsa { key, public, n, e }))
     }
 
