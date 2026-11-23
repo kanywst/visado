@@ -1824,12 +1824,12 @@ jwks_file = "j"
         assert!(
             asor.as_ref()
                 .is_some_and(|e| e.contains("[asor] https://asor.td.example trust anchor")),
-            "{asor:?}"
+            "an [asor] anchor key in an OAuth JWKS did not stop startup"
         );
         assert!(
             aat.as_ref()
                 .is_some_and(|e| e.contains("[aat] https://aat.td.example trust anchor")),
-            "{aat:?}"
+            "an [aat] anchor key in an OAuth JWKS did not stop startup"
         );
     }
 
@@ -1912,15 +1912,21 @@ jwks_file = "j"
             config.validate()
         };
         pdp("https://pdp.example/e").unwrap();
-        for bad in [
-            "https://user:secret@pdp.example/e",
-            "https://user@pdp.example/e",
-            "https://:secret@pdp.example/e",
-            "http://user:secret@127.0.0.1:8181/e",
+        // The assertion messages name the case, never the URL or the error,
+        // so a test failure does not print the credentials either.
+        for (case, bad) in [
+            ("user and password", "https://user:secret@pdp.example/e"),
+            ("user only", "https://user@pdp.example/e"),
+            ("password only", "https://:secret@pdp.example/e"),
+            ("loopback", "http://user:secret@127.0.0.1:8181/e"),
         ] {
-            let err = pdp(bad).unwrap_err();
-            assert!(err.contains("credentials"), "{bad}: {err}");
-            assert!(!err.contains("secret") && !err.contains("user@"), "{err}");
+            let refused = pdp(bad).is_err_and(|e| {
+                e.contains("credentials") && !e.contains("secret") && !e.contains("user@")
+            });
+            assert!(
+                refused,
+                "pdp.endpoint with userinfo ({case}) was accepted or echoed"
+            );
         }
         let otlp = |endpoint: &str| {
             parse_tables(&format!("[telemetry]\notlp_endpoint = \"{endpoint}\"\n"))
@@ -1934,10 +1940,11 @@ jwks_file = "j"
             ))
         };
         status("https://status.example/1").unwrap();
-        let err = status("https://u:secret@status.example/1").unwrap_err();
+        let refused = status("https://u:secret@status.example/1")
+            .is_err_and(|e| e.contains("credentials") && !e.contains("secret"));
         assert!(
-            err.contains("credentials") && !err.contains("secret"),
-            "{err}"
+            refused,
+            "a status list uri with userinfo was accepted or echoed"
         );
     }
 
