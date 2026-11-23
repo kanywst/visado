@@ -107,7 +107,7 @@ To be proposed to the AuthZEN WG once it works end to end.
 
 - `X-Request-ID` is set to the `txn` value and checked in the echo.
 - Timeouts, transport errors, non-200 responses or a non-boolean `decision` all deny.
-- The PDP endpoint must be `https` or a loopback `http` address: whoever answers it decides the request. `[pdp] allow_insecure_http = true` allows plain `http` to another host, for a network nothing else can reach, and logs a warning at startup. `bearer_env` always needs `https` or loopback.
+- The PDP endpoint must be `https` or a loopback `http` address: whoever answers it decides the request. `[pdp] allow_insecure_http = true` allows plain `http` to another host, for a network nothing else can reach, and logs a warning at startup. `bearer_env` always needs `https` or loopback. The endpoint, the OTLP endpoint and the status list URIs must not carry `user:password@`; the startup log names the PDP by `scheme://host:port` only.
 - `[pdp] context_in_subject` also copies the `context` members into `subject.properties`, for PDPs that do not pass `context` to the policy (Cerbos).
 
 ### 5. Mint the Transaction Token

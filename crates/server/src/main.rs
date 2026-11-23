@@ -73,7 +73,7 @@ async fn run(path: &std::path::Path) -> Result<(), String> {
     }
     if loaded.pdp_insecure_http {
         tracing::warn!(
-            pdp = %loaded.pdp_endpoint,
+            pdp = %config::url_origin(&loaded.pdp_endpoint),
             "the PDP endpoint is plain http to another host (pdp.allow_insecure_http): anyone on the network path can answer for the PDP and allow any request"
         );
     }

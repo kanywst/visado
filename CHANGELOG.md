@@ -47,6 +47,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `visado-credentials`: an OAuth JWKS key with `use` other than `sig`, `key_ops` without `verify`, or an `alg` other than the token's no longer verifies tokens. Without a `kid`, the one key that may verify the token is used, so a set with one signing and one encryption key works.
 - **Breaking:** `pdp.endpoint` must be `https` or a loopback `http` address. Before, a plain-http PDP on another host was accepted unless `bearer_env` was set, so anyone on the path could answer `{"decision": true}`. `[pdp] allow_insecure_http = true` allows it and logs a warning. The lab configs set it.
 - **Breaking:** a non-loopback `grpc_listen` needs `[grpc_tls]` with a `client_ca_file` or the top-level `grpc_reachable_only_by_proxy = true`, for every configuration. Before, only `[mtls]` required it, and anyone who could reach the plaintext gRPC port could call Check and receive minted Transaction Tokens. `grpc_reachable_only_by_proxy` moved from `[mtls]` to the top level; the old key now stops startup with a message saying so. The lab configs moved it.
+- `pdp.endpoint`, `telemetry.otlp_endpoint` and `[asor.status]` list URIs with userinfo (`user:password@`) stop startup, and the startup warning names the PDP by `scheme://host:port` only, so a credential in a URL is never logged.
 - `user_token_header` must be a lowercase header name that is not a credential, proof, chain, content, signature, Envoy, hop-by-hop or `host` header.
 
 ## [0.3.0] - 2026-11-21

@@ -526,6 +526,10 @@ impl Config {
         if let Some(header) = &self.user_token_header {
             check_user_token_header(header)?;
         }
+        check_no_userinfo("pdp.endpoint", &self.pdp.endpoint)?;
+        if let Some(telemetry) = &self.telemetry {
+            check_no_userinfo("telemetry.otlp_endpoint", &telemetry.otlp_endpoint)?;
+        }
         if self.pdp.timeout_ms == 0 {
             return Err("pdp.timeout_ms must be positive".into());
         }
@@ -1029,6 +1033,7 @@ impl AsorStatusConfig {
         }
         let mut uris = BTreeSet::new();
         for list in &self.lists {
+            check_no_userinfo("asor.status.lists uri", &list.uri)?;
             if list.uri.trim().is_empty() || !uris.insert(&list.uri) {
                 return Err(format!(
                     "asor.status.lists: {:?} is empty or listed twice",
@@ -1220,6 +1225,32 @@ fn check_user_token_header(name: &str) -> Result<(), String> {
 fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Refuses a URL with userinfo (`user:password@`): it would be logged, and
+/// credentials belong in `bearer_env`. The error does not repeat the URL.
+fn check_no_userinfo(what: &str, url: &str) -> Result<(), String> {
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return Ok(());
+    };
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err(format!(
+            "{what} must not carry credentials (user:password@) in the URL"
+        ));
+    }
+    Ok(())
+}
+
+/// `scheme://host:port` of `url`, for logs: no userinfo, path or query.
+pub fn url_origin(url: &str) -> String {
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return "<invalid url>".into();
+    };
+    let host = parsed.host_str().unwrap_or("");
+    match parsed.port_or_known_default() {
+        Some(port) => format!("{}://{host}:{port}", parsed.scheme()),
+        None => format!("{}://{host}", parsed.scheme()),
+    }
 }
 
 fn is_https_or_loopback(endpoint: &str) -> bool {
@@ -1845,6 +1876,60 @@ jwks_file = "j"
             .is_err()
         );
         with("https://pdp/e", "bearer_env = \"T\"\n").unwrap();
+    }
+
+    #[test]
+    fn configured_urls_carry_no_credentials() {
+        let pdp = |endpoint: &str| {
+            let config: Config = toml::from_str(
+                &BASE.replace("http://127.0.0.1:8181/access/v1/evaluation", endpoint),
+            )
+            .unwrap();
+            config.validate()
+        };
+        pdp("https://pdp.example/e").unwrap();
+        for bad in [
+            "https://user:secret@pdp.example/e",
+            "https://user@pdp.example/e",
+            "https://:secret@pdp.example/e",
+            "http://user:secret@127.0.0.1:8181/e",
+        ] {
+            let err = pdp(bad).unwrap_err();
+            assert!(err.contains("credentials"), "{bad}: {err}");
+            assert!(!err.contains("secret") && !err.contains("user@"), "{err}");
+        }
+        let otlp = |endpoint: &str| {
+            parse_tables(&format!("[telemetry]\notlp_endpoint = \"{endpoint}\"\n"))
+        };
+        otlp("http://jaeger:4317").unwrap();
+        assert!(otlp("http://u:p@jaeger:4317").is_err());
+        let status = |uri: &str| {
+            parse_tables(&format!(
+                "[asor]\naudiences = [\"a\"]\ntrust_anchors = []\nrequired = true\n\
+                 [asor.status]\ntrust_anchors = []\nlists = [{{ uri = \"{uri}\" }}]\n"
+            ))
+        };
+        status("https://status.example/1").unwrap();
+        let err = status("https://u:secret@status.example/1").unwrap_err();
+        assert!(
+            err.contains("credentials") && !err.contains("secret"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn url_origin_keeps_only_scheme_host_and_port() {
+        use super::url_origin;
+        assert_eq!(
+            url_origin("http://user:secret@pdp:8181/access/v1/evaluation?x=1"),
+            "http://pdp:8181"
+        );
+        assert_eq!(
+            url_origin("https://pdp.example/e"),
+            "https://pdp.example:443"
+        );
+        assert_eq!(url_origin("http://[::1]:8181/e"), "http://[::1]:8181");
+        assert_eq!(url_origin("not a url"), "<invalid url>");
     }
 
     #[test]
