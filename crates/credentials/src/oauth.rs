@@ -295,13 +295,23 @@ fn delegation_claims(token: &str) -> Result<(), AuthError> {
     {
         return Err(AuthError::DelegationToken(format!("carries `{claim}`")));
     }
-    let detail = payload
-        .get("authorization_details")
-        .and_then(serde_json::Value::as_array)
-        .into_iter()
-        .flatten()
+    let Some(details) = payload.get("authorization_details") else {
+        return Ok(());
+    };
+    // RFC 9396 §2: an array. Any other shape is refused rather than skipped,
+    // so a chain entry cannot hide in an object.
+    let details = details
+        .as_array()
+        .ok_or_else(|| AuthError::AccessToken("authorization_details is not an array".into()))?;
+    let detail = details
+        .iter()
         .filter_map(|entry| entry.get("type")?.as_str())
-        .find(|kind| DELEGATION_DETAIL_TYPES.contains(kind));
+        .find_map(|kind| {
+            let kind = kind.trim();
+            DELEGATION_DETAIL_TYPES
+                .iter()
+                .find(|chain| chain.eq_ignore_ascii_case(kind))
+        });
     if let Some(kind) = detail {
         return Err(AuthError::DelegationToken(format!(
             "authorization_details type `{kind}`"

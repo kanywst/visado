@@ -135,6 +135,42 @@ fn each_chain_claim_marks_a_delegation_token() {
         );
     }
 
+    // A chain type in another case or with spaces is still a chain type.
+    for kind in [
+        "AGENT_DELEGATION",
+        " agent_delegation",
+        "Attenuating_Agent_Token\t",
+    ] {
+        let mut claims = delegation_claims();
+        plain(&mut claims);
+        claims["authorization_details"] = json!([{ "type": kind }]);
+        let token = signed_access_token(&claims);
+        assert_eq!(
+            send_dpop(&auth, &token).unwrap_err(),
+            "token.delegation",
+            "{kind:?}"
+        );
+    }
+
+    // RFC 9396 §2 makes authorization_details an array; an object (where a
+    // chain entry could hide) or any other shape is refused.
+    for value in [
+        json!({ "type": "agent_delegation", "scopes": ["files.read"] }),
+        json!({ "type": "payment_initiation" }),
+        json!("agent_delegation"),
+        json!(null),
+    ] {
+        let mut claims = delegation_claims();
+        plain(&mut claims);
+        claims["authorization_details"] = value.clone();
+        let token = signed_access_token(&claims);
+        assert_eq!(
+            send_dpop(&auth, &token).unwrap_err(),
+            "token.invalid",
+            "{value}"
+        );
+    }
+
     // authorization_details of another type is not a chain.
     let mut claims = delegation_claims();
     plain(&mut claims);
