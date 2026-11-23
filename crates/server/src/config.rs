@@ -47,14 +47,14 @@ pub struct Config {
     /// `jti` and asor leaf proof `jti`.
     #[serde(default = "default_replay_capacity")]
     pub replay_capacity: usize,
-    /// The most live proofs one caller may hold in each replay cache: a
-    /// workload by WIT `sub`, or a proof key by thumbprint. Default a 32nd of
-    /// `replay_capacity`, at most 5000.
+    /// The most live proofs one caller may hold in a replay cache that is at
+    /// least half full: a workload by WIT `sub`, or a proof key by
+    /// thumbprint. Default a 64th of `replay_capacity`, at most 5000.
     #[serde(default)]
     pub replay_key_quota: Option<usize>,
     /// The most live DPoP proofs one OAuth client (issuer and `client_id`)
-    /// may hold across all its keys. Default a 16th of `replay_capacity`, at
-    /// most 10000.
+    /// may hold across all its keys in a DPoP cache that is at least half
+    /// full. Default a 32nd of `replay_capacity`, at most 10000.
     #[serde(default)]
     pub replay_client_quota: Option<usize>,
     #[serde(default = "default_max_wpt_lifetime")]

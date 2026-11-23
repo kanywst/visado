@@ -415,15 +415,15 @@ async fn a_dpop_client_presents_an_act_chain_naming_itself() {
     assert_eq!(denied(&outcome).1, "act.actor_mismatch");
 }
 
-/// A DPoP key past its replay quota is told to slow down (429); the cache
-/// still has room for other keys.
+/// Under pressure (half the cache live), a DPoP key past its replay quota is
+/// told to slow down (429); the cache still has room for other keys.
 #[tokio::test]
 async fn a_key_over_its_replay_quota_gets_429() {
     let (gate, _) = gate_with(
         authenticator()
-            .with_replay_limits(16, 60)
-            .with_replay_key_quota(2)
-            .with_replay_client_quota(16),
+            .with_replay_limits(4, 60)
+            .with_replay_key_quota(1)
+            .with_replay_client_quota(4),
     );
     let at = token();
     for jti in ["p-1", "p-2"] {

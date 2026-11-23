@@ -45,9 +45,9 @@ pub enum Recorded {
     /// dropped. It cannot be told apart from a replay and is refused like
     /// one.
     Stale,
-    /// The owner, or the group it belongs to, already holds its quota of
-    /// live entries. Only its new proofs are refused until some of its
-    /// entries expire.
+    /// The cache is under pressure and the owner, or the group it belongs
+    /// to, already holds its quota of live entries. Only its new proofs are
+    /// refused until some of its entries expire or the pressure passes.
     OverQuota,
     /// The cache is full of live entries, so the proof cannot be recorded.
     Full,
@@ -67,6 +67,12 @@ type Digest32 = [u8; 32];
 
 /// An in-process [`ReplayCache`] with a fixed capacity and a per-owner quota.
 ///
+/// The quotas apply only under pressure: while fewer than the quota
+/// threshold (by default half the capacity) entries are live, any owner may
+/// record freely, so a busy caller is not limited in normal operation. Once
+/// the cache is that full, an owner or group already at its quota is
+/// refused, so whoever is filling the cache cannot take the rest of it.
+///
 /// Lookups are O(1) and expired entries are dropped in expiry order, so each
 /// entry is removed once, in O(log n), however full the cache is. Each live
 /// entry costs about 150 bytes.
@@ -75,6 +81,7 @@ pub struct MemoryReplayCache {
     capacity: usize,
     owner_quota: usize,
     group_quota: usize,
+    quota_threshold: usize,
     state: Mutex<State>,
 }
 
@@ -153,6 +160,7 @@ impl MemoryReplayCache {
             capacity,
             owner_quota: capacity,
             group_quota: capacity,
+            quota_threshold: capacity / 2,
             state: Mutex::new(State::default()),
         }
     }
@@ -175,6 +183,21 @@ impl MemoryReplayCache {
     pub const fn with_group_quota(mut self, quota: usize) -> Self {
         self.group_quota = quota;
         self
+    }
+
+    /// Applies the owner and group quotas only once `entries` entries are
+    /// live. Default half the capacity; 0 applies them always.
+    #[must_use]
+    pub const fn with_quota_threshold(mut self, entries: usize) -> Self {
+        self.quota_threshold = entries;
+        self
+    }
+
+    /// How many live entries put the cache under pressure, when the quotas
+    /// apply.
+    #[must_use]
+    pub const fn quota_threshold(&self) -> usize {
+        self.quota_threshold
     }
 
     /// The most live entries one group may hold.
@@ -223,8 +246,10 @@ impl MemoryReplayCache {
         let group = group.map(group_key);
         let held =
             |counts: &HashMap<Digest32, usize>, k: &Digest32| counts.get(k).copied().unwrap_or(0);
-        if held(&state.per_owner, &owner) >= self.owner_quota
-            || group.is_some_and(|g| held(&state.per_group, &g) >= self.group_quota)
+        let pressure = state.live.len() >= self.quota_threshold;
+        if pressure
+            && (held(&state.per_owner, &owner) >= self.owner_quota
+                || group.is_some_and(|g| held(&state.per_group, &g) >= self.group_quota))
         {
             return Recorded::OverQuota;
         }
@@ -374,7 +399,9 @@ mod tests {
 
     #[test]
     fn one_owner_cannot_take_more_than_its_quota() {
-        let cache = MemoryReplayCache::new(10).with_owner_quota(3);
+        let cache = MemoryReplayCache::new(10)
+            .with_owner_quota(3)
+            .with_quota_threshold(0);
         for jti in ["a", "b", "c"] {
             assert!(cache.check_and_record("flood", jti, 200, 100).is_fresh());
         }
@@ -400,7 +427,8 @@ mod tests {
     fn a_group_cannot_take_more_than_its_quota_through_many_owners() {
         let cache = MemoryReplayCache::new(100)
             .with_owner_quota(5)
-            .with_group_quota(8);
+            .with_group_quota(8)
+            .with_quota_threshold(0);
         let fresh = (0..20)
             .filter(|i| {
                 cache
@@ -423,9 +451,12 @@ mod tests {
         );
     }
 
+    /// Below the threshold one owner records freely, far past its quota; at
+    /// the threshold the quota bites, and the other half stays for others.
     #[test]
     fn the_quota_holds_off_a_flood_from_one_owner() {
-        let cache = MemoryReplayCache::new(100).with_owner_quota(25);
+        let cache = MemoryReplayCache::new(100).with_owner_quota(5);
+        assert_eq!(cache.quota_threshold(), 50);
         let refused = (0..1000)
             .filter(|i| {
                 !cache
@@ -433,14 +464,52 @@ mod tests {
                     .is_fresh()
             })
             .count();
-        assert_eq!(refused, 975);
-        for i in 0..75 {
+        assert_eq!(refused, 950, "the first 50 pass, ten times the quota");
+        assert_eq!(
+            cache.check_and_record("flood", "more", 1_000, 100),
+            Recorded::OverQuota
+        );
+        for i in 0..50 {
             assert!(
                 cache
                     .check_and_record(&format!("caller-{i}"), "x", 1_000, 100)
                     .is_fresh()
             );
         }
+    }
+
+    /// A busy owner is not limited while the cache has room, and is once
+    /// it is under pressure; an owner below its quota still records then.
+    #[test]
+    fn the_quota_applies_only_under_pressure() {
+        let cache = MemoryReplayCache::new(1_000).with_owner_quota(10);
+        for i in 0..400 {
+            assert!(
+                cache
+                    .check_and_record("busy", &i.to_string(), 1_000, 100)
+                    .is_fresh()
+            );
+        }
+        // Others bring the cache to half full.
+        for i in 0..100 {
+            assert!(
+                cache
+                    .check_and_record(&format!("other-{i}"), "x", 1_000, 100)
+                    .is_fresh()
+            );
+        }
+        assert_eq!(
+            cache.check_and_record("busy", "more", 1_000, 100),
+            Recorded::OverQuota
+        );
+        assert!(cache.check_and_record("quiet", "x", 1_000, 100).is_fresh());
+        // Once entries expire and the pressure passes, the busy owner records
+        // again.
+        assert!(
+            cache
+                .check_and_record("busy", "later", 3_000, 1_001)
+                .is_fresh()
+        );
     }
 
     /// A cache of `size` live entries, and the time `REFUSALS` insertions into

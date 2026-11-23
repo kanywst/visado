@@ -478,14 +478,14 @@ fn aat_call(caller: u8, holder: u8, n: &str) -> CheckInput {
 }
 
 /// `replay_capacity` and `replay_key_quota` govern the chain proof caches
-/// too: one holder key gets its quota of the AAT PoP cache, and another
-/// still has room.
+/// too: once the AAT PoP cache is half full, a holder key past its quota is
+/// refused, and another still has room.
 #[tokio::test]
 async fn the_chain_replay_caches_follow_the_configured_limits() {
     let (gate, _) = gate_with(
         authenticator()
-            .with_replay_limits(64, 60)
-            .with_replay_key_quota(2),
+            .with_replay_limits(4, 60)
+            .with_replay_key_quota(1),
     );
     for n in ["c1", "c2"] {
         let outcome = gate.check(&aat_call(2, 2, n), NOW, "t").await;
@@ -500,7 +500,8 @@ async fn the_chain_replay_caches_follow_the_configured_limits() {
 /// `Gate::with_replay_limits` sets the chain proof caches on their own.
 #[tokio::test]
 async fn the_chain_replay_limits_can_be_set_on_the_gate() {
-    let gate = gate().with_replay_limits(8, 1);
+    // Half of two entries is one: the second proof meets the pressure.
+    let gate = gate().with_replay_limits(2, 1);
     let outcome = gate.check(&aat_call(2, 2, "c1"), NOW, "t").await;
     assert!(minted(&outcome).tctx.unwrap().contains_key("chain"));
     let outcome = gate.check(&aat_call(2, 2, "c2"), NOW, "t").await;

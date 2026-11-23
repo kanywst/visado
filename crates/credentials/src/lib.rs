@@ -164,20 +164,24 @@ pub const MAX_DEFAULT_REPLAY_KEY_QUOTA: usize = 5_000;
 pub const MAX_DEFAULT_REPLAY_CLIENT_QUOTA: usize = 10_000;
 
 /// The live proofs one key or workload may hold in a replay cache of
-/// `capacity` unless configured: a 32nd of it, at most
-/// [`MAX_DEFAULT_REPLAY_KEY_QUOTA`] and at least one. Filling a cache takes
-/// at least 32 of them.
+/// `capacity` under pressure, unless configured: a 64th of it, at most
+/// [`MAX_DEFAULT_REPLAY_KEY_QUOTA`] and at least one.
+///
+/// The quotas apply only once a cache is half full; below that anyone
+/// records freely. One key can so take half the cache, and each further key
+/// at most a 64th, so filling a cache takes at least 33 keys or workloads.
 #[must_use]
 pub const fn default_replay_key_quota(capacity: usize) -> usize {
-    share(capacity, 32, MAX_DEFAULT_REPLAY_KEY_QUOTA)
+    share(capacity, 64, MAX_DEFAULT_REPLAY_KEY_QUOTA)
 }
 
 /// The live DPoP proofs one OAuth client may hold, across all its keys,
-/// unless configured: a 16th of the capacity, at most
-/// [`MAX_DEFAULT_REPLAY_CLIENT_QUOTA`] and at least one.
+/// under pressure, unless configured: a 32nd of the capacity, at most
+/// [`MAX_DEFAULT_REPLAY_CLIENT_QUOTA`] and at least one. Filling a cache
+/// takes at least 17 clients.
 #[must_use]
 pub const fn default_replay_client_quota(capacity: usize) -> usize {
-    share(capacity, 16, MAX_DEFAULT_REPLAY_CLIENT_QUOTA)
+    share(capacity, 32, MAX_DEFAULT_REPLAY_CLIENT_QUOTA)
 }
 
 const fn share(capacity: usize, parts: usize, cap: usize) -> usize {
@@ -280,8 +284,9 @@ impl Authenticator {
     }
 
     /// The most live proofs one workload (by WIT `sub`) or one DPoP key may
-    /// hold in each replay cache. Past it, that caller's new proofs are
-    /// rejected ([`AuthError::ReplayQuota`]) while others still have room.
+    /// hold in each replay cache once the cache is half full. Past it, that
+    /// caller's new proofs are rejected ([`AuthError::ReplayQuota`]) while
+    /// others still have room; below half full, no caller is limited.
     /// Default: [`default_replay_key_quota`] of the capacity.
     #[must_use]
     pub fn with_replay_key_quota(mut self, quota: usize) -> Self {
@@ -291,8 +296,9 @@ impl Authenticator {
     }
 
     /// The most live DPoP proofs one OAuth client (issuer and `client_id`)
-    /// may hold across all its keys. Past it, the client's new proofs are
-    /// rejected ([`AuthError::ReplayQuota`]), whichever key made them.
+    /// may hold across all its keys once the DPoP cache is half full. Past
+    /// it, the client's new proofs are rejected ([`AuthError::ReplayQuota`]),
+    /// whichever key made them.
     /// Default: [`default_replay_client_quota`] of the capacity.
     #[must_use]
     pub fn with_replay_client_quota(mut self, quota: usize) -> Self {

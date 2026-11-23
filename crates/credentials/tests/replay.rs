@@ -121,29 +121,54 @@ fn a_full_dpop_cache_refuses_only_dpop_proofs() {
     assert_eq!(workload(&auth, "agent-a", "w-1"), Ok(()));
 }
 
-/// One DPoP key can hold only its quota of the cache, so other keys are
-/// still served while it floods.
+/// Below half full the cache limits nobody: one key and one workload each
+/// record far more than their quota.
 #[test]
-fn one_dpop_key_holds_at_most_its_quota() {
+fn a_busy_caller_is_not_limited_while_the_cache_has_room() {
+    let auth = authenticator();
+    let quota = visado_credentials::default_replay_key_quota(CAPACITY);
+    let busy = 25 * quota;
+    assert!(busy < CAPACITY / 2);
+    for i in 0..busy {
+        assert_eq!(dpop(&auth, &pop_key(7), &format!("p-{i}"), NOW), Ok(()));
+        assert_eq!(workload(&auth, "agent-a", &format!("w-{i}")), Ok(()));
+    }
+}
+
+/// Once the cache is half full, a DPoP key past its quota is refused while
+/// other keys are still served.
+#[test]
+fn under_pressure_one_dpop_key_holds_at_most_its_quota() {
     let auth = authenticator();
     let flood = pop_key(7);
-    let quota = visado_credentials::default_replay_key_quota(CAPACITY);
-    for i in 0..quota {
+    for i in 0..CAPACITY / 2 {
         assert_eq!(dpop(&auth, &flood, &format!("p-{i}"), NOW), Ok(()));
     }
     assert_eq!(
         dpop(&auth, &flood, "one-more", NOW).unwrap_err(),
         "credential.replay_quota"
     );
-    assert_eq!(dpop(&auth, &pop_key(8), "p-0", NOW), Ok(()));
+    // So is another key of the same client, past the client's quota; another
+    // client's key is served.
+    assert_eq!(
+        dpop(&auth, &pop_key(8), "p-0", NOW).unwrap_err(),
+        "credential.replay_quota"
+    );
+    assert_eq!(
+        client_dpop(&auth, "other-client", &pop_key(8), "p-0"),
+        Ok(())
+    );
     // A replay is still reported as a replay.
     assert_eq!(dpop(&auth, &flood, "p-0", NOW).unwrap_err(), "dpop.replay");
 }
 
 /// The same for a workload, by WIT `sub`.
 #[test]
-fn one_workload_holds_at_most_its_quota() {
+fn under_pressure_one_workload_holds_at_most_its_quota() {
     let auth = authenticator().with_replay_key_quota(3);
+    for i in 0..CAPACITY / 2 {
+        assert_eq!(workload(&auth, "flood", &format!("f-{i}")), Ok(()));
+    }
     for jti in ["a", "b", "c"] {
         assert_eq!(workload(&auth, "agent-a", jti), Ok(()));
     }
@@ -184,7 +209,9 @@ fn a_dpop_proof_from_the_future_is_refused() {
 /// the window), and no longer, so the space comes back as soon as it can.
 #[test]
 fn a_dpop_jti_lives_exactly_as_long_as_its_proof() {
-    let auth = authenticator().with_replay_key_quota(1);
+    // One entry: the cache is always under pressure and the key's quota is
+    // that entry.
+    let auth = authenticator().with_replay_limits(1, 60);
     let holder = pop_key(7);
     assert_eq!(dpop(&auth, &holder, "p-1", NOW + 5), Ok(()));
     // NOW + 65 is the last second `iat` NOW + 5 is within the window.
@@ -221,13 +248,20 @@ fn client_dpop(
     .map(|_| ())
 }
 
-/// One client with many DPoP-bound keys holds one client quota across all
-/// of them, so more keys do not buy it more of the cache.
+/// Under pressure, one client with many DPoP-bound keys holds one client
+/// quota across all of them, so more keys do not buy it more of the cache.
 #[test]
 fn one_client_holds_at_most_its_quota_across_its_keys() {
     let auth = authenticator()
         .with_replay_key_quota(4)
         .with_replay_client_quota(6);
+    // Another client brings the cache to half full, freely.
+    for i in 0..CAPACITY / 2 {
+        assert_eq!(
+            client_dpop(&auth, "filler", &pop_key(20), &format!("f-{i}")),
+            Ok(())
+        );
+    }
     let accepted = (1..=4)
         .flat_map(|key| (0..4).map(move |i| (key, i)))
         .filter(|(key, i)| {
@@ -253,10 +287,10 @@ fn default_quotas_are_a_small_share() {
     use visado_credentials::{
         DEFAULT_REPLAY_CAPACITY, default_replay_client_quota, default_replay_key_quota,
     };
-    assert_eq!(default_replay_key_quota(DEFAULT_REPLAY_CAPACITY), 3_125);
-    assert_eq!(default_replay_client_quota(DEFAULT_REPLAY_CAPACITY), 6_250);
+    assert_eq!(default_replay_key_quota(DEFAULT_REPLAY_CAPACITY), 1_562);
+    assert_eq!(default_replay_client_quota(DEFAULT_REPLAY_CAPACITY), 3_125);
     assert_eq!(default_replay_key_quota(10_000_000), 5_000);
     assert_eq!(default_replay_client_quota(10_000_000), 10_000);
-    assert_eq!(default_replay_key_quota(10), 1);
+    assert_eq!(default_replay_key_quota(100), 1);
     assert_eq!(default_replay_key_quota(0), 0);
 }
