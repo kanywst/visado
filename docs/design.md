@@ -107,6 +107,7 @@ To be proposed to the AuthZEN WG once it works end to end.
 
 - `X-Request-ID` is set to the `txn` value and checked in the echo.
 - Timeouts, transport errors, non-200 responses or a non-boolean `decision` all deny.
+- The PDP endpoint must be `https` or a loopback `http` address: whoever answers it decides the request. `[pdp] allow_insecure_http = true` allows plain `http` to another host, for a network nothing else can reach, and logs a warning at startup. `bearer_env` always needs `https` or loopback.
 - `[pdp] context_in_subject` also copies the `context` members into `subject.properties`, for PDPs that do not pass `context` to the policy (Cerbos).
 
 ### 5. Mint the Transaction Token
@@ -179,7 +180,7 @@ It never holds a token, proof, signature, digest, header value, body or the hop'
 
 ## Deployment modes
 
-1. ext_authz server (v0): `tonic` + `envoy-types` gRPC. One server covers Envoy, Istio (`CUSTOM` action) and agentgateway, which vendors the same proto.
+1. ext_authz server (v0): `tonic` + `envoy-types` gRPC. One server covers Envoy, Istio (`CUSTOM` action) and agentgateway, which vendors the same proto. The port listens on loopback unless `[grpc_tls]` requires the proxy's client certificate or `grpc_reachable_only_by_proxy` is set ([bindings.md](bindings.md#choosing-the-method)).
 2. Token endpoint and UI (v0): `axum` for the RFC 8693 endpoint, JWKS, health, and the chain view (`/api/requests`, `/chain`; see [Chain view](#chain-view)). The token endpoint is not built yet.
 3. agentgateway ExtMcp (later): tool-aware AuthZEN requests at the MCP method layer.
 4. Standalone PEP (later, only if asked): `hyper` 1.x + `tower` + `rustls`. Not `pingora`, which brings its own lifecycle and OpenSSL by default.

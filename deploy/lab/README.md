@@ -18,7 +18,7 @@ docker compose -f compose.yaml -f compose.cerbos.yaml up -d --build
 ./demo.sh
 ```
 
-visado then reads `visado.cerbos.toml`, which is `visado.toml` with another `[pdp]` table. Cerbos maps the AuthZEN subject to the principal (`subject.type` becomes the role, `subject.properties` the attributes), the resource to a resource of kind `http_resource` and the action name to the action. It does not pass `context` to the policy, so `[pdp] context_in_subject = true` copies the context, the scope and principal included, into `subject.properties`.
+visado then reads `visado.cerbos.toml`, which is `visado.toml` with another `[pdp]` table. Cerbos maps the AuthZEN subject to the principal (`subject.type` becomes the role, `subject.properties` the attributes), the resource to a resource of kind `http_resource` and the action name to the action. It does not pass `context` to the policy, so `[pdp] context_in_subject = true` copies the context, the scope and principal included, into `subject.properties`. Both files reach the PDP over plain `http` on the compose network, so both set `[pdp] allow_insecure_http = true`; visado logs a warning for it at startup.
 
 The policy is ported to `cerbos/http_resource.yaml`, with the same rule as the Rego. `cerbos/http_resource_test.yaml` holds its tests; run them with:
 
@@ -137,7 +137,7 @@ The `/mcp` scenarios use a plain HTTP route to the echo server, not agentgateway
 
 The AAT chains are bound to the keys SPIRE issued: agent-a's WIT key holds the root and signs the delegation to agent-b's WIT key.
 
-The signed requests need the body: the ext_authz filters set `with_request_body` with `pack_as_bytes: true`. The mTLS listener's filter sets `include_peer_certificate: true`. visado's gRPC port listens only on its address on `authz`, an internal network that only Envoy and agentgateway share, so `visado.toml` can set `grpc_reachable_only_by_proxy = true`: no other container can send a check request with someone else's certificate. `demo.sh` checks that another container cannot connect to the port.
+The signed requests need the body: the ext_authz filters set `with_request_body` with `pack_as_bytes: true`. The mTLS listener's filter sets `include_peer_certificate: true`. visado's gRPC port listens only on its address on `authz`, an internal network that only Envoy and agentgateway share, so `visado.toml` sets the top-level `grpc_reachable_only_by_proxy = true` and the proxies connect without TLS: no other container can send a check request with someone else's certificate or get a Transaction Token. visado logs a warning for it at startup. A deployment without such a network sets `[grpc_tls]` with a `client_ca_file` instead. `demo.sh` checks that another container cannot connect to the port.
 
 Envoy also normalizes `%2e%2e` and `//` before visado sees the path; visado rejects any that still arrive.
 

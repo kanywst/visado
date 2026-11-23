@@ -14,6 +14,10 @@ Which method a request uses is decided by the headers it carries, in this order:
 
 A credential header longer than 16 KiB is denied (`credential.too_large`) before it is decoded.
 
+`user_token_header` (default `x-user-token`) must be a lowercase header name that visado and the proxy do not already use: not `authorization`, `proxy-authorization`, `dpop`, `dpop-nonce`, `workload-identity-token`, `txn-token`, a chain header, `host`, `cookie`, `x-forwarded-client-cert`, a hop-by-hop header, or a name starting with `signature`, `content-` or `x-envoy-`. The server refuses to start otherwise.
+
+Only the proxy may call visado's gRPC port: anything that can call ext_authz directly gets decisions and, on an allow, a minted Transaction Token. A `grpc_listen` that is not a loopback address needs `[grpc_tls]` with a `client_ca_file`, so the proxy authenticates with a client certificate, or the top-level `grpc_reachable_only_by_proxy = true`, which records that the network lets nothing else reach the port and logs a warning at startup. `[grpc_tls]` serves the port over TLS with `cert_file` and `key_file` (PEM); with `client_ca_file`, a client without a certificate from one of those CAs is refused in the handshake.
+
 An inbound `Txn-Token` is accepted only from a workload in `internal_callers` that proved possession of a key for the request: WIT with WPT (`tth`), WIT with a signature that covers it, or mTLS. A bearer caller or an OAuth client cannot forward one (`txn.untrusted_hop`). When the request also carries a delegation chain that names its principal (asor `sub`, the `sub` of a token with an RFC 8693 `act` claim), that principal must be the forwarded token's `sub`, or the request is denied (`chain.principal_mismatch`); an AAT chain names no principal and is not compared.
 
 ## Request target
@@ -94,7 +98,7 @@ draft-ietf-wimse-mutual-tls with a Workload Identity Certificate, which is a SPI
 Rules:
 
 - Envoy must terminate the client's TLS itself, request a client certificate (`require_client_certificate: true`), and validate it against the same CA. The handshake is what proves the client holds the private key; visado sees only the certificate. `source.certificate` is filled from Envoy's own connection state, not from a request header, so a client cannot forge it. If something in front of Envoy terminates TLS, the field is empty (or describes the wrong peer) and mTLS must not be configured. visado never reads `X-Forwarded-Client-Cert`.
-- Only Envoy may reach visado's gRPC port: certificates are public, so a client that could call ext_authz directly could put any workload's certificate in the field. `[mtls]` is refused unless `grpc_listen` is a loopback address or `[mtls] grpc_reachable_only_by_proxy = true` records that the network enforces this.
+- Only Envoy may reach visado's gRPC port: certificates are public, so a client that could call ext_authz directly could put any workload's certificate in the field. The gRPC port rules under [Choosing the method](#choosing-the-method) enforce this for every configuration.
 - The certificate must be one PEM block (no chain), issued directly by the one CA configured for the trust domain in its URI SAN, with an Ed25519 or P-256 CA key, within its validity window, with exactly one URI SAN, not a CA, and, if key usage is present, allowing signatures and not certificate or CRL signing. Chain building through intermediates, name constraints and revocation are not implemented. Without `[mtls]` the certificate is ignored.
 - The certificate is used only when the request carries no `Workload-Identity-Token` and no `Authorization`. A user token header is denied (`credential.unbound_user_token`): nothing ties it to the certificate.
 
@@ -119,6 +123,12 @@ Rules:
 | DPoP proof (RFC 9449) | `DPoP` header, exactly one |
 
 The caller is the token's `client_id` (or `azp`), and the user is its `sub`.
+
+Rules for every access token, bearer or DPoP-bound, and for a user token:
+
+- A JWKS key verifies a token only when its `use`, if present, is `sig`, its `key_ops`, if present, include `verify`, and its `alg`, if present, is the token's `alg` (RFC 7517 §4.2-4.4). Without a `kid`, the set must hold exactly one such key.
+- A delegation-chain token is not an access token: a token whose `typ` is an AAT type (`aat+jwt`, `aat-pop+jwt`), or that carries `del_depth`, `del_max_depth`, `par_hash`, `status`, an AAT proof claim (`aat_id`, `aat_hash`, `aat_tool`, `aat_aud`, `hta`) or an `authorization_details` entry of type `agent_delegation` or `attenuating_agent_token`, is denied (`token.delegation`). It is checked only on its chain path, which reads the status list, the depth, the parent hash and the constraints.
+- The server refuses to start when an `[aat]` or `[asor]` trust anchor key, by RFC 7638 thumbprint, is also in an `[[oauth_issuers]]` JWKS. A Delegation Token is an `at+jwt` like any access token, so a shared key would let it verify as one.
 
 Rules for DPoP:
 
