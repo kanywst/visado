@@ -104,7 +104,7 @@ jobs:
         with:
           workspaces: fuzz
       - name: install cargo-fuzz
-        run: cargo install cargo-fuzz --locked
+        run: cargo install cargo-fuzz --version 0.13.2 --locked
       - name: seed the corpus from the conformance vectors
         run: ./fuzz/seed-corpus.sh
       # A short run per target: a regression gate, not a hunt. See fuzz/README.md.
