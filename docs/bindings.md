@@ -227,7 +227,7 @@ Every accepted proof is remembered for as long as it could be accepted, so a cop
 
 ## Reason codes
 
-A denial answers with the HTTP status below and `{"error": "<code>"}` (an RFC 9457 problem document for `httpsig.invalid`). The same code is the audit event's `reason`, the span's `visado.reason` and the chain view's `code`, except for `request.no_http_attributes`, `request.invalid_header` and `internal.clock`, which the gRPC service returns before the pipeline runs, with no audit event, span or chain view entry. Checks run in the order of the [design](design.md#request-pipeline) and stop at the first failure.
+A denial answers with the HTTP status below and `{"error": "<code>"}` (an RFC 9457 problem document for `httpsig.invalid`). The same code is the audit event's `reason`, the span's `visado.reason` and the chain view's `code`, except for `request.no_http_attributes`, `request.invalid_header` and `internal.clock`, which the gRPC service returns before the pipeline runs: they have an audit record and a chain view entry, with what is known of the request, but no span. Checks run in the order of the [design](design.md#request-pipeline) and stop at the first failure.
 
 | Status | Codes | From |
 | --- | --- | --- |
