@@ -16,6 +16,19 @@ A credential header longer than 16 KiB is denied (`credential.too_large`) before
 
 An inbound `Txn-Token` is accepted only from a workload in `internal_callers` that proved possession of a key for the request: WIT with WPT (`tth`), WIT with a signature that covers it, or mTLS. A bearer caller or an OAuth client cannot forward one (`txn.untrusted_hop`). When the request also carries a delegation chain that names its principal (asor `sub`, the `sub` of a token with an RFC 8693 `act` claim), that principal must be the forwarded token's `sub`, or the request is denied (`chain.principal_mismatch`); an AAT chain names no principal and is not compared.
 
+## Request target
+
+Before any credential is read, the request target must have one reading, since the PDP's resource, the WPT and HTTP signature audience, the DPoP `htu`, the `@path` of a signature and the tool of a bodiless AAT or asor call all take the path as received. Anything else is a 400 `request.unnormalized_path`:
+
+- a `#` anywhere in the target;
+- in the path (before `?`), a character outside RFC 3986 `pchar` and `/`: a backslash, a space, a control character or NUL, or a byte that is not ASCII;
+- `;`, which Tomcat, Jetty and other servers read as the start of path parameters, so `/public/..;/admin` reaches them as `/admin` and `/admin;jsessionid=x` as `/admin`;
+- a malformed percent-encoding, or one of an unreserved character (`%61`, `%2e`: RFC 3986 §2.3 says these should not be encoded), of `%` (double encoding such as `%252e`), `/`, `\`, `;` or a control character;
+- percent-encoded bytes that do not decode to UTF-8, overlong forms such as `%c0%ae` included;
+- dot segments (`.`, `..`) and empty segments (`//`).
+
+The query string is not checked.
+
 ## WIMSE
 
 ### WPT

@@ -341,6 +341,33 @@ async fn request_target_is_checked_first() {
         "/a//b",
         "/a/%2F/b",
         "/a/./b",
+        // Path parameters: Tomcat and Jetty read `..;` as `..` and drop
+        // `;jsessionid=x`.
+        "/public/..;/admin",
+        "/public/.;/admin",
+        "/admin;jsessionid=x",
+        "/admin%3bx",
+        // Double encoding, encoded unreserved characters, overlong UTF-8.
+        "/public/%252e%252e/admin",
+        "/%61dmin",
+        "/a%2Db",
+        "/public/%c0%ae%c0%ae/admin",
+        "/caf%C3",
+        "/a%zz",
+        "/a%2",
+        // Encoded and literal backslashes, NUL and control characters.
+        "/public/..%5cadmin",
+        "/public\\..\\admin",
+        "/a%00b",
+        "/a%0d%0ab",
+        "/a\u{0}b",
+        "/a\tb",
+        "/a b",
+        "/caf\u{e9}",
+        // A fragment reaches the PDP as the part before it.
+        "/public#/../admin",
+        "/public?x=1#frag",
+        "relative",
     ] {
         assert_eq!(
             denied(&gate.check(&input(path, &[]), NOW, "t").await),
@@ -348,6 +375,29 @@ async fn request_target_is_checked_first() {
             "{path}"
         );
     }
+    // Ordinary paths get past the target check to authentication.
+    for path in [
+        "/tickets",
+        "/tickets/",
+        "/a/b%20c",
+        "/files/caf%C3%A9",
+        "/a:b@c/!$&'()*+,=",
+        "/q?x=..;/%2e%25",
+    ] {
+        assert_eq!(
+            denied(&gate.check(&input(path, &[]), NOW, "t").await),
+            (401, "credential.missing"),
+            "{path}"
+        );
+    }
+    // The target is checked before any credential, so no consumer of the
+    // path (the resource id, the WPT `aud`, a DPoP `htu`, an HTTP signature
+    // `@path`, the bodiless AAT tool name) sees one that was refused.
+    let signed = wimse_call("agent-a", 1, "/public/..;/admin/roles", "t2", None, None);
+    assert_eq!(
+        denied(&gate.check(&signed, NOW, "t").await),
+        (400, "request.unnormalized_path")
+    );
 
     let mut no_scheme = input("/tickets", &[]);
     no_scheme.scheme = String::new();

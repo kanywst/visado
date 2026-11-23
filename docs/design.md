@@ -18,7 +18,7 @@ inbound request (via Envoy / Istio / agentgateway ext_authz)
 
 ### 1. Sanitize
 
-- Deny requests for authorities outside `allowed_authorities`, and paths with dot segments, encoded dots or slashes, or empty segments.
+- Deny requests for authorities outside `allowed_authorities`, and request targets an upstream could read differently from the path the PDP sees (`request.unnormalized_path`, listed in `docs/bindings.md`).
 - An inbound `Txn-Token` is accepted only from a workload listed in `internal_callers` that proved possession of a key for the request (WIT with WPT or HTTP signature, or mTLS). It is verified and forwarded unchanged. From anyone else it is denied (`txn.untrusted_hop`).
 - Never forward the inbound access token downstream (MCP security best practices, Txn-Token draft §13).
 

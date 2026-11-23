@@ -34,6 +34,10 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 - `visado-credentials`: a DPoP-bound access token from Keycloak is accepted. Keycloak writes `cnf` as `jkt` plus `kc-jkt-type` `DPoP`; that member is now allowed next to `jkt`. Any other `kc-jkt-type` (Keycloak's `ABCA` binds a client attestation key) or other `cnf` member is still `token.sender_constrained`.
 - `visado-chain-asor`: a `status` claim of the wrong shape (not a non-empty object, or a `status_list` without a non-negative integer `idx` and a non-empty string `uri`) is now `malformed` at parse, so `check()` and `decode()` reject it too.
 
+### Security
+
+- Request targets that an upstream could resolve differently from the path the PDP sees are now denied (`request.unnormalized_path`): `;` in the path (`/public/..;/admin`, `/admin;jsessionid=x` reach Tomcat and Jetty as `/admin`), double encoding (`%252e`), percent-encoded unreserved characters (`/%61dmin`), percent-encodings that are malformed or do not decode to UTF-8 (`%c0%ae`), encoded `;` and control characters, any character outside RFC 3986 `pchar` (backslash, space, NUL, control characters, non-ASCII), and a `#` anywhere in the target (`/public#/../admin` was authorized as `/public`). See `docs/bindings.md`.
+
 ## [0.3.0] - 2026-11-21
 
 Adds the remaining workload authentication methods (HTTP signatures, mTLS, JWT-SVID, DPoP-bound access tokens), asor and RFC 8693 `act` delegation chains, and a chain view; the lab runs on SPIRE-issued SVIDs and exercises every method through Envoy. Breaking: the server refuses to start with an empty `allowed_authorities`, and denies access tokens with an `act` claim unless `[act]` is configured. For library users, `RequestView`, `CheckInput`, `GateConfig` and `AccessToken` have new fields, `CheckInput::body` is bytes, and `Method` and `AuthError` have new variants.
