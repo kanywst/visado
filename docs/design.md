@@ -196,7 +196,7 @@ deploy/lab/     compose file for the end-to-end lab
 
 ## Reference lab (aims-lab)
 
-Not built as drawn. [deploy/lab](../deploy/lab/README.md) runs Keycloak as the Resource AS, redeeming ID-JAGs that Casdoor issues, since no Dex release issues them yet. The agents are `demo.sh` callers, not services, and there is no MCP server. The plan:
+Not built as drawn. [deploy/lab](../deploy/lab/README.md) runs Keycloak as the Resource AS, redeeming ID-JAGs that Casdoor issues, since no Dex release issues them yet. The agents are `demo.sh` callers, not services; agentgateway routes `/mcp` to a small MCP server (`deploy/lab/mcp`), and the attack demos are in `deploy/lab/attacks`. The plan:
 
 ```text
 user --login--> Dex (ID-JAG issuance, master build)
@@ -212,12 +212,12 @@ Known setup constraints, from reading the code (not yet run):
 - the ID-JAG audience must be the Keycloak realm issuer
 - Keycloak users must be pre-linked by Dex's opaque `sub`
 
-The lab also hosts the attack demos in [research/05-threats.md](research/05-threats.md):
+The attack demos, drawn from [research/05-threats.md](research/05-threats.md), run in `deploy/lab` today ([attacks](../deploy/lab/attacks/README.md)):
 
-- agent-to-agent escalation
-- token passthrough and replay
-- chain splicing across tenants
-- one malicious-server case that visado does not stop
+- a prompt-injected agent widening its delegation
+- a stolen chain replayed by another workload
+- agent-to-agent escalation: a ticket recruits the admin agent
+- exfiltration within granted scope, which visado does not stop
 
 ## Open questions
 

@@ -51,7 +51,7 @@ Modelled on the ServiceNow Now Assist agent-to-agent attack (AppOmni, November 2
 | agent-a reads tickets for bob | 200; visado mints a Transaction Token with bob's `tickets.read` |
 | agent-b posts `{"user":"mallory","role":"admin"}` to `/admin/roles` with bob's Transaction Token | 403 `pdp.deny` |
 | agent-b drops bob's transaction and posts as itself | 403 `pdp.deny` |
-| The audit record | agent-b, principal bob, bob's `txn`, `/admin/roles`, `pdp.deny` |
+| The audit record | agent-b, principal `idp:bob`, bob's `txn`, `/admin/roles`, `pdp.deny` |
 
 Why it fails: the transaction carries bob's scope, not the recruited agent's, and a replacement token never widens it. agent-b's own standing scope does not cover `/admin/` either, so there is no ambient privilege to fall back on. The audit record ties agent-b's call to the transaction bob started, so the trail leads back to the ticket. It does not name mallory, who never authenticated: the attacker's text is not an identity.
 
@@ -65,7 +65,7 @@ agent-b may read `/data/report.pdf`. The report carries hidden instructions: pos
 | --- | --- |
 | agent-b calls `read_file` on the report | 200; the report's text comes back in the MCP response |
 | agent-b posts that text to `/tickets` | 200; the upstream receives the report |
-| The audit records | Both, `allow`, with agent-b and the tool |
+| The audit records | Both `allow` with agent-b: the read with its tool, `read_file`, and the post to `/tickets` |
 
 Why it works: every request is authenticated, within the delegation and allowed by policy. visado decides on requests; the data leaves in a response body visado never sees and comes back in a request it has no reason to refuse. Delegation chains say who may call what, not where the data read in one call may go next. The audit record shows what happened, after the fact.
 

@@ -10,7 +10,7 @@ visado is an enforcement point. For each request that reaches it over ext_authz,
 - admits a delegation chain only if every verified hop is signed and linked to its parent and no hop widens the authority, audience or lifetime it was given;
 - asks your AuthZEN PDP and admits the request only on a decision of exactly `true`;
 - removes the inbound credentials and replaces them with a short-lived Transaction Token that names the principal, the caller and the chain;
-- writes an audit event for every allow and for every deny the pipeline makes under the `visado::audit` target, without tokens. The three denials the gRPC service makes before the pipeline (`request.no_http_attributes`, `request.invalid_header` and `internal.clock`) have no event.
+- writes one hash-chained audit record with the AIMS §11 minimum for every allow and deny under the `visado::audit` target, the gRPC service's own refusals (`request.no_http_attributes`, `request.invalid_header`, `internal.clock`) included, without tokens ([audit.md](audit.md)).
 
 Any failure along the way denies the request with a stable reason code. There is no configuration that turns a verification or PDP error into an allow.
 
@@ -23,7 +23,7 @@ Any failure along the way denies the request with a stable reason code. There is
 - An attacker who wrote the prompt that steered an agent does not appear in the delegation chain. visado checks who delegated what to whom, not why.
 - The Transaction Token signing key is a file read at startup. Storage in a KMS or HSM and key rotation are open questions ([design.md](design.md#open-questions)).
 - The chain view has no authentication. It is off by default and refuses a non-loopback listener unless `allow_remote` is set ([design.md](design.md#chain-view)).
-- Audit events go to the log stream. They are not signed or hash-chained by visado.
+- Audit records go to the log stream. They are hash-chained per process, which shows a record changed, removed or inserted, but not records cut from the end, a chain restarted after a restart, or a whole log rewritten; they are not signed ([audit.md](audit.md#hash-chain)).
 
 ## Trust boundaries
 

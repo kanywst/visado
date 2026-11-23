@@ -55,7 +55,7 @@ cargo test --workspace
 cargo run -p visado -- deploy/local/visado.toml
 ```
 
-To see it behind Envoy and agentgateway with a real PDP, run the [lab](deploy/lab/): `docker compose up -d --build && ./demo.sh` in `deploy/lab`. That runs OPA as the PDP; `docker compose -f compose.yaml -f compose.cerbos.yaml up -d --build` runs Cerbos instead. The Transaction Token conformance vectors in [conformance/](conformance/) can be used to test other implementations; the AAT vectors there are a copy of the suite from [tenuo-ai/tenuo](https://github.com/tenuo-ai/tenuo), and the asor vectors a copy of the set from [attenu-io/attenu-guard](https://github.com/attenu-io/attenu-guard).
+To see it behind Envoy and agentgateway with a real PDP, run the [lab](deploy/lab/): `docker compose up -d --build && docker compose run --rm --no-deps demo` in `deploy/lab`, with only Docker on the host. That runs OPA as the PDP, the MCP route and four attack demos ([deploy/lab/attacks](deploy/lab/attacks/README.md)); `docker compose -f compose.yaml -f compose.cerbos.yaml up -d --build` runs Cerbos instead. The Transaction Token conformance vectors in [conformance/](conformance/) can be used to test other implementations; the AAT vectors there are a copy of the suite from [tenuo-ai/tenuo](https://github.com/tenuo-ai/tenuo), and the asor vectors a copy of the set from [attenu-io/attenu-guard](https://github.com/attenu-io/attenu-guard).
 
 ## Documentation
 
