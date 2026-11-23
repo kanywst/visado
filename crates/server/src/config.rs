@@ -624,13 +624,13 @@ impl Config {
     }
 
     fn build(self, base: &Path) -> Result<Loaded, String> {
-        let anchors = self.chain_anchor_thumbprints(base)?;
         let private: PrivateJwk = read_json(&base.join(&self.signing_key.jwk_file))?;
         let signing_key = private
             .to_signing_key()
             .map_err(|e| format!("signing key: {e}"))?;
         let public_jwk = private.to_public();
 
+        let anchors = self.chain_anchor_thumbprints(base)?;
         let mut authenticator = Authenticator::new()
             .with_replay_limits(self.replay_capacity, self.max_wpt_lifetime)
             .with_signature_lifetime(self.max_signature_lifetime)
@@ -659,24 +659,7 @@ impl Config {
             }
             authenticator = authenticator.with_wit_issuer(wit);
         }
-        for issuer in self.oauth_issuers {
-            let jwks: jsonwebtoken::jwk::JwkSet = read_json(&base.join(&issuer.jwks_file))?;
-            for key in &jwks.keys {
-                let thumbprint = key.thumbprint(jsonwebtoken::jwk::ThumbprintHash::SHA256);
-                if let Some(anchor) = thumbprint.ok().and_then(|t| anchors.get(&t)) {
-                    return Err(format!(
-                        "oauth_issuers {}: a key in {} is also the {anchor} trust anchor key; a delegation token it signs would verify as an access token, so the two need different keys",
-                        issuer.issuer,
-                        issuer.jwks_file.display(),
-                    ));
-                }
-            }
-            let mut oauth = OAuthIssuer::new(issuer.issuer, issuer.audience, jwks);
-            if let Some(prefix) = issuer.subject_prefix {
-                oauth = oauth.with_subject_prefix(prefix);
-            }
-            authenticator = authenticator.with_oauth_issuer(oauth);
-        }
+        let authenticator = with_oauth_issuers(authenticator, self.oauth_issuers, &anchors, base)?;
         let mut authenticator = with_svid_bundles(authenticator, self.mtls, self.jwt_svid, base)?;
         let dpop_nonce_keys = if self.dpop.require_nonce {
             let (nonces, keys) = self.dpop.nonces(base)?;
@@ -802,6 +785,36 @@ fn read_nonce_key(path: &Path) -> Result<Vec<u8>, String> {
         ));
     }
     Ok(key)
+}
+
+/// Adds the OAuth issuers. A key that is also a chain trust anchor key
+/// (`anchors`, by RFC 7638 thumbprint) is refused: a delegation token it
+/// signs would verify as an access token.
+fn with_oauth_issuers(
+    mut authenticator: Authenticator,
+    issuers: Vec<OAuthIssuerConfig>,
+    anchors: &BTreeMap<String, String>,
+    base: &Path,
+) -> Result<Authenticator, String> {
+    for issuer in issuers {
+        let jwks: jsonwebtoken::jwk::JwkSet = read_json(&base.join(&issuer.jwks_file))?;
+        for key in &jwks.keys {
+            let thumbprint = key.thumbprint(jsonwebtoken::jwk::ThumbprintHash::SHA256);
+            if let Some(anchor) = thumbprint.ok().and_then(|t| anchors.get(&t)) {
+                return Err(format!(
+                    "oauth_issuers {}: a key in {} is also the {anchor} trust anchor key; a delegation token it signs would verify as an access token, so the two need different keys",
+                    issuer.issuer,
+                    issuer.jwks_file.display(),
+                ));
+            }
+        }
+        let mut oauth = OAuthIssuer::new(issuer.issuer, issuer.audience, jwks);
+        if let Some(prefix) = issuer.subject_prefix {
+            oauth = oauth.with_subject_prefix(prefix);
+        }
+        authenticator = authenticator.with_oauth_issuer(oauth);
+    }
+    Ok(authenticator)
 }
 
 /// Adds the SPIFFE trust bundles: X.509 CAs for mTLS and JWT keys for
