@@ -45,7 +45,7 @@ mod token;
 
 pub use claims::{Scope, TxnTokenClaims};
 pub use error::TxnTokenError;
-pub use keys::{KeySet, MIN_RSA_BITS};
+pub use keys::{KeySet, MIN_RSA_BITS, RSA_EXPONENT};
 pub use replace::{Replacement, check_replacement, replace};
 pub use request::{
     GRANT_TYPE_TOKEN_EXCHANGE, TOKEN_TYPE_REFRESH_TOKEN, TOKEN_TYPE_SELF_SIGNED,

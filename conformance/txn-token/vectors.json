@@ -211,6 +211,39 @@
         "n": "q5CYDfXEp2NuGKjqFebbMyY7KnAVkEhv2-12YHBgOHZVzKJb88HSm7VgIK_8ht1fBHgTu2mh31su1uKrfdGZtBl9XnNZ434hlxNhQqz20p83xkKJSwZbNUMlD1z6ViHt19nalC3EXX4sGrhIkgG6wMjJ2Jvp-fBqco0XBaJNRjk"
       },
       "kid": "rsa-1024"
+    },
+    {
+      "description": "e = 1: every value is its own signature",
+      "expect": "txn.invalid_key",
+      "jwk": {
+        "alg": "RS256",
+        "e": "AQ",
+        "kty": "RSA",
+        "n": "jRJcEQVrAtBL71411_2anAcw6aY9tOgl6R610B8DtQMPurpw_e_oCno3zx5FHxVmToWA57iKALw-8ie2YxefwPqPB-BvfNLClvFwRvR37NVJqFQzkuf-XZd6doHT2PytSuhm4fXR0SY2BM1wShQ06s8WkYTwooJf_kzXIulKPHA617JBuxQ1FHeMz1_GsFE7Inc08uYUv9YtN-hSPPGkjjhOLHoBtDpV3OXwvyFemM14ajQu-xJJVetRtHCH0omy_SAoiGEab85fQtOMNek4RsW2fH0g-iC38N3CAFvWNtIDKrOImWlqqOs9xHpRLw3vwl6hh5TZrOGBTM-12hUUiQ"
+      },
+      "kid": "rsa-e1"
+    },
+    {
+      "description": "e = 3: only e = 65537 is accepted",
+      "expect": "txn.invalid_key",
+      "jwk": {
+        "alg": "RS256",
+        "e": "Aw",
+        "kty": "RSA",
+        "n": "jRJcEQVrAtBL71411_2anAcw6aY9tOgl6R610B8DtQMPurpw_e_oCno3zx5FHxVmToWA57iKALw-8ie2YxefwPqPB-BvfNLClvFwRvR37NVJqFQzkuf-XZd6doHT2PytSuhm4fXR0SY2BM1wShQ06s8WkYTwooJf_kzXIulKPHA617JBuxQ1FHeMz1_GsFE7Inc08uYUv9YtN-hSPPGkjjhOLHoBtDpV3OXwvyFemM14ajQu-xJJVetRtHCH0omy_SAoiGEab85fQtOMNek4RsW2fH0g-iC38N3CAFvWNtIDKrOImWlqqOs9xHpRLw3vwl6hh5TZrOGBTM-12hUUiQ"
+      },
+      "kid": "rsa-e3"
+    },
+    {
+      "description": "an even e is not a valid RSA exponent",
+      "expect": "txn.invalid_key",
+      "jwk": {
+        "alg": "RS256",
+        "e": "AQAA",
+        "kty": "RSA",
+        "n": "jRJcEQVrAtBL71411_2anAcw6aY9tOgl6R610B8DtQMPurpw_e_oCno3zx5FHxVmToWA57iKALw-8ie2YxefwPqPB-BvfNLClvFwRvR37NVJqFQzkuf-XZd6doHT2PytSuhm4fXR0SY2BM1wShQ06s8WkYTwooJf_kzXIulKPHA617JBuxQ1FHeMz1_GsFE7Inc08uYUv9YtN-hSPPGkjjhOLHoBtDpV3OXwvyFemM14ajQu-xJJVetRtHCH0omy_SAoiGEab85fQtOMNek4RsW2fH0g-iC38N3CAFvWNtIDKrOImWlqqOs9xHpRLw3vwl6hh5TZrOGBTM-12hUUiQ"
+      },
+      "kid": "rsa-e-even"
     }
   ],
   "spec": "draft-ietf-oauth-transaction-tokens-11",

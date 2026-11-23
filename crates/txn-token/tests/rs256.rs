@@ -112,7 +112,7 @@ fn a_key_under_2048_bits_is_refused() {
     let (n, _) = public("rsa-2048.public.jwk.json");
     assert!(matches!(
         KeySet::new().with_rsa_key("no-e", &n, &[]),
-        Err(TxnTokenError::WeakKey)
+        Err(TxnTokenError::InvalidKey(_))
     ));
 }
 
@@ -147,4 +147,27 @@ fn other_rsa_algorithms_are_not_supported() {
             Err(TxnTokenError::UnsupportedAlg { .. })
         ));
     }
+}
+
+#[test]
+fn only_the_exponent_65537_is_accepted() {
+    let (n, e) = public("rsa-2048.public.jwk.json");
+    assert_eq!(e, [0x01, 0x00, 0x01]);
+    for bad in [
+        &[1][..],
+        &[3],
+        &[0x01, 0x00, 0x00],
+        &[0x01, 0x00, 0x03],
+        &[0x00, 0x01, 0x00, 0x01, 0x00],
+    ] {
+        assert!(
+            matches!(
+                KeySet::new().with_rsa_key("k", &n, bad),
+                Err(TxnTokenError::InvalidKey(_))
+            ),
+            "{bad:?}"
+        );
+    }
+    // Leading zero bytes do not change the value.
+    assert!(KeySet::new().with_rsa_key("k", &n, &[0, 1, 0, 1]).is_ok());
 }

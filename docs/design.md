@@ -114,7 +114,7 @@ To be proposed to the AuthZEN WG once it works end to end.
 
 Per draft-ietf-oauth-transaction-tokens-11:
 
-- Header `typ: txntoken+jwt`, signed with the trust domain's key: `Ed25519` or `ES256`, or `RS256` when `[signing_key]` names an RSA private JWK of at least 2048 bits (for recipients that verify RS256 only, such as kontxt). JWKS is published at `/.well-known/jwks.json`.
+- Header `typ: txntoken+jwt`, signed with the trust domain's key: `Ed25519` or `ES256`, or `RS256` when `[signing_key]` names an RSA private JWK of at least 2048 bits with the exponent 65537 (for recipients that verify RS256 only, such as kontxt). JWKS is published at `/.well-known/jwks.json`.
 - Claims:
   - `aud`: trust domain
   - `txn`: UUID, also the correlation id everywhere

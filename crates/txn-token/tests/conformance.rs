@@ -62,6 +62,13 @@ fn fixture(name: &str) -> String {
 }
 
 /// The public JWK of a test RSA key in `tests/fixtures`, with `alg`.
+/// The 2048-bit test key's public JWK with the exponent `e` instead of 65537.
+fn rsa_jwk_with_e(e: &[u8]) -> Value {
+    let mut jwk = rsa_jwk(2048);
+    jwk["e"] = json!(URL_SAFE_NO_PAD.encode(e));
+    jwk
+}
+
 fn rsa_jwk(bits: u32) -> Value {
     let mut jwk: Value =
         serde_json::from_str(&fixture(&format!("rsa-{bits}.public.jwk.json"))).expect("jwk");
@@ -185,7 +192,10 @@ fn build() -> Value {
             { "kid": "rsa", "jwk": rsa_jwk(2048) }
         ],
         "rejected_keys": [
-            { "kid": "rsa-1024", "jwk": rsa_jwk(1024), "description": "RSA keys under 2048 bits are refused", "expect": "txn.weak_key" }
+            { "kid": "rsa-1024", "jwk": rsa_jwk(1024), "description": "RSA keys under 2048 bits are refused", "expect": "txn.weak_key" },
+            { "kid": "rsa-e1", "jwk": rsa_jwk_with_e(&[1]), "description": "e = 1: every value is its own signature", "expect": "txn.invalid_key" },
+            { "kid": "rsa-e3", "jwk": rsa_jwk_with_e(&[3]), "description": "e = 3: only e = 65537 is accepted", "expect": "txn.invalid_key" },
+            { "kid": "rsa-e-even", "jwk": rsa_jwk_with_e(&[0x01, 0x00, 0x00]), "description": "an even e is not a valid RSA exponent", "expect": "txn.invalid_key" }
         ],
         "valid": valid,
         "negative": negative

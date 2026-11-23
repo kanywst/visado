@@ -70,7 +70,8 @@ impl KeySet {
     /// # Errors
     ///
     /// [`TxnTokenError::WeakKey`] if the modulus is shorter than
-    /// [`MIN_RSA_BITS`] or the exponent is empty.
+    /// [`MIN_RSA_BITS`]; [`TxnTokenError::InvalidKey`] if the exponent is not
+    /// [`RSA_EXPONENT`] (65537).
     pub fn with_rsa_key(
         mut self,
         kid: impl Into<String>,
@@ -116,17 +117,26 @@ impl KeySet {
     }
 }
 
+/// The only RSA public exponent accepted. Every mainstream library generates
+/// keys with it; `e = 1` would make every value its own signature, and small
+/// or even exponents are weak or not valid RSA.
+pub const RSA_EXPONENT: u32 = 65_537;
+
 /// Checks `n` and `e` and builds the verification key. The only way to make
 /// an [`RsaKey`], so every one in a [`KeySet`] or a signer has passed the
-/// size check.
+/// size and exponent checks.
 pub(crate) fn rsa(n: &[u8], e: &[u8]) -> Result<RsaKey, TxnTokenError> {
     let first = n.iter().position(|b| *b != 0).unwrap_or(n.len());
     let n = &n[first..];
     let bits = n.first().map_or(0, |top| {
         (n.len() - 1) * 8 + (8 - top.leading_zeros() as usize)
     });
-    if bits < MIN_RSA_BITS || e.iter().all(|b| *b == 0) {
+    if bits < MIN_RSA_BITS {
         return Err(TxnTokenError::WeakKey);
+    }
+    let first = e.iter().position(|b| *b != 0).unwrap_or(e.len());
+    if e[first..] != RSA_EXPONENT.to_be_bytes()[1..] {
+        return Err(TxnTokenError::InvalidKey("RSA exponent is not 65537"));
     }
     Ok(RsaKey {
         key: DecodingKey::from_rsa_raw_components(n, e),
