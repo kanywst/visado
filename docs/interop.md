@@ -69,6 +69,23 @@ The rows of SPEC-MAP.md "asor: known divergences and choices" where visado and a
 
 The full WIMSE list, with wimse-11 and wimse-12 (Cofide server checks, wit-wpt-go `oth`), is in [interop/wimse/README.md](../interop/wimse/README.md).
 
+### Reported upstream
+
+| Divergence | Report |
+| --- | --- |
+| txn-1 | [oauth-wg/oauth-transaction-tokens#375](https://github.com/oauth-wg/oauth-transaction-tokens/issues/375) |
+| txn-2 | [Atlas-Authorization/atlas-go#1](https://github.com/Atlas-Authorization/atlas-go/issues/1) |
+| txn-3 | [Atlas-Authorization/atlas-go#2](https://github.com/Atlas-Authorization/atlas-go/issues/2) |
+| txn-5 | [authgent/authgent#21](https://github.com/authgent/authgent/issues/21) (a blank scope is already invalid under RFC 6749 §3.3, so no spec issue) |
+| txn-6 | [oauth-wg/oauth-transaction-tokens#376](https://github.com/oauth-wg/oauth-transaction-tokens/issues/376) |
+| txn-7 | [oauth-wg/oauth-transaction-tokens#377](https://github.com/oauth-wg/oauth-transaction-tokens/issues/377) |
+| txn-9 | [aramase/kontxt#27](https://github.com/aramase/kontxt/issues/27) (reproduced with a Go test) |
+| wimse-4 | [strideynet/wit-wpt-go#1](https://github.com/strideynet/wit-wpt-go/issues/1); the missing WIT `exp` step in creds-03 §5.1.3: [ietf-wg-wimse/draft-ietf-wimse-s2s-protocol#425](https://github.com/ietf-wg-wimse/draft-ietf-wimse-s2s-protocol/issues/425) |
+| wimse-11 (README D9) | [cofide/wimse-s2s-httpsig-poc#22](https://github.com/cofide/wimse-s2s-httpsig-poc/issues/22) (the server does not verify the WIT signature) |
+| AAT run | [tenuo-ai/tenuo#1151](https://github.com/tenuo-ai/tenuo/issues/1151) |
+
+Not reported: txn-4 and txn-8 (both sides conform), asor-1 (the draft's §11 notes it), wimse-1 to wimse-3 (wit-wpt-go targets an earlier s2s-protocol), wimse-5 and wimse-6 (the SPIFFE WIT-SVID profile), wimse-7 (a PoC for s2s-protocol-07), wimse-9 and wimse-10 (fixed on the drafts' `main`).
+
 ## http-signature -09
 
 visado pins draft-ietf-wimse-http-signature-08. The -09 (20 November 2026) changes, per its Appendix B.1: a request may carry a server-generated nonce from `Accept-Signature` that meets the uniqueness and entropy rules (#369); CONNECT `@authority` follows RFC 9421 default-port omission (#419); editorial changes to the introduction and example nonces; and corrected cross-references to workload-creds (#422), which fixes this document's side of wimse-10. visado sends no `Accept-Signature` and does not handle CONNECT, so none of these changes its behaviour; the pin can move to -09 with a SPEC-MAP update.
