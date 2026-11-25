@@ -2488,7 +2488,7 @@ checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
 name = "visado"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -2522,7 +2522,7 @@ dependencies = [
 
 [[package]]
 name = "visado-authzen"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "axum",
  "reqwest",
@@ -2535,7 +2535,7 @@ dependencies = [
 
 [[package]]
 name = "visado-chain"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64 0.23.1",
  "hmac",
@@ -2548,7 +2548,7 @@ dependencies = [
 
 [[package]]
 name = "visado-chain-aat"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64 0.23.1",
  "proptest",
@@ -2560,7 +2560,7 @@ dependencies = [
 
 [[package]]
 name = "visado-chain-act"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "serde_json",
  "visado-chain",
@@ -2568,7 +2568,7 @@ dependencies = [
 
 [[package]]
 name = "visado-chain-asor"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "hmac",
  "miniz_oxide",
@@ -2582,7 +2582,7 @@ dependencies = [
 
 [[package]]
 name = "visado-credentials"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64 0.23.1",
  "jsonwebtoken",
@@ -2603,7 +2603,7 @@ dependencies = [
 
 [[package]]
 name = "visado-extauthz"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "envoy-types",
  "serde",
@@ -2629,7 +2629,7 @@ dependencies = [
 
 [[package]]
 name = "visado-interop"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64 0.23.1",
  "serde_json",
@@ -2648,7 +2648,7 @@ dependencies = [
 
 [[package]]
 name = "visado-testkit"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64 0.23.1",
  "jsonwebtoken",
@@ -2666,7 +2666,7 @@ dependencies = [
 
 [[package]]
 name = "visado-txn-token"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64 0.23.1",
  "jsonwebtoken",

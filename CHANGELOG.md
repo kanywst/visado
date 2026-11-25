@@ -4,6 +4,10 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-26
+
+Adds the format-neutral chain invariant engine and authority algebra, asor Token Status Lists, DPoP resource server nonces, RS256 Transaction Tokens, gRPC over TLS and the audit record; the lab adds agentgateway, Cerbos, Keycloak, Casdoor ID-JAGs, an MCP route and four attack demos. Breaking: `pdp.endpoint` must be `https` or loopback `http` unless `allow_insecure_http` is set, a non-loopback `grpc_listen` needs `[grpc_tls]` with a client CA or the top-level `grpc_reachable_only_by_proxy` (moved out of `[mtls]`), and the gate also denies chains whose child widens its parent's `aud` or that are longer than 32 hops. For library users, `ReplayCache::check_and_record` takes an owner and returns `Recorded`, `Hop` has `principal` and `status`, `GateConfig::signing_key` is a `TxnSigningKey`, `Outcome` carries headers, and `AuthError` has new variants.
+
 ### Added
 
 - `[grpc_tls]` serves the ext_authz gRPC listener over TLS (`cert_file`, `key_file`, PEM). With `client_ca_file`, a client without a certificate from one of those CAs is refused in the handshake. A certificate, key or CA that does not load stops startup.
@@ -170,7 +174,8 @@ First release. Pre-alpha: delegation-chain verification is not implemented yet.
 - OAuth issuers can carry a `subject_prefix`; with more than one issuer, every issuer needs one.
 - Sender-constrained access tokens (`cnf`) are rejected until DPoP and mTLS binding exist. `scp` is read when `scope` is absent, and `nbf` is checked.
 
-[Unreleased]: https://github.com/kanywst/visado/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/kanywst/visado/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/kanywst/visado/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/kanywst/visado/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kanywst/visado/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kanywst/visado/releases/tag/v0.1.0
