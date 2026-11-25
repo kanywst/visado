@@ -56,6 +56,16 @@ required = false
 audiences = ["http://tools.td.example"]
 trust_anchors = [{ issuer = "https://aat.td.example", jwk_file = "keys/aat-anchor.jwk.json" }]
 
+# RFC 8693 delegation: Keycloak (token-exchange-delegation) issues agent-a a
+# token for bob with an act claim naming agent-a's service account user. Its
+# act.sub is that user's ID, fixed in keycloak/realm.json, which visado binds
+# to the client agent-a authenticates as.
+[act]
+required = false
+
+[act.actors]
+"7f3c2a10-5b4e-4d8a-9c61-0a9e5d2b7c41" = "keycloak:agent-a"
+
 [mtls]
 trust_bundles = [{ trust_domain = "td.example", ca_file = "spire/x509-bundle.pem" }]
 # agentgateway never sends a peer certificate, so only Envoy's mTLS listener
