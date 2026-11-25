@@ -4,13 +4,13 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
-## [0.4.0] - 2026-11-26
-
-Adds the format-neutral chain invariant engine and authority algebra, asor Token Status Lists, DPoP resource server nonces, RS256 Transaction Tokens, gRPC over TLS and the audit record; the lab adds agentgateway, Cerbos, Keycloak, Casdoor ID-JAGs, an MCP route and four attack demos. Breaking: `pdp.endpoint` must be `https` or loopback `http` unless `allow_insecure_http` is set, a non-loopback `grpc_listen` needs `[grpc_tls]` with a client CA or the top-level `grpc_reachable_only_by_proxy` (moved out of `[mtls]`), and the gate also denies chains whose child widens its parent's `aud` or that are longer than 32 hops. For library users, `ReplayCache::check_and_record` takes an owner and returns `Recorded`, `Hop` has `principal` and `status`, `GateConfig::signing_key` is a `TxnSigningKey`, `Outcome` carries headers, and `AuthError` has new variants.
-
 ### Added
 
 - `deploy/lab`: Keycloak issues RFC 8693 `act` tokens (preview `token-exchange-delegation`). bob consents to agent-a acting for him, agent-a exchanges his token for one whose `act` names agent-a, and visado's `[act]` binds that actor to the client `keycloak:agent-a`. `demo.sh` checks the `may_act` and `act` claims, an allow, a PDP deny and a delegated bearer token (`chain.unbound_caller`).
+
+## [0.4.0] - 2026-11-26
+
+Adds the format-neutral chain invariant engine and authority algebra, asor Token Status Lists, DPoP resource server nonces, RS256 Transaction Tokens, gRPC over TLS and the audit record; the lab adds agentgateway, Cerbos, Keycloak, Casdoor ID-JAGs, an MCP route and four attack demos. Breaking: `pdp.endpoint` must be `https` or loopback `http` unless `allow_insecure_http` is set, a non-loopback `grpc_listen` needs `[grpc_tls]` with a client CA or the top-level `grpc_reachable_only_by_proxy` (moved out of `[mtls]`), and the gate also denies chains whose child widens its parent's `aud` or that are longer than 32 hops. For library users, `ReplayCache::check_and_record` takes an owner and returns `Recorded`, `Hop` has `principal` and `status`, `GateConfig::signing_key` is a `TxnSigningKey`, `Outcome` carries headers, and `AuthError` has new variants.
 
 ### Added
 
