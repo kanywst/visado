@@ -10,6 +10,10 @@ Adds the format-neutral chain invariant engine and authority algebra, asor Token
 
 ### Added
 
+- `deploy/lab`: Keycloak issues RFC 8693 `act` tokens (preview `token-exchange-delegation`). bob consents to agent-a acting for him, agent-a exchanges his token for one whose `act` names agent-a, and visado's `[act]` binds that actor to the client `keycloak:agent-a`. `demo.sh` checks the `may_act` and `act` claims, an allow, a PDP deny and a delegated bearer token (`chain.unbound_caller`).
+
+### Added
+
 - `[grpc_tls]` serves the ext_authz gRPC listener over TLS (`cert_file`, `key_file`, PEM). With `client_ca_file`, a client without a certificate from one of those CAs is refused in the handshake. A certificate, key or CA that does not load stops startup.
 - `visado-txn-token` verifies `RS256` Transaction Tokens: `KeySet::with_rsa_key` and `with_unnamed_rsa_key` take an RSA public key of at least 2048 bits (`MIN_RSA_BITS`; a shorter one is `txn.weak_key`). Found by the interop run against kontxt, which signs RS256 only.
 - `RS256` minting: `TxnSigningKey` holds an `Ed25519`/`ES256` key or an RSA key from a private JWK (`TxnSigningKey::from_rsa_jwk`, at least 2048 bits; `txn.invalid_key` for an unusable one), and `mint_with` signs with it. `[signing_key]` in the server file may name an RSA private JWK; the gate then mints RS256 and serves the RSA public key in its JWKS. `GateConfig::signing_key` is now a `TxnSigningKey` (a `wimsey_jose::SigningKey` converts with `into()`).

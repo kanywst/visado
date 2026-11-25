@@ -19,6 +19,54 @@
         "include.in.token.scope": "true",
         "display.on.consent.screen": "false"
       }
+    },
+    {
+      "name": "delegation:client",
+      "description": "OpenID Connect scope for agent/client token exchange delegation",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "parameterized.scope.type": "client-delegation",
+        "display.on.consent.screen": "true",
+        "always.display.consent": "true",
+        "is.parameterized.scope": "true",
+        "consent.screen.text": "${clientDelegationScopeConsentText}"
+      },
+      "protocolMappers": [
+        {
+          "name": "client may_act sub",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-parameterized-scope-client-sub-mapper",
+          "config": {
+            "id.token.claim": "true",
+            "introspection.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "may_act.sub",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "client may_act client_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-parameterized-scope-mapper",
+          "config": {
+            "id.token.claim": "true",
+            "introspection.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "may_act.client_id",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "client delegation audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-parameterized-scope-audience-mapper",
+          "config": {
+            "introspection.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
     }
   ],
   "clients": [
@@ -55,7 +103,27 @@
       ],
       "attributes": {
         "oauth2.jwt.authorization.grant.enabled": "true",
-        "oauth2.jwt.authorization.grant.idp": "casdoor"
+        "oauth2.jwt.authorization.grant.idp": "casdoor",
+        "standard.token.exchange.enabled": "true"
+      }
+    },
+    {
+      "clientId": "lab-app",
+      "name": "lab-app",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "consentRequired": true,
+      "fullScopeAllowed": false,
+      "optionalClientScopes": [
+        "delegation:client"
+      ],
+      "redirectUris": [
+        "http://localhost/callback"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
       }
     }
   ],
@@ -86,7 +154,21 @@
       "email": "bob@td.example",
       "emailVerified": true,
       "firstName": "Bob",
-      "lastName": "Lab"
+      "lastName": "Lab",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "bob-lab-password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "7f3c2a10-5b4e-4d8a-9c61-0a9e5d2b7c41",
+      "username": "service-account-agent-a",
+      "enabled": true,
+      "serviceAccountClientId": "agent-a"
     }
-  ]
+  ],
+  "adminPermissionsEnabled": true
 }

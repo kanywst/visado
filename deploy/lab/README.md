@@ -1,6 +1,6 @@
 # Lab
 
-Envoy and [agentgateway](https://agentgateway.dev/) call visado through ext_authz. visado asks [OPA with the AuthZEN plugin](https://github.com/kanywst/opa-authzen-plugin) (or [Cerbos](#a-second-pdp-cerbos)), and allowed requests reach an echo server that returns the headers it received. [SPIRE](https://spiffe.io/) v1.16.0 issues the workloads' WITs, X.509-SVIDs and JWT-SVIDs. [Keycloak](https://www.keycloak.org/) 26.8.2, the resource authorization server, issues OAuth access tokens, bearer and DPoP-bound, and redeems ID-JAGs that [Casdoor](https://casdoor.org/) v4.26.0 issues for the user.
+Envoy and [agentgateway](https://agentgateway.dev/) call visado through ext_authz. visado asks [OPA with the AuthZEN plugin](https://github.com/kanywst/opa-authzen-plugin) (or [Cerbos](#a-second-pdp-cerbos)), and allowed requests reach an echo server that returns the headers it received. [SPIRE](https://spiffe.io/) v1.16.0 issues the workloads' WITs, X.509-SVIDs and JWT-SVIDs. [Keycloak](https://www.keycloak.org/) 26.8.2, the resource authorization server, issues OAuth access tokens, bearer and DPoP-bound, redeems ID-JAGs that [Casdoor](https://casdoor.org/) v4.26.0 issues for the user, and issues RFC 8693 delegated tokens whose `act` claim names agent-a.
 
 Envoy listens on two ports: `10000` (plain HTTP) and `10443` (mTLS). agentgateway v1.7.0 listens on `10001` (plain HTTP) in front of the same upstream, and in front of a real MCP server on `/mcp`.
 
@@ -59,6 +59,7 @@ Keycloak 26.8.2 (`start-dev`) imports the `lab` realm from `keycloak/realm.json`
 
 - `keycloak-jwks` runs before visado. It waits for the realm, fetches its JWKS and keeps the `sig` keys (Keycloak also lists an `RSA-OAEP` encryption key). `visado.toml` trusts them as a second `[[oauth_issuers]]` entry; with two issuers each has a `subject_prefix` (`idp:`, `keycloak:`). visado reads the keys at startup, so restart it after Keycloak rotates its key.
 - A token request with a `DPoP` header gets a DPoP-bound token (`token_type` `DPoP`). `lab_methods token-proof` makes the proof for the token endpoint with a fixed ES256 key, and `lab_methods dpop-with` the proof for the request to Envoy with the same key. Keycloak writes `cnf` as `{"jkt": ..., "kc-jkt-type": "DPoP"}`; visado accepts that `kc-jkt-type` next to `jkt`.
+- RFC 8693 delegation with the preview features `token-exchange-delegation` and `parameterized-scopes`. The public client `lab-app` requires consent; bob signs in to it with the scope `delegation:client:agent-a` and approves the delegation, and his access token gets `may_act` naming agent-a (its service account user and `client_id`). agent-a exchanges that token, with its own `client_credentials` token as the `actor_token`, for a token whose `sub` is bob and whose `act` names agent-a. Keycloak only adds `may_act` when the actor holds the `delegate` scope on Users through fine-grained admin permissions (FGAP V2), which a realm import cannot create, so `keycloak-delegate` adds that permission through the admin API before visado starts. `realm.json` fixes the ID of agent-a's service account user, which is the `act.sub`, and `[act.actors]` in `visado.toml` binds it to the caller `keycloak:agent-a`.
 - `agent-a` may also use the JWT authorization grant (RFC 7523) with assertions from the identity provider `casdoor`, which Keycloak 26.8 checks as an ID-JAG when the assertion's `typ` is `oauth-id-jag+jwt` (the experimental feature `identity-assertion-jwt`, turned on in `compose.yaml`). Keycloak refuses an ID-JAG it has already redeemed.
 - The client secret, the admin password and the realm are demo values. `start-dev` keeps the realm in a database inside the container: a new container imports it again, a restarted one keeps it.
 
@@ -74,7 +75,6 @@ Casdoor v4.26.0 is bob's identity provider. It issues ID-JAGs (draft-ietf-oauth-
 ### Not in the lab yet
 
 - Dex issuing ID-JAGs: implemented on Dex's `master` ([dexidp/dex#4611](https://github.com/dexidp/dex/pull/4611)), not in a release (v2.46.1 is the latest). Casdoor plays that role until a Dex release has it.
-- RFC 8693 `act` chains from Keycloak: Keycloak 26.8 adds `act` in token exchange only with the preview feature `token-exchange-delegation`, which needs a `may_act` claim in the subject token from a user's consent to a delegation scope and fine-grained admin permissions. The lab does not set that up.
 
 `visado.toml` sets `[dpop] require_nonce = true`, so every DPoP proof must carry a nonce visado issued (RFC 9449 §9). The lab runs one visado, so the nonce key is made at startup.
 
@@ -123,6 +123,11 @@ Casdoor v4.26.0 is bob's identity provider. It issues ID-JAGs (draft-ietf-oauth-
 | ID-JAG: bob's Keycloak token through agent-a, with its DPoP proof and visado's nonce | 200 |
 | ID-JAG: the same token on the admin API | 403 from the PDP: no `roles.write` |
 | ID-JAG: the same token as `Bearer` | 401 `token.dpop_bound` |
+| Keycloak: bob signs in to lab-app and consents to agent-a acting for him | `may_act` names agent-a |
+| Keycloak: agent-a exchanges bob's token, with a DPoP proof | A token for bob whose `act.sub` is agent-a's service account user |
+| act: agent-a for bob, with its DPoP proof | 200 |
+| act: the same token on the admin API | 403 from the PDP: no `roles.write` |
+| act: a delegated token exchanged without a proof, as `Bearer` | 403 `chain.unbound_caller` |
 
 ## agentgateway
 

@@ -60,6 +60,7 @@ services:
       jaeger: { condition: service_started }
       wit-config: { condition: service_completed_successfully }
       keycloak-jwks: { condition: service_completed_successfully }
+      keycloak-delegate: { condition: service_completed_successfully }
       casdoor-link: { condition: service_completed_successfully }
 
   # SPIRE v1.16.0 with experimental WIT-SVIDs. The agent attests with a join
@@ -140,8 +141,12 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.8.2
     # identity-assertion-jwt (experimental) lets the JWT authorization grant
-    # (RFC 7523) take an ID-JAG from Casdoor.
-    command: ["start-dev", "--import-realm", "--features=identity-assertion-jwt"]
+    # (RFC 7523) take an ID-JAG from Casdoor. token-exchange-delegation
+    # (preview, with parameterized-scopes) issues RFC 8693 act claims.
+    command:
+      - start-dev
+      - --import-realm
+      - --features=identity-assertion-jwt,token-exchange-delegation,parameterized-scopes
     environment:
       KC_HOSTNAME: http://keycloak.td.example:8180
       # Demo credentials, used by casdoor-link.
@@ -160,6 +165,18 @@ services:
     volumes:
       - ./keycloak/jwks.sh:/lab/jwks.sh:ro
       - keycloak-jwks:/out
+    depends_on:
+      keycloak: { condition: service_started }
+
+  # Grants agent-a the FGAP V2 delegate permission, so that Keycloak puts
+  # may_act in a user's token for it.
+  keycloak-delegate:
+    build: ./spire
+    command: ["/lab/delegate.sh"]
+    environment:
+      KEYCLOAK_ADMIN_PASSWORD: admin-lab-password
+    volumes:
+      - ./keycloak/delegate.sh:/lab/delegate.sh:ro
     depends_on:
       keycloak: { condition: service_started }
 

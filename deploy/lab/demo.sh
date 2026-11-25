@@ -425,6 +425,48 @@ call 200 "ID-JAG: bob's token through agent-a, with its proof" /tickets dpop_wit
 call 403/pdp.deny "ID-JAG: bob's token on the admin API" /admin/roles dpop_with /admin/roles "$kc_jag" --nonce "$kc_nonce"
 call 401/token.dpop_bound "ID-JAG: bob's token sent as Bearer" /tickets dpop_with /tickets "$kc_jag" --bearer
 
+# RFC 8693 delegation (Keycloak's preview token-exchange-delegation): bob
+# signs in to lab-app at Keycloak asking for delegation:client:agent-a and
+# consents, so his token carries may_act naming agent-a. agent-a exchanges it
+# with its own token as the actor_token for a token that names bob, with an
+# act claim naming agent-a's service account user, which visado's [act.actors]
+# binds to the client keycloak:agent-a.
+kc_curl() { curl -s --max-time 30 --connect-to "keycloak.td.example:8180:$kc_at" "$@"; }
+# The first form action in a Keycloak page, made absolute.
+form_action() { grep -o 'action="[^"]*"' | head -1 | sed "s/^action=\"//; s/\"\$//; s/&amp;/\\&/g; s|^/|$KC/|"; }
+kc_login() {
+  local jar verifier challenge action location
+  jar=$(mktemp)
+  verifier=$(openssl rand -hex 32)
+  challenge=$(printf %s "$verifier" | openssl dgst -sha256 -binary | base64 | tr '+/' '-_' | tr -d '=')
+  action=$(kc_curl -c "$jar" -b "$jar" -G "$KC/realms/lab/protocol/openid-connect/auth" \
+    -d client_id=lab-app -d response_type=code -d redirect_uri=http://localhost/callback \
+    --data-urlencode "scope=openid delegation:client:agent-a" \
+    -d code_challenge="$challenge" -d code_challenge_method=S256 | form_action)
+  action=$(kc_curl -L -c "$jar" -b "$jar" -d username=bob -d password=bob-lab-password "$action" | form_action)
+  location=$(kc_curl -c "$jar" -b "$jar" -o /dev/null -w '%{redirect_url}' -d accept=Yes "$action")
+  rm -f "$jar"
+  kc_curl -d grant_type=authorization_code -d client_id=lab-app -d redirect_uri=http://localhost/callback \
+    -d code_verifier="$verifier" --data-urlencode "code=$(sed -n 's/.*[?&]code=\([^&]*\).*/\1/p' <<<"$location")" \
+    "$KC_TOKEN" | jq -r '.access_token // empty'
+}
+delegate() {
+  kc_curl -u agent-a:agent-a-lab-secret -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
+    -d subject_token="$1" -d subject_token_type=urn:ietf:params:oauth:token-type:access_token \
+    -d actor_token="$kc_bearer" -d actor_token_type=urn:ietf:params:oauth:token-type:access_token \
+    "${@:2}" "$KC_TOKEN" | jq -r '.access_token // empty'
+}
+claims() { jq -rR "split(\".\")[1] | gsub(\"-\"; \"+\") | gsub(\"_\"; \"/\") | @base64d | fromjson | $1" <<<"$2" 2>/dev/null; }
+kc_subject=$(kc_login)
+expect "Keycloak: bob consents, may_act names agent-a" "$(claims '.may_act.client_id' "$kc_subject")" agent-a
+kc_act=$(delegate "$kc_subject" -H "DPoP: $("$idp_bin/lab_methods" token-proof "$KC_TOKEN")")
+kc_act_bearer=$(delegate "$kc_subject")
+expect "Keycloak: delegated token for bob, act is agent-a" "$(claims '"\(.azp) \(.act.sub)"' "$kc_act")" "agent-a 7f3c2a10-5b4e-4d8a-9c61-0a9e5d2b7c41"
+expect "Keycloak: the delegated token names bob" "$(claims .sub "$kc_act")" "$(claims .sub "$kc_jag")"
+call 200 "act: agent-a for bob, with its proof" /tickets dpop_with /tickets "$kc_act" --nonce "$kc_nonce"
+call 403/pdp.deny "act: agent-a for bob on the admin API" /admin/roles dpop_with /admin/roles "$kc_act" --nonce "$kc_nonce"
+call 403/chain.unbound_caller "act: delegated bearer token (no proof)" /tickets bearer "$kc_act_bearer"
+
 # agentgateway: the same visado behind the other front proxy. Its extAuthz
 # policy sends the host, path, method, headers and raw body over gRPC; a
 # subset of the scenarios above runs through it.
